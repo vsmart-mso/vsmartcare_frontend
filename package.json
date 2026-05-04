@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/sarabun": "^5.2.8",
     "@tanstack/vue-query": "^5.99.0",
     "@vueuse/core": "^14.2.1",
     "ofetch": "^1.5.1",

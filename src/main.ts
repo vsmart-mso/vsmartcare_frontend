@@ -1,17 +1,27 @@
+// ============================================================
+// Font: Sarabun — โหลดจาก @fontsource/sarabun (self-hosted)
+// Vite จะ bundle ไฟล์ .woff2 พร้อมกับแอปโดยอัตโนมัติ
+// ============================================================
+import '@fontsource/sarabun/300.css' // น้ำหนัก Light
+import '@fontsource/sarabun/400.css' // น้ำหนัก Regular (ปกติ)
+import '@fontsource/sarabun/500.css' // น้ำหนัก Medium
+import '@fontsource/sarabun/600.css' // น้ำหนัก SemiBold
+import '@fontsource/sarabun/700.css' // น้ำหนัก Bold
+
+// Tailwind CSS (global styles)
+import './style.css'
+
 import { createApp } from 'vue'
 import App from './App.vue'
 
-// router
+// Vue Router — จัดการเส้นทาง URL
 import router from '@/router'
 
-// pinia
+// Pinia — State management (เก็บข้อมูล user, token ฯลฯ)
 import { createPinia } from 'pinia'
 
-// vue query
+// TanStack Vue Query — จัดการ server state และ cache API responses
 import { VueQueryPlugin } from '@tanstack/vue-query'
-
-// tailwind css
-import './style.css'
 
 const app = createApp(App)
 
