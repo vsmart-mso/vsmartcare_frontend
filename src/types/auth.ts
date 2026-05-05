@@ -10,7 +10,8 @@ export interface ThaiDUser {
   title: string     // คำนำหน้า เช่น "นาย", "นาง"
   fname: string     // ชื่อ
   lname: string     // นามสกุล
-  dob: string       // วันเกิด รูปแบบ YYYY-MM-DD เช่น "1990-05-15"
+  /** จาก ThaID userinfo อาจไม่มี — ใช้ '' ถ้าไม่ได้รับ */
+  dob?: string
 }
 
 // ข้อมูลผู้ใช้ที่ได้กลับมาจากการยืนยันตัวตนด้วย DGA (Face Recognition)

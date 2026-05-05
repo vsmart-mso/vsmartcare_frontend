@@ -2,7 +2,9 @@
 // <script setup> คือรูปแบบใหม่ของ Vue 3 (Composition API)
 // โค้ดในนี้ทำงานครั้งเดียวตอน component ถูกสร้าง
 
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { redirectBrowserToThaIDLogin } from '@/api/auth'
 
 // import โลโก้จาก src/assets/ — Vite จะ optimize ไฟล์ให้อัตโนมัติ
 import logoMSDHS from '@/assets/logo-msdhs.png'
@@ -10,10 +12,20 @@ import logoMSDHS from '@/assets/logo-msdhs.png'
 // useRouter() ดึง router instance มาใช้สำหรับเปลี่ยนหน้า
 const router = useRouter()
 
-// ฟังก์ชันเมื่อกดปุ่ม ThaID
-function handleThaID() {
-  // TODO: เชื่อมกับ ThaID OAuth จริงๆ ผ่าน authApi.getThaiDOAuthUrl()
-  router.push({ name: 'pdpa' })
+const thaidError = ref<string | null>(null)
+const thaidLoading = ref(false)
+
+/** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
+async function handleThaID() {
+  if (thaidLoading.value) return
+  thaidError.value = null
+  thaidLoading.value = true
+  try {
+    await redirectBrowserToThaIDLogin(router)
+  } catch (e: unknown) {
+    thaidLoading.value = false
+    thaidError.value = e instanceof Error ? e.message : 'เริ่มล็อกอิน ThaiD ไม่สำเร็จ'
+  }
 }
 
 // ฟังก์ชันเมื่อกดปุ่ม ทางรัฐ
@@ -100,8 +112,10 @@ function handleTangRath() {
             active:scale-[0.98] = ขยับเล็กน้อยเมื่อกด ให้ความรู้สึก tactile บนมือถือ
           -->
           <button
+            type="button"
+            :disabled="thaidLoading"
             @click="handleThaID"
-            class="group w-full flex items-center gap-4 bg-white rounded-2xl border-2 border-blue-200 p-4 text-left shadow-sm transition-all duration-150 hover:border-blue-400 hover:shadow-md active:scale-[0.98] active:bg-blue-50"
+            class="group w-full flex items-center gap-4 bg-white rounded-2xl border-2 border-blue-200 p-4 text-left shadow-sm transition-all duration-150 hover:border-blue-400 hover:shadow-md active:scale-[0.98] active:bg-blue-50 disabled:opacity-60 disabled:pointer-events-none"
             aria-label="เข้าสู่ระบบด้วย ThaID"
           >
             <!-- Badge โลโก้ ThaID -->
@@ -117,7 +131,7 @@ function handleTangRath() {
                 เข้าสู่ระบบด้วย ThaID
               </p>
               <p class="text-[13px] text-slate-500 mt-0.5 leading-snug">
-                ยืนยันตัวตนด้วย PIN 6 หลัก
+                ยืนยันตัวตนด้วยระบบ ThaID
               </p>
             </div>
 
@@ -133,6 +147,14 @@ function handleTangRath() {
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
+
+          <p
+            v-if="thaidError"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800"
+            role="alert"
+          >
+            {{ thaidError }}
+          </p>
 
           <!-- เส้นคั่น "หรือ" -->
           <div class="flex items-center gap-3 px-1" aria-hidden="true">

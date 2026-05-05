@@ -5,7 +5,7 @@ import { ofetch } from 'ofetch'
 
 // อ่าน URL ของ FastAPI จาก environment variable
 // ถ้าไม่ได้กำหนด ให้ใช้ localhost:8000 เป็นค่าตั้งต้น (สำหรับ dev)
-const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const baseURL = import.meta.env.VITE_API_URL 
 
 export const apiClient = ofetch.create({
   baseURL,
@@ -19,14 +19,16 @@ export const apiClient = ofetch.create({
   // onRequest ทำงานก่อน request ทุกครั้ง (เรียกว่า "interceptor")
   // ใช้สำหรับแนบ JWT token อัตโนมัติ
   onRequest({ options }) {
-    const token = localStorage.getItem('auth_token') // อ่าน token จาก browser storage
-    if (token) {
-      // สร้าง Headers object จาก headers เดิม แล้วเพิ่ม Authorization เข้าไป
-      // ใช้ new Headers() + .set() แทนการ spread {} เพราะ TypeScript กำหนดให้ใช้ Headers API
-      const headers = new Headers(options.headers as HeadersInit | undefined)
-      headers.set('Authorization', `Bearer ${token}`) // รูปแบบมาตรฐาน JWT
-      options.headers = headers
+    const headers = new Headers(options.headers as HeadersInit | undefined)
+    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
+    if (bffKey) {
+      headers.set('X-API-Key', bffKey)
     }
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+    options.headers = headers
   },
 
   // onResponseError ทำงานอัตโนมัติเมื่อ server ตอบกลับมาเป็น error

@@ -3,6 +3,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -10,6 +11,18 @@ const routes: RouteRecordRaw[] = [
     name: 'login',         // ชื่อ route (ใช้ router.push({ name: 'login' }) แทนการพิมพ์ path)
     component: () => import('@/views/Login.vue'), // lazy load — โหลดไฟล์เมื่อต้องการจริงๆ
     meta: { requiresGuest: true }, // หน้านี้สำหรับคนที่ยังไม่ได้ Login เท่านั้น
+  },
+  {
+    path: '/login/thaid/return',
+    name: 'login-thaid-return',
+    component: () => import('@/views/login/LoginThaIDReturnPage.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/login/thaid/dev-mock',
+    name: 'login-thaid-dev-mock',
+    component: () => import('@/views/login/LoginThaIDDevMockPage.vue'),
+    meta: { public: true },
   },
   {
     path: '/pdpa',
@@ -43,7 +56,15 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }), // เมื่อเปลี่ยนหน้า ให้ scroll กลับขึ้นบนสุดเสมอ
 })
 
-// Navigation Guards จะเพิ่มที่นี่เมื่อ Auth พร้อม
-// ตัวอย่าง: ถ้า route มี requiresAuth: true และยังไม่ Login → redirect ไป '/'
+router.beforeEach((to) => {
+  const auth = useAuthStore()
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { name: 'login' }
+  }
+  if (to.meta.requiresGuest && auth.isAuthenticated) {
+    return { name: 'pdpa' }
+  }
+  return true
+})
 
 export default router

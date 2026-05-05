@@ -10,17 +10,15 @@
 
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { authApi } from '@/api/auth'
+import { authApi, redirectBrowserToThaIDLogin } from '@/api/auth'
 
 export function useAuth() {
   const router = useRouter()           // ใช้เปลี่ยนหน้า
   const authStore = useAuthStore()     // ดึง Store กลางมาใช้
 
-  // พาผู้ใช้ไปหน้า Login ของ ThaID
-  // ขั้นตอน: ถาม FastAPI ว่า URL ของ ThaID คืออะไร → redirect ไปที่นั่น
+  /** เริ่มล็อกอิน ThaiD (จริง = redirect ไป imauth — mock = ไปหน้าจำลอง dev) */
   async function redirectToThaID() {
-    const response = await authApi.getThaiDOAuthUrl()
-    window.location.href = response.data.url // redirect ออกจากเว็บเราไป ThaID
+    await redirectBrowserToThaIDLogin(router)
   }
 
   // ออกจากระบบ
