@@ -8,5 +8,11 @@
 //   import { apiClient, authApi } from '@/api'
 
 export { apiClient } from './client'
-export { authApi } from './auth'
-export type { ThaiDCallbackPayload, DGAVerifyPayload, AuthTokenResponse } from './auth'
+export { authApi, redirectBrowserToThaIDLogin } from './auth'
+export type {
+  DGAVerifyPayload,
+  AuthTokenResponse,
+  ThaIDLoginStartResponse,
+  ThaIDLoginStatusResponse,
+  MeResponse,
+} from './auth'
