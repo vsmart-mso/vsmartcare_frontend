@@ -1,0 +1,354 @@
+<script setup lang="ts">
+import { ref, computed, watch, onMounted } from 'vue'
+import { useImageUpload } from '@/composables/useImageUpload'
+import { useApplicationStore } from '@/stores/application'
+
+const app = useApplicationStore()
+
+// ─── 9.1 รายละเอียดปัญหา ─────────────────────────────────────────────────────
+const problemDescription = ref('')
+
+// ─── 10.1 ประเภทความช่วยเหลือ ────────────────────────────────────────────────
+// ณ ตอนนี้เลือกได้เฉพาะ "ช่วยเหลือเป็นเงิน" เท่านั้น (อนาคตอาจเพิ่มตัวเลือก)
+const aidTypes = ref<string[]>([])
+const aidTypeOptions = [
+  { value: 'money', label: 'ช่วยเหลือเป็นเงิน' },
+]
+
+function toggleAidType(value: string) {
+  const idx = aidTypes.value.indexOf(value)
+  if (idx === -1) aidTypes.value.push(value)
+  else aidTypes.value.splice(idx, 1)
+}
+
+// ─── 10.2 ข้อมูลบัญชีธนาคาร ─────────────────────────────────────────────────
+const bankName        = ref('')
+const bankAccountName = ref('')  // applicants.bank_account_name
+const bankOptions = [
+  { value: 'krungthai',    label: 'ธนาคารกรุงไทย' },
+  { value: 'bangkok',      label: 'ธนาคารกรุงเทพ' },
+  { value: 'kasikorn',     label: 'ธนาคารกสิกรไทย' },
+  { value: 'scb',          label: 'ธนาคารไทยพาณิชย์' },
+  { value: 'gsb',          label: 'ธนาคารออมสิน' },
+  { value: 'baac',         label: 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)' },
+  { value: 'krungsri',     label: 'ธนาคารกรุงศรีอยุธยา' },
+  { value: 'ttb',          label: 'ธนาคารทหารไทยธนชาต (ttb)' },
+  { value: 'uob',          label: 'ธนาคารยูโอบี' },
+  { value: 'cimb',         label: 'ธนาคารซีไอเอ็มบี ไทย' },
+  { value: 'lhbank',       label: 'ธนาคารแลนด์ แอนด์ เฮ้าส์' },
+  { value: 'tisco',        label: 'ธนาคารทิสโก้' },
+  { value: 'kiatnakin',    label: 'ธนาคารเกียรตินาคินภัทร' },
+]
+
+const bankAccount = ref('')
+
+// ─── รูปหน้าสมุดบัญชีธนาคาร ──────────────────────────────────────────────────
+// compress ที่ frontend ก่อน upload: max 1200×1600px, WebP quality 82%
+const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+const isReady = computed(() => {
+  if (!problemDescription.value.trim()) return false
+  if (aidTypes.value.length === 0) return false
+  if (!bankName.value) return false
+  if (!bankAccount.value.trim()) return false
+  if (!bankBook.file.value) return false
+  return true
+})
+
+const emit = defineEmits<{ 'update:ready': [boolean] }>()
+watch(isReady, (val) => emit('update:ready', val), { immediate: true })
+
+// ─── Sync bankBook file → store (key คงที่ 'bank_book') ──────────────────────
+// watch แยกไว้เพื่อให้ store มีไฟล์อยู่เสมอ แม้ parent ยังไม่เรียก getData()
+watch(() => bankBook.file.value, (file) => {
+  if (file) {
+    app.addDocument(
+      { id: 'bank_book', docType: 'bank_book', fileName: file.name, fileSizeBytes: file.size, mimeType: file.type },
+      file,
+    )
+  } else {
+    app.removeDocument('bank_book')
+  }
+})
+
+// ─── Pre-fill จาก store เมื่อ user ย้อนกลับ ─────────────────────────────────
+onMounted(() => {
+  const s = app.step3
+  if (s) {
+    problemDescription.value = s.problemDescription
+    aidTypes.value           = [...s.aidTypes]
+    bankName.value           = s.bankName
+    bankAccount.value        = s.bankAccount
+    bankAccountName.value    = s.bankAccountName
+  }
+  // restore สมุดบัญชีจาก store (File object ยังอยู่ใน app.files แม้ component จะ unmount ไปแล้ว)
+  const storedBankBook = app.getFile('bank_book')
+  if (storedBankBook) bankBook.restore(storedBankBook)
+})
+
+defineExpose({
+  getData: () => ({
+    problemDescription: problemDescription.value,
+    aidTypes:           aidTypes.value,
+    bankName:           bankName.value,
+    bankAccount:        bankAccount.value,
+    bankAccountName:    bankAccountName.value,
+    // bankBookPhoto ส่งผ่าน store (key 'bank_book') — ไม่ส่งผ่าน getData()
+  }),
+})
+</script>
+
+<template>
+  <div class="space-y-4">
+
+    <!-- ════════════════════════════════════════════════════════
+         Section 9: สภาพปัญหาความเดือดร้อนของครอบครัว
+         ════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
+        <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
+          <span class="text-white text-[13px] font-bold">9</span>
+        </div>
+        <p class="text-[14px] font-bold text-[#1A56DB]">สภาพปัญหาความเดือดร้อนของครอบครัว</p>
+      </div>
+      <div class="p-4">
+
+        <!-- 9.1 รายละเอียดปัญหา -->
+        <div class="flex items-center gap-2 mb-3">
+          <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">9.1</span>
+          <span class="text-[13px] font-medium text-slate-600">รายละเอียดปัญหา</span>
+        </div>
+
+        <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+          สภาพปัญหาความเดือดร้อนของครอบครัว <span class="text-red-500">*</span>
+        </label>
+        <textarea
+          v-model="problemDescription"
+          rows="5"
+          placeholder="อธิบายสภาพปัญหาและความเดือดร้อนที่ประสบ..."
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+        />
+
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════
+         Section 10: ความช่วยเหลือที่ต้องการ
+         ════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
+        <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
+          <span class="text-white text-[13px] font-bold">10</span>
+        </div>
+        <p class="text-[14px] font-bold text-[#1A56DB]">ความช่วยเหลือที่ต้องการ</p>
+      </div>
+      <div class="p-4 space-y-4">
+
+        <!-- 10.1 ประเภทความช่วยเหลือ -->
+        <div>
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.1</span>
+            <span class="text-[13px] font-medium text-slate-600">ประเภทความช่วยเหลือ</span>
+          </div>
+          <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
+
+          <div class="space-y-2">
+            <label
+              v-for="opt in aidTypeOptions"
+              :key="opt.value"
+              class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
+              :class="aidTypes.includes(opt.value) ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
+              @click.prevent="toggleAidType(opt.value)"
+            >
+              <div
+                class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                :class="aidTypes.includes(opt.value) ? 'bg-[#1A56DB] border-[#1A56DB]' : 'bg-white border-slate-300'"
+              >
+                <svg v-if="aidTypes.includes(opt.value)" class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="1,5 4.5,9 11,1" />
+                </svg>
+              </div>
+              <span class="text-[14px] transition-colors" :class="aidTypes.includes(opt.value) ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+                {{ opt.label }}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="h-px bg-slate-100" />
+
+        <!-- 10.2 ข้อมูลบัญชีธนาคาร -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.2</span>
+            <span class="text-[13px] font-medium text-slate-600">ข้อมูลบัญชีธนาคาร</span>
+          </div>
+
+          <!-- ธนาคาร -->
+          <div class="mb-4">
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              ธนาคาร <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <select
+                v-model="bankName"
+                class="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
+                :class="bankName ? 'border-slate-300' : 'border-slate-200'"
+              >
+                <option value="" disabled>— กรุณาเลือกธนาคาร —</option>
+                <option v-for="opt in bankOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+              <div class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- ชื่อบัญชีธนาคาร -->
+          <div class="mb-4">
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              ชื่อบัญชีธนาคาร <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="bankAccountName"
+              type="text"
+              placeholder="ชื่อ-นามสกุลเจ้าของบัญชี"
+              class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            />
+          </div>
+
+          <!-- เลขที่บัญชี -->
+          <div class="mb-4">
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              เลขที่บัญชี <span class="text-red-500">*</span>
+            </label>
+            <input
+              v-model="bankAccount"
+              type="text"
+              inputmode="numeric"
+              placeholder="เช่น 123-4-56789-0"
+              class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            />
+          </div>
+
+          <!-- รูปหน้าสมุดบัญชีธนาคาร -->
+          <div>
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span>
+            </label>
+
+            <!-- error message -->
+            <p v-if="bankBook.error.value" class="mb-2 text-[12px] text-red-500">
+              {{ bankBook.error.value }}
+            </p>
+
+            <!-- แสดงพรีวิวเมื่ออัปโหลดแล้ว -->
+            <div v-if="bankBook.previewUrl.value" class="border border-slate-200 rounded-xl overflow-hidden">
+              <div class="relative">
+                <img
+                  :src="bankBook.previewUrl.value"
+                  alt="รูปสมุดบัญชี"
+                  class="w-full object-contain max-h-48 bg-slate-50"
+                />
+                <!-- loading overlay ขณะ compress -->
+                <div v-if="bankBook.isLoading.value" class="absolute inset-0 bg-white/70 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-[#1A56DB] animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-[12px] text-slate-500 truncate max-w-[60%]">{{ bankBook.file.value?.name }}</span>
+                <button
+                  type="button"
+                  @click="bankBook.clear()"
+                  class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
+                >
+                  ลบและถ่ายใหม่
+                </button>
+              </div>
+            </div>
+
+            <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
+            <div
+              v-else
+              class="border-2 border-dashed rounded-xl p-4 transition-colors"
+              :class="bankBook.isLoading.value ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
+            >
+              <div class="flex items-center gap-2 mb-4">
+                <!-- ไอคอน upload / spinner ขณะ compress -->
+                <svg v-if="!bankBook.isLoading.value" class="w-5 h-5 text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5-5 5 5M12 6v12" />
+                </svg>
+                <svg v-else class="w-5 h-5 text-[#1A56DB] flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <p class="text-[13px] font-medium leading-snug transition-colors" :class="bankBook.isLoading.value ? 'text-[#1A56DB]' : 'text-slate-600'">
+                  {{ bankBook.isLoading.value ? 'กำลังประมวลผลรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
+                </p>
+              </div>
+
+              <div class="flex gap-3">
+                <!--
+                  ใช้ <label for> แทน JS .click() เพื่อให้ capture="environment"
+                  ทำงานได้บน iOS Safari ซึ่งจะ ignore capture เมื่อถูก trigger จาก script
+                  วิธีนี้คือมาตรฐาน W3C Media Capture spec ที่รองรับทั้ง iOS/Android
+                -->
+                <label
+                  for="camera-input"
+                  class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  ถ่ายภาพ
+                </label>
+
+                <label
+                  for="gallery-input"
+                  class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  เลือกจาก Gallery
+                </label>
+              </div>
+            </div>
+
+            <!--
+              input ถ่ายภาพ: capture="environment" → เปิดกล้องหลังโดยตรงบน iOS/Android
+              ต้องใช้ id เพื่อให้ <label for> ทำงานได้
+            -->
+            <input
+              id="camera-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              class="hidden"
+              @change="bankBook.handleFileSelect"
+            />
+            <!-- input gallery: ไม่มี capture → เปิด photo picker / file chooser -->
+            <input
+              id="gallery-input"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="bankBook.handleFileSelect"
+            />
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</template>

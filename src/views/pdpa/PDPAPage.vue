@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useApplicationStore } from '@/stores/application'
 
 const router = useRouter()
+const app = useApplicationStore()
 
 // ─── State: checkbox ทั้ง 3 ตัว ───────────────────────────────────────────────
 // ref(false) = ค่าเริ่มต้นเป็น false (ยังไม่ได้ติ๊ก)
@@ -30,7 +32,9 @@ function handleReject() {
 
 function handleProceed() {
   if (!canProceed.value) return
-  // TODO: บันทึก consent log ผ่าน API ก่อนไปหน้าถัดไป
+  // บันทึก consent พร้อม timestamp + version ลง store
+  app.setPdpa(true)
+  // TODO: บันทึก consent log ผ่าน API (consent_type = 'Initial') เมื่อ backend พร้อม
   router.push({ name: 'check-self' })
 }
 </script>

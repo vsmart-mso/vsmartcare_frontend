@@ -14,13 +14,23 @@ const isError = ref(false)
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
   const accessToken = params.get('access_token')?.trim()
+  // อ่านอายุ token (หน่วย "วินาที") ที่ backend แนบมาพร้อม redirect
+  const expiresIn = Number(params.get('expires_in') ?? '0') || 0
+
+  // ลบ query string ออกจาก URL ทันที เพราะมี access_token อยู่
+  // ถ้าไม่ลบ token จะค้างอยู่ใน browser history และอาจรั่วผ่าน Referer header
+  history.replaceState(null, '', window.location.pathname)
+
   if (!accessToken) {
     isError.value = true
     message.value = 'ไม่พบ access_token จาก ThaiD — กรุณาลองเข้าสู่ระบบใหม่'
     return
   }
 
-  localStorage.setItem('auth_token', accessToken)
+  // เก็บ token ชั่วคราวใน sessionStorage เพื่อให้ apiClient แนบ Authorization header
+  // ได้อัตโนมัติตอนเรียก fetchMe() ด้านล่าง
+  // ใช้ sessionStorage (ไม่ใช่ localStorage) เพราะปลอดภัยกว่า — scoped ต่อ tab เดียว
+  sessionStorage.setItem('auth_token', accessToken)
 
   try {
     const me = await authApi.fetchMe()
@@ -31,10 +41,12 @@ onMounted(async () => {
       lname: me.family_name,
       dob: '',
     }
-    authStore.setAuth(u, accessToken, 'thaid')
-    await router.replace({ name: 'chang-service' })
+    // setAuth จะเขียน token ลง sessionStorage อีกครั้ง (พร้อมข้อมูลหมดอายุ)
+    authStore.setAuth(u, accessToken, 'thaid', expiresIn || undefined)
+    await router.replace({ name: 'select-service' })
   } catch (e: unknown) {
-    localStorage.removeItem('auth_token')
+    // fetchMe ล้มเหลว — ลบ token ออกเพื่อไม่ให้ค้างอยู่ใน storage
+    sessionStorage.removeItem('auth_token')
     isError.value = true
     message.value = 'ดึงข้อมูลผู้ใช้ไม่สำเร็จ — กรุณาลองเข้าสู่ระบบใหม่'
   }
