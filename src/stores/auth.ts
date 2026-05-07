@@ -16,24 +16,43 @@ export const useAuthStore = defineStore('auth', () => {
 
   const user = ref<AuthUser | null>(null) // ข้อมูลผู้ใช้ปัจจุบัน (null = ยังไม่ Login)
 
-  // อ่าน token จาก localStorage ตั้งแต่เริ่มต้น เพื่อให้ยังคง Login อยู่หลัง refresh หน้า
-  const token = ref<string | null>(localStorage.getItem('auth_token'))
+  // อ่าน token จาก sessionStorage ตั้งแต่เริ่มต้น เพื่อให้ยังคง Login อยู่หลัง refresh หน้า
+  // ใช้ sessionStorage แทน localStorage เพราะปลอดภัยกว่า:
+  //   - scoped ต่อ tab เดียว (ไม่รั่วข้าม tab อื่น)
+  //   - ถูกลบอัตโนมัติเมื่อปิด tab/browser
+  const token = ref<string | null>(sessionStorage.getItem('auth_token'))
 
-  const method = ref<AuthMethod | null>(null) // วิธีที่ผู้ใช้เลือก Login
+  // อ่าน method จาก sessionStorage ด้วย เพื่อให้ restore ได้ถูกต้องหลัง refresh
+  const method = ref<AuthMethod | null>(
+    sessionStorage.getItem('auth_method') as AuthMethod | null
+  )
+
+  // เวลาที่ token หมดอายุ (Unix timestamp หน่วย ms) — null = ไม่ทราบเวลา
+  const expiresAt = ref<number | null>(null)
 
   // --- Computed (ค่าที่คำนวณจาก state) ---
-  // computed() จะคำนวณใหม่อัตโนมัติเมื่อ token หรือ user เปลี่ยน
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
-  // !! แปลง null/undefined เป็น false และ ค่าจริงๆ เป็น true
+  // isAuthenticated จะตรวจทั้ง token, user และเวลาหมดอายุ
+  const isAuthenticated = computed(() => {
+    if (!token.value || !user.value) return false
+    // ถ้ามีข้อมูลเวลาหมดอายุ และ token หมดอายุแล้ว → ถือว่าไม่ได้ Login
+    if (expiresAt.value !== null && Date.now() > expiresAt.value) return false
+    return true
+  })
 
   // --- Actions (ฟังก์ชันที่แก้ไข state) ---
 
   // เรียกเมื่อ Login สำเร็จ — บันทึกข้อมูลผู้ใช้และ token
-  function setAuth(authUser: AuthUser, authToken: string, authMethod: AuthMethod) {
+  // expiresIn = อายุ token หน่วย "วินาที" (มาจาก expires_in ใน OAuth response)
+  function setAuth(authUser: AuthUser, authToken: string, authMethod: AuthMethod, expiresIn?: number) {
     user.value = authUser
     token.value = authToken
     method.value = authMethod
-    localStorage.setItem('auth_token', authToken) // บันทึก token ไว้ใน browser ด้วย
+    // คำนวณเวลาหมดอายุจาก "ตอนนี้ + expiresIn วินาที"
+    expiresAt.value = expiresIn != null && expiresIn > 0
+      ? Date.now() + expiresIn * 1000
+      : null
+    sessionStorage.setItem('auth_token', authToken)   // บันทึก token ไว้ใน browser ด้วย
+    sessionStorage.setItem('auth_method', authMethod) // บันทึก method เพื่อ restore หลัง refresh
   }
 
   // เรียกเมื่อ Logout — ล้างข้อมูลทั้งหมด
@@ -41,9 +60,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = null
     method.value = null
-    localStorage.removeItem('auth_token') // ลบ token จาก browser ด้วย
+    expiresAt.value = null
+    sessionStorage.removeItem('auth_token')  // ลบ token จาก browser ด้วย
+    sessionStorage.removeItem('auth_method') // ลบ method ด้วยเสมอ
   }
 
   // คืนค่าทั้งหมดออกไปให้ component อื่นใช้ได้
-  return { user, token, method, isAuthenticated, setAuth, clearAuth }
+  return { user, token, method, isAuthenticated, expiresAt, setAuth, clearAuth }
 })

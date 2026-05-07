@@ -3,6 +3,6 @@
   </template>
   
   <script setup lang="ts">
-  import CheckSelfPage from './check-selfs/CheckSelfPage.vue'
+  import CheckSelfPage from './check-self/CheckSelfPage.vue'
   </script>
   

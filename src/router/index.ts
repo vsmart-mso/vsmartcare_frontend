@@ -4,6 +4,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { authApi } from '@/api/auth'
+import type { ThaiDUser } from '@/types/auth'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -37,9 +39,27 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/chang-service',
-    name: 'chang-service',
-    component: () => import('@/views/ChangService.vue'),
+    path: '/select-service',
+    name: 'select-service',
+    component: () => import('@/views/SelectService.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/submit-request',
+    name: 'submit-request',
+    component: () => import('@/views/SubmitRequest.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/submit-request/success',
+    name: 'submit-success',
+    component: () => import('@/views/submit-request/SubmitSuccessPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/case-tracking',
+    name: 'case-tracking',
+    component: () => import('@/views/CaseTrackingPage.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -56,13 +76,39 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }), // เมื่อเปลี่ยนหน้า ให้ scroll กลับขึ้นบนสุดเสมอ
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+
+  // --- Session Restoration ---
+  // ปัญหา: Pinia ถูก reset ทุกครั้งที่กด refresh แต่ sessionStorage ยังอยู่
+  // ถ้ามี token ใน sessionStorage แต่ user ยังไม่ถูกโหลด → ดึงข้อมูล user จาก API
+  //
+  // ข้ามหน้าที่มี meta.public เพราะเป็นหน้ากลาง OAuth flow (เช่น /login/thaid/return)
+  // ซึ่งจัดการ auth เอง — ไม่ควรให้ guard แทรกแซง
+  if (!to.meta.public && auth.token && !auth.user) {
+    try {
+      const me = await authApi.fetchMe()
+      const u: ThaiDUser = {
+        pid: me.pid,
+        title: me.title_th,
+        fname: me.given_name,
+        lname: me.family_name,
+        dob: '',
+      }
+      // auth.method ถูก restore จาก sessionStorage แล้วตอนสร้าง store — ใช้ค่าเดิมได้เลย
+      auth.setAuth(u, auth.token, auth.method ?? 'thaid')
+    } catch {
+      // token หมดอายุหรือไม่ถูกต้อง → ล้างออก แล้วปล่อยให้ guard ด้านล่างจัดการ
+      auth.clearAuth()
+    }
+  }
+
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login' }
   }
   if (to.meta.requiresGuest && auth.isAuthenticated) {
-    return { name: 'pdpa' }
+    // ถ้า login แล้วพยายามเข้าหน้า login ให้พาไปหน้าเลือกบริการแทน
+    return { name: 'select-service' }
   }
   return true
 })

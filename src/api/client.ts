@@ -24,7 +24,9 @@ export const apiClient = ofetch.create({
     if (bffKey) {
       headers.set('X-API-Key', bffKey)
     }
-    const token = localStorage.getItem('auth_token')
+    // sessionStorage ปลอดภัยกว่า localStorage เพราะ scoped ต่อ tab เดียว
+    // และถูกลบอัตโนมัติเมื่อปิด tab (ป้องกัน token รั่วข้าม session)
+    const token = sessionStorage.getItem('auth_token')
     if (token) {
       headers.set('Authorization', `Bearer ${token}`)
     }
@@ -35,8 +37,8 @@ export const apiClient = ofetch.create({
   onResponseError({ response }) {
     // 401 = Unauthorized = token หมดอายุหรือไม่ถูกต้อง
     if (response.status === 401) {
-      localStorage.removeItem('auth_token') // ลบ token ที่ใช้ไม่ได้ออก
-      window.location.href = '/'            // พาผู้ใช้กลับไปหน้า Login
+      sessionStorage.removeItem('auth_token') // ลบ token ที่ใช้ไม่ได้ออก
+      window.location.href = '/'              // พาผู้ใช้กลับไปหน้า Login
     }
   },
 })

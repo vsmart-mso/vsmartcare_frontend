@@ -26,4 +26,4 @@ Thumbs.db
 .vscode/
 
 package-lock.json
-
+.claude
