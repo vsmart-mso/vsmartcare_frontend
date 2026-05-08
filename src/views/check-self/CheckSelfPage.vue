@@ -112,33 +112,25 @@ const occupationValid = computed(() => {
   return true
 })
 
-// ─── Handler: รับเฉพาะตัวเลข 0-9 เท่านั้น ────────────────────────────────────
-// ใช้ @input แทน v-model เพื่อกรองทันทีก่อน Vue จะ bind ค่า
+// ─── Handler: รับเฉพาะตัวเลข 0-9 และใส่ลูกน้ำขณะพิมพ์ทันที ─────────────────
 function handleIncomeInput(e: Event) {
   const input = e.target as HTMLInputElement
-  // ลบทุกอย่างที่ไม่ใช่ตัวเลข 0-9 (รวมถึงลูกน้ำที่อาจติดมา)
   const digitsOnly = input.value.replace(/[^0-9]/g, '')
   annualIncome.value = digitsOnly
-  displayIncome.value = digitsOnly
-  input.value = digitsOnly
+  // ใส่ลูกน้ำทันทีขณะพิมพ์ เช่น 100000 → "100,000"
+  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('th-TH') : ''
+  displayIncome.value = formatted
+  input.value = formatted
 }
 
-// ─── Handler: เอาลูกน้ำออกเมื่อ focus เพื่อให้แก้ไขตัวเลขได้ง่าย ─────────────
-function handleIncomeFocus(e: Event) {
-  const input = e.target as HTMLInputElement
-  // แสดงตัวเลขล้วนขณะแก้ไข
-  input.value = annualIncome.value
-  displayIncome.value = annualIncome.value
-}
+// ไม่ตัดลูกน้ำออกเมื่อ focus — แสดงลูกน้ำตลอดเหมือน Step2
+function handleIncomeFocus() {}
 
-// ─── Handler: ใส่ลูกน้ำเมื่อผู้ใช้ออกจาก input (blur) ──────────────────────
+// ─── Handler: ใส่ลูกน้ำเมื่อ blur (กันกรณี displayIncome ยังไม่ format) ──────
 function handleIncomeBlur() {
   if (!annualIncome.value) return
   const num = parseInt(annualIncome.value, 10)
-  if (!isNaN(num)) {
-    // เช่น 100000 → "100,000"
-    displayIncome.value = num.toLocaleString('th-TH')
-  }
+  if (!isNaN(num)) displayIncome.value = num.toLocaleString('th-TH')
 }
 
 // ─── Computed: แปลง string รายได้เป็น number ─────────────────────────────────
