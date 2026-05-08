@@ -61,7 +61,9 @@ export interface Step1Data {
 // ข้อมูล Step 2 — เศรษฐกิจ (economic_infos + income_sources + dependency_loads + welfare_histories)
 export interface Step2Data {
   occupation: string          // economic_infos.occupation (pre-fill จาก CheckSelf)
+  occupationOther: string     // กรณีเลือก "อื่นๆ" ในอาชีพหลัก
   familyOccupation: string    // economic_infos.family_occupation
+  familyOccupationOther: string // กรณีเลือก "อื่นๆ" ในอาชีพของคนในครอบครัว
   monthlyIncome: string       // economic_infos.monthly_income (บาท/เดือน)
   incomeSources: string[]     // economic_income_sources.income_source_type_id (หลาย row)
   incomeSourceOther: string   // กรณีเลือก "อื่นๆ"

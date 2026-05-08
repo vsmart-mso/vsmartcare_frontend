@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
 
@@ -42,6 +42,69 @@ const bankOptions = [
 
 const bankAccount = ref('')
 
+// ─── Bank Account Validation ──────────────────────────────────────────────────
+
+// จำนวนหลัก, maxChars (หลัก + ขีด -), และ placeholder ของแต่ละธนาคาร
+// maxChars = จำนวนหลัก + จำนวนขีดที่อาจกรอก เช่น XXX-X-XXXXX-X = 10 หลัก + 3 ขีด = 13
+const bankAccountConfig: Record<string, { digits: number; maxChars: number; placeholder: string }> = {
+  krungthai:  { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  bangkok:    { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  kasikorn:   { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  scb:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  gsb:        { digits: 12, maxChars: 14, placeholder: 'เช่น 1234-567890-12' },   // ออมสิน: XXXX-XXXXXX-XX
+  baac:       { digits: 12, maxChars: 15, placeholder: 'เช่น 123-4-567890-1' },   // ธ.ก.ส.: XXX-X-XXXXXX-X
+  krungsri:   { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  ttb:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  uob:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  cimb:       { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  lhbank:     { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  tisco:      { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  kiatnakin:  { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+}
+
+const bankAccountTouched = ref(false)
+
+// นับเฉพาะตัวเลข (ตัดขีด - และช่องว่างออก) เพื่อตรวจจำนวนหลัก
+const bankAccountDigits = computed(() => bankAccount.value.replace(/\D/g, ''))
+
+// สร้าง error message ตามธนาคารที่เลือกและจำนวนหลักที่กรอก
+const bankAccountError = computed(() => {
+  if (!bankAccountTouched.value || !bankName.value) return ''
+  if (!bankAccount.value.trim()) return 'กรุณากรอกเลขที่บัญชี'
+  const config = bankAccountConfig[bankName.value]
+  if (!config) return ''
+  const current = bankAccountDigits.value.length
+  if (current !== config.digits) {
+    return `เลขที่บัญชีต้อง ${config.digits} หลัก (กรอกมาแล้ว ${current} หลัก)`
+  }
+  return ''
+})
+
+// placeholder เปลี่ยนตามธนาคารที่เลือก
+const bankAccountPlaceholder = computed(() => {
+  if (!bankName.value) return 'เช่น 123-4-56789-0'
+  return bankAccountConfig[bankName.value]?.placeholder ?? 'เช่น 123-4-56789-0'
+})
+
+// รับเฉพาะตัวเลขและขีด - (รูปแบบ XXX-X-XXXXX-X)
+function handleBankAccountInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  const filtered = el.value.replace(/[^0-9-]/g, '')
+  bankAccount.value = filtered
+  el.value = filtered
+}
+
+// flag กันไม่ให้ watcher ยิง reset ระหว่าง onMounted กำลัง restore ข้อมูล
+const isRestoring = ref(false)
+
+// เมื่อเปลี่ยนธนาคาร ให้ reset ช่องเลขบัญชีและ touched ใหม่
+// แต่ข้ามช่วงที่ onMounted กำลัง pre-fill ข้อมูลจาก store
+watch(bankName, () => {
+  if (isRestoring.value) return
+  bankAccount.value = ''
+  bankAccountTouched.value = false
+})
+
 // ─── รูปหน้าสมุดบัญชีธนาคาร ──────────────────────────────────────────────────
 // compress ที่ frontend ก่อน upload: max 1200×1600px, WebP quality 82%
 const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
@@ -52,6 +115,9 @@ const isReady = computed(() => {
   if (aidTypes.value.length === 0) return false
   if (!bankName.value) return false
   if (!bankAccount.value.trim()) return false
+  // ตรวจจำนวนหลักตามธนาคารที่เลือก
+  const config = bankAccountConfig[bankName.value]
+  if (config && bankAccountDigits.value.length !== config.digits) return false
   if (!bankBook.file.value) return false
   return true
 })
@@ -73,14 +139,17 @@ watch(() => bankBook.file.value, (file) => {
 })
 
 // ─── Pre-fill จาก store เมื่อ user ย้อนกลับ ─────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
   const s = app.step3
   if (s) {
+    isRestoring.value = true          // บอก watcher ให้ข้ามการ reset
     problemDescription.value = s.problemDescription
     aidTypes.value           = [...s.aidTypes]
     bankName.value           = s.bankName
     bankAccount.value        = s.bankAccount
     bankAccountName.value    = s.bankAccountName
+    await nextTick()                  // รอให้ watcher ที่ถูก schedule ไว้ยิงก่อน
+    isRestoring.value = false         // คืนสถานะปกติให้ watcher ทำงานเมื่อ user เปลี่ยนธนาคาร
   }
   // restore สมุดบัญชีจาก store (File object ยังอยู่ใน app.files แม้ component จะ unmount ไปแล้ว)
   const storedBankBook = app.getFile('bank_book')
@@ -227,13 +296,24 @@ defineExpose({
             <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
               เลขที่บัญชี <span class="text-red-500">*</span>
             </label>
+            <!-- hint แสดงจำนวนหลักที่ต้องกรอกตามธนาคารที่เลือก -->
+            <p v-if="bankName" class="text-[11px] text-slate-400 mb-1.5">
+              ต้องกรอก {{ bankAccountConfig[bankName]?.digits }} หลัก (ไม่นับขีด -)
+            </p>
             <input
-              v-model="bankAccount"
+              :value="bankAccount"
+              @input="handleBankAccountInput"
+              @blur="bankAccountTouched = true"
               type="text"
               inputmode="numeric"
-              placeholder="เช่น 123-4-56789-0"
-              class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              :maxlength="bankName ? bankAccountConfig[bankName]?.maxChars : 15"
+              :placeholder="bankAccountPlaceholder"
+              class="w-full border rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+              :class="bankAccountError
+                ? 'border-red-300 focus:ring-red-200'
+                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
             />
+            <p v-if="bankAccountError" class="text-[11px] text-red-500 mt-1 px-1">{{ bankAccountError }}</p>
           </div>
 
           <!-- รูปหน้าสมุดบัญชีธนาคาร -->

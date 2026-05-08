@@ -6,7 +6,9 @@ const app = useApplicationStore()
 
 // ─── 6.1 อาชีพและรายได้ ───────────────────────────────────────────────────────
 const occupation = ref('')
-const familyOccupation = ref('')  // economic_infos.family_occupation
+const occupationOther = ref('')       // ระบุเพิ่มเติมเมื่อเลือก "อื่น ๆ" (อาชีพหลัก)
+const familyOccupation = ref('')      // economic_infos.family_occupation
+const familyOccupationOther = ref('') // ระบุเพิ่มเติมเมื่อเลือก "อื่น ๆ" (อาชีพในครอบครัว)
 const occupationOptions = [
   { value: 'general_labor',  label: 'รับจ้างทั่วไป' },
   { value: 'farmer',         label: 'เกษตรกร' },
@@ -78,9 +80,24 @@ function handleNumericInput(e: Event, setter: (v: string) => void) {
   el.value = digits
 }
 
+// แปลงตัวเลขให้มีลูกน้ำ เช่น "1000" → "1,000"
+function formatMoney(val: string): string {
+  if (!val) return ''
+  return Number(val).toLocaleString('th-TH')
+}
+
+// รับ input จากช่องเงิน — เก็บแค่ตัวเลข แต่แสดงพร้อมลูกน้ำ
+function handleMoneyInput(e: Event, setter: (v: string) => void) {
+  const el = e.target as HTMLInputElement
+  const digits = el.value.replace(/[^0-9]/g, '')
+  setter(digits)
+  el.value = digits ? Number(digits).toLocaleString('th-TH') : ''
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 const isReady = computed(() => {
   if (!occupation.value) return false
+  if (occupation.value === 'other' && !occupationOther.value.trim()) return false
   if (!monthlyIncome.value) return false
   if (incomeSources.value.length === 0) return false
   if (incomeSources.value.includes('other') && !incomeSourceOther.value.trim()) return false
@@ -101,18 +118,20 @@ watch(isReady, (val) => emit('update:ready', val), { immediate: true })
 onMounted(() => {
   const s = app.step2
   if (s) {
-    occupation.value        = s.occupation
-    familyOccupation.value  = s.familyOccupation
-    monthlyIncome.value     = s.monthlyIncome
-    incomeSources.value     = [...s.incomeSources]
-    incomeSourceOther.value = s.incomeSourceOther
-    caregiverRoles.value    = [...s.caregiverRoles]
-    caregiverOther.value    = s.caregiverOther
-    govAidHistory.value     = s.govAidHistory
-    timesThisYear.value     = s.timesThisYear
-    totalAmount.value       = s.totalAmount
-    aidTypes.value          = [...s.aidTypes]
-    aidTypeOther.value      = s.aidTypeOther
+    occupation.value            = s.occupation            ?? ''
+    occupationOther.value       = s.occupationOther       ?? ''
+    familyOccupation.value      = s.familyOccupation      ?? ''
+    familyOccupationOther.value = s.familyOccupationOther ?? ''
+    monthlyIncome.value         = s.monthlyIncome         ?? ''
+    incomeSources.value         = [...(s.incomeSources    ?? [])]
+    incomeSourceOther.value     = s.incomeSourceOther     ?? ''
+    caregiverRoles.value        = [...(s.caregiverRoles   ?? [])]
+    caregiverOther.value        = s.caregiverOther        ?? ''
+    govAidHistory.value         = s.govAidHistory         ?? 'none'
+    timesThisYear.value         = s.timesThisYear         ?? ''
+    totalAmount.value           = s.totalAmount           ?? ''
+    aidTypes.value              = [...(s.aidTypes         ?? [])]
+    aidTypeOther.value          = s.aidTypeOther          ?? ''
   } else if (app.checkSelf?.occupation) {
     // ถ้ายังไม่มี step2 แต่มี checkSelf ให้ pre-fill occupation จาก checkSelf
     occupation.value = app.checkSelf.occupation
@@ -121,8 +140,10 @@ onMounted(() => {
 
 defineExpose({
   getData: () => ({
-    occupation:         occupation.value,
-    familyOccupation:   familyOccupation.value,
+    occupation:             occupation.value,
+    occupationOther:        occupationOther.value,
+    familyOccupation:       familyOccupation.value,
+    familyOccupationOther:  familyOccupationOther.value,
     monthlyIncome:      monthlyIncome.value,
     incomeSources:      incomeSources.value,
     incomeSourceOther:  incomeSourceOther.value,
@@ -179,6 +200,28 @@ defineExpose({
               </svg>
             </div>
           </div>
+
+          <!-- ช่องพิมพ์ระบุเพิ่มเติม เมื่อเลือก "อื่น ๆ" -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <div v-if="occupation === 'other'" class="mt-3">
+              <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+                ระบุอาชีพหลักของครอบครัว <span class="text-red-500">*</span>
+              </label>
+              <input
+                v-model="occupationOther"
+                type="text"
+                placeholder="ระบุรายละเอียด"
+                class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              />
+            </div>
+          </Transition>
         </div>
 
         <!-- 6.1.2 อาชีพของคนในครอบครัว (family_occupation) -->
@@ -186,12 +229,46 @@ defineExpose({
           <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
             อาชีพของคนในครอบครัว
           </label>
-          <input
-            v-model="familyOccupation"
-            type="text"
-            placeholder="เช่น เกษตรกร, รับจ้าง"
-            class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-          />
+          <!-- dropdown เหมือนกับ "อาชีพหลักของครอบครัว" -->
+          <div class="relative">
+            <select
+              v-model="familyOccupation"
+              class="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
+              :class="familyOccupation ? 'border-slate-300' : 'border-slate-200'"
+            >
+              <option value="" disabled>— กรุณาเลือกอาชีพ —</option>
+              <option v-for="opt in occupationOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <div class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+              <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- ช่องพิมพ์ระบุเพิ่มเติม เมื่อเลือก "อื่น ๆ" -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <div v-if="familyOccupation === 'other'" class="mt-3">
+              <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+                ระบุอาชีพของคนในครอบครัว
+              </label>
+              <input
+                v-model="familyOccupationOther"
+                type="text"
+                placeholder="ระบุรายละเอียด"
+                class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              />
+            </div>
+          </Transition>
         </div>
 
         <div>
@@ -200,11 +277,10 @@ defineExpose({
           </label>
           <div class="relative">
             <input
-              :value="monthlyIncome"
-              @input="handleNumericInput($event, (v) => (monthlyIncome = v))"
+              :value="formatMoney(monthlyIncome)"
+              @input="handleMoneyInput($event, (v) => (monthlyIncome = v))"
               type="text"
               inputmode="numeric"
-              pattern="[0-9]*"
               placeholder="0"
               class="w-full border border-slate-200 rounded-xl px-4 py-3 pr-16 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
@@ -407,11 +483,10 @@ defineExpose({
                   </label>
                   <div class="relative">
                     <input
-                      :value="totalAmount"
-                      @input="handleNumericInput($event, (v) => (totalAmount = v))"
+                      :value="formatMoney(totalAmount)"
+                      @input="handleMoneyInput($event, (v) => (totalAmount = v))"
                       type="text"
                       inputmode="numeric"
-                      pattern="[0-9]*"
                       placeholder="0"
                       class="w-full border border-slate-200 rounded-xl px-3 py-2.5 pr-10 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
                     />
