@@ -8,7 +8,9 @@
 //   import { apiClient, authApi } from '@/api'
 
 export { apiClient } from './client'
+export type { PrefixType } from './lookups'
 export { authApi, redirectBrowserToThaIDLogin } from './auth'
+export { lookupsApi } from './lookups'
 export type {
   DGAVerifyPayload,
   AuthTokenResponse,
