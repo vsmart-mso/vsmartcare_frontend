@@ -29,9 +29,14 @@ export interface CheckSelfData {
   checkedAt: string     // ISO date
 }
 
+/** map label จาก UI → requester_relation_type.id (ดู `/v1/lookups/requester-relation-types`) */
+export const REQUESTER_RELATION_MAP: Readonly<Record<string, number>> = {
+  ตนเอง: 1,
+}
+
 // ข้อมูล Step 1 — ข้อมูลส่วนตัว, ที่อยู่, ติดต่อ
 export interface Step1Data {
-  relationship: string  // ความสัมพันธ์กับผู้รับสิทธิ์ — applicants.requester_relation
+  relationship: string  // ข้อความแสดงผล — ส่ง API เป็น applicants.requester_relation_id
   address: {
     houseNo: string       // address.house_number
     mooNum: string        // address.house_moo
@@ -262,7 +267,8 @@ export const useApplicationStore = defineStore('application', () => {
         last_name:              authUser?.lname ?? null,
         cid:                    authUser?.pid ?? null,
         birth_date:             authUser?.dob || cs?.dob || null,
-        requester_relation:     s1?.relationship ?? null,
+        requester_relation_id:  REQUESTER_RELATION_MAP[s1?.relationship ?? ''] ?? 1,
+        case_number:            null as string | null,
         marital_status_id:      MARITAL_STATUS_MAP[s1?.maritalStatus ?? ''] ?? null,
         mobile_phone:           s1?.contact.mobile ?? null,
         home_phone:             s1?.contact.phone ?? null,

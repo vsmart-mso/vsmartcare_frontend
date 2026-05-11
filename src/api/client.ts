@@ -3,9 +3,9 @@
 
 import { ofetch } from 'ofetch'
 
-// อ่าน URL ของ FastAPI จาก environment variable
-// ถ้าไม่ได้กำหนด ให้ใช้ localhost:8000 เป็นค่าตั้งต้น (สำหรับ dev)
-const baseURL = import.meta.env.VITE_API_URL 
+// อ่าน URL ของ BFF จาก environment variable (รวม prefix `/api-vsmartcare`)
+// ถ้าไม่ได้กำหนด ให้ใช้ localhost:8000/api-vsmartcare เป็นค่าตั้งต้น (สำหรับ dev)
+const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api-vsmartcare'
 
 export const apiClient = ofetch.create({
   baseURL,
