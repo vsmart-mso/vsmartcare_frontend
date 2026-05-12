@@ -10,6 +10,7 @@ defineProps<{
   required?: boolean
   previewUrl: string
   fileName?: string
+  fileSize?: number     // bytes — แสดงขนาดหลัง compress
   isLoading?: boolean
   error?: string
 }>()
@@ -18,6 +19,11 @@ defineEmits<{
   'file-select': [Event]
   'clear': []
 }>()
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
 </script>
 
 <template>
@@ -78,7 +84,10 @@ defineEmits<{
         class="w-full rounded-lg object-contain max-h-44 bg-slate-50 mb-2"
       />
       <div class="flex items-center justify-between">
-        <span class="text-[12px] text-slate-500 truncate max-w-[75%]">{{ fileName }}</span>
+        <div class="flex flex-col min-w-0 max-w-[75%]">
+          <span class="text-[12px] text-slate-500 truncate">{{ fileName }}</span>
+          <span v-if="fileSize" class="text-[11px] text-slate-400">{{ formatBytes(fileSize) }}</span>
+        </div>
         <button
           type="button"
           @click="$emit('clear')"

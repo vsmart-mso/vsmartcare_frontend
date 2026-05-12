@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useThaiAddress } from '@/composables/useThaiAddress'
 import { useApplicationStore } from '@/stores/application'
 import { formatThaiDate } from '@/utils/formatDate'
+import { lookupsApi } from '@/api/lookups'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore()
@@ -78,23 +79,13 @@ const email  = ref('')
 
 // ─── 3.1 สถานภาพสมรส ─────────────────────────────────────────────────────────
 const maritalStatus = ref('')
-const maritalOptions = [
-  { value: 'single',     label: 'โสด' },
-  { value: 'married',    label: 'สมรสอยู่ด้วยกัน' },
-  { value: 'separated',  label: 'สมรสแยกกันอยู่' },
-  { value: 'divorced',   label: 'หย่าร้าง' },
-  { value: 'cohabiting', label: 'ไม่ได้สมรสแต่อยู่ด้วยกัน' },
-  { value: 'widowed',    label: 'หม้าย (คู่สมรสเสียชีวิต)' },
-]
+// ดึงจาก API แทนการ hardcode — ใช้ String(id) เป็น value เพื่อให้ตรงกับ store ที่เก็บ string
+const maritalOptions = ref<{ value: string; label: string }[]>([])
 
 // ─── 4.1 ลักษณะที่อยู่อาศัย ───────────────────────────────────────────────────
 const housingType = ref('')
-const housingOptions = [
-  { value: 'own_stable',   label: 'มีที่อยู่อาศัยเป็นของตนเองและมั่นคงถาวร' },
-  { value: 'own_unstable', label: 'มีที่อยู่อาศัยเป็นของตนเองแต่ไม่มั่นคงถาวร' },
-  { value: 'others_land',  label: 'อยู่ที่ดินบุคคลอื่น' },
-  { value: 'rent',         label: 'บ้านเช่า' },
-]
+// ดึงจาก API แทนการ hardcode
+const housingOptions = ref<{ value: string; label: string }[]>([])
 
 // ─── 4.2 ค่าเช่าต่อเดือน ──────────────────────────────────────────────────────
 const rentPerMonth  = ref('')   // ตัวเลขล้วน ใช้คำนวณ
@@ -272,6 +263,14 @@ watch(isReady, val => emit('update:ready', val), { immediate: true })
 
 // ─── Pre-fill จาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป ─────────────────
 onMounted(async () => {
+  // ดึง lookup options จาก API พร้อมกัน
+  const [maritalData, housingData] = await Promise.all([
+    lookupsApi.fetchMaritalStatusTypes().catch(() => []),
+    lookupsApi.fetchHousingTypes().catch(() => []),
+  ])
+  maritalOptions.value = maritalData.map(d => ({ value: String(d.id), label: d.name }))
+  housingOptions.value = housingData.map(d => ({ value: String(d.id), label: d.name }))
+
   const s = app.step1
   if (!s) return
   houseNo.value     = s.address.houseNo
@@ -295,14 +294,9 @@ onMounted(async () => {
   }
   familyCount.value = s.familyCount
 
-  // ต้องตั้งค่าทีละระดับ และรอ nextTick ระหว่างกัน
-  // เพราะ useThaiAddress มี cascade watcher ที่ reset district เมื่อ province เปลี่ยน
-  // ถ้าตั้งพร้อมกัน watcher จะยิงทีหลังแล้ว overwrite ค่าที่ตั้งไว้
-  addr.province.value = s.address.province
-  await nextTick()   // รอ watch(province) → reset district/subdistrict ให้เสร็จก่อน
-  addr.district.value = s.address.district
-  await nextTick()   // รอ watch(district) → reset subdistrict ให้เสร็จก่อน
-  addr.subdistrict.value = s.address.subdistrict
+  // ใช้ restore() จาก useThaiAddress ซึ่ง await API fetch แต่ละระดับจนเสร็จก่อนตั้งค่าถัดไป
+  // แก้ปัญหา nextTick() ไม่เพียงพอเพราะ API fetch เป็น async และใช้เวลานานกว่า 1 tick
+  await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
 })
 
 // expose ให้ parent เรียก touchAll() ก่อน handleNext และ getData() เพื่อรวบรวมข้อมูล
@@ -317,10 +311,11 @@ defineExpose({
       alley:       alley.value,
       soi:         soi.value,
       road:        road.value,
-      subdistrict: addr.subdistrict.value,
-      district:    addr.district.value,
-      province:    addr.province.value,
-      postalCode:  addr.zipcode.value,
+      subdistrict:            addr.subdistrict.value,
+      district:               addr.district.value,
+      province:               addr.province.value,
+      postalCode:             addr.zipcode.value,
+      subDistrictPostcodeId:  addr.subDistrictPostcodeId.value,
       gpsLat:      gpsLat.value,
       gpsLng:      gpsLng.value,
     },
@@ -607,7 +602,7 @@ defineExpose({
                 :class="errors.province ? 'border-red-300' : 'border-slate-200'"
               >
                 <option value="">— เลือกจังหวัด —</option>
-                <option v-for="p in addr.provinceList.value" :key="p" :value="p">{{ p }}</option>
+                <option v-for="p in addr.provinceList.value" :key="p.id" :value="p.name">{{ p.name }}</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                 <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -633,7 +628,7 @@ defineExpose({
                 :class="errors.district ? 'border-red-300' : 'border-slate-200'"
               >
                 <option value="">{{ addr.province.value ? '— เลือกอำเภอ/เขต —' : '— เลือกจังหวัดก่อน —' }}</option>
-                <option v-for="d in addr.districtList.value" :key="d" :value="d">{{ d }}</option>
+                <option v-for="d in addr.districtList.value" :key="d.id" :value="d.name">{{ d.name }}</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
                 <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">

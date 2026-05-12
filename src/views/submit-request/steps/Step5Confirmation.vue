@@ -89,7 +89,7 @@ defineExpose({
           <div class="flex gap-6">
             <div>
               <p class="text-[12px] text-slate-400">อาชีพ</p>
-              <p class="text-[13px] text-slate-700">{{ s2?.occupation || '—' }}</p>
+              <p class="text-[13px] text-slate-700">{{ app.checkSelf?.occupation || '—' }}</p>
             </div>
             <div>
               <p class="text-[12px] text-slate-400">รายได้ต่อเดือน</p>

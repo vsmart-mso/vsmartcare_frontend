@@ -129,6 +129,7 @@ defineExpose({
           required
           :preview-url="exterior.previewUrl.value"
           :file-name="exterior.file.value?.name"
+          :file-size="exterior.file.value?.size"
           :is-loading="exterior.isLoading.value"
           :error="exterior.error.value"
           @file-select="exterior.handleFileSelect"
@@ -144,6 +145,7 @@ defineExpose({
           required
           :preview-url="interior.previewUrl.value"
           :file-name="interior.file.value?.name"
+          :file-size="interior.file.value?.size"
           :is-loading="interior.isLoading.value"
           :error="interior.error.value"
           @file-select="interior.handleFileSelect"
@@ -159,6 +161,7 @@ defineExpose({
           required
           :preview-url="person.previewUrl.value"
           :file-name="person.file.value?.name"
+          :file-size="person.file.value?.size"
           :is-loading="person.isLoading.value"
           :error="person.error.value"
           @file-select="person.handleFileSelect"
@@ -174,6 +177,7 @@ defineExpose({
           required
           :preview-url="problem.previewUrl.value"
           :file-name="problem.file.value?.name"
+          :file-size="problem.file.value?.size"
           :is-loading="problem.isLoading.value"
           :error="problem.error.value"
           @file-select="problem.handleFileSelect"
@@ -189,6 +193,7 @@ defineExpose({
           required
           :preview-url="family.previewUrl.value"
           :file-name="family.file.value?.name"
+          :file-size="family.file.value?.size"
           :is-loading="family.isLoading.value"
           :error="family.error.value"
           @file-select="family.handleFileSelect"
@@ -227,6 +232,7 @@ defineExpose({
           icon="document"
           :preview-url="houseHome.previewUrl.value"
           :file-name="houseHome.file.value?.name"
+          :file-size="houseHome.file.value?.size"
           :is-loading="houseHome.isLoading.value"
           :error="houseHome.error.value"
           @file-select="houseHome.handleFileSelect"
@@ -241,6 +247,7 @@ defineExpose({
           icon="document"
           :preview-url="housePerson.previewUrl.value"
           :file-name="housePerson.file.value?.name"
+          :file-size="housePerson.file.value?.size"
           :is-loading="housePerson.isLoading.value"
           :error="housePerson.error.value"
           @file-select="housePerson.handleFileSelect"
@@ -255,6 +262,7 @@ defineExpose({
           icon="document"
           :preview-url="otherDoc.previewUrl.value"
           :file-name="otherDoc.file.value?.name"
+          :file-size="otherDoc.file.value?.size"
           :is-loading="otherDoc.isLoading.value"
           :error="otherDoc.error.value"
           @file-select="otherDoc.handleFileSelect"

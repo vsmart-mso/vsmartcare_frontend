@@ -1,112 +1,149 @@
 // composable สำหรับ cascade dropdown จังหวัด → อำเภอ → ตำบล → รหัสไปรษณีย์
-// ข้อมูลโหลดจาก /thai-address.json ครั้งเดียว แล้ว cache ไว้ใน module scope ตลอด session
+// ดึงข้อมูลจาก BFF API แทนไฟล์ JSON เพื่อให้ข้อมูลตรงกับฐานข้อมูลหลังบ้าน
+// ข้อมูลทุกระดับถูก cache ไว้ใน geoApi — ไม่เรียก API ซ้ำเมื่อ component re-mount
 
 import { ref, computed, watch } from 'vue'
-
-// รูปแบบข้อมูลในไฟล์ public/thai-address.json
-// p = จังหวัด, a = อำเภอ/เขต, d = ตำบล/แขวง, z = รหัสไปรษณีย์
-interface AddressEntry {
-  p: string
-  a: string
-  d: string
-  z: string
-}
-
-// ─── Module-level cache ────────────────────────────────────────────────────────
-// เก็บไว้นอก function เพื่อให้ทุก component ที่ใช้ composable นี้ share ข้อมูลชุดเดียวกัน
-// ไม่ต้อง fetch ซ้ำเมื่อ component ถูก mount ใหม่
-let _cache: AddressEntry[] | null = null
-let _loadPromise: Promise<AddressEntry[]> | null = null
-
-function loadAddressData(): Promise<AddressEntry[]> {
-  if (_cache) return Promise.resolve(_cache)
-  if (_loadPromise) return _loadPromise
-
-  _loadPromise = fetch('/thai-address.json')
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      return r.json() as Promise<AddressEntry[]>
-    })
-    .then(data => {
-      _cache = data
-      return data
-    })
-
-  return _loadPromise
-}
+import { geoApi, type Province, type District, type SubDistrict } from '@/api/geo'
 
 // ─── composable หลัก ──────────────────────────────────────────────────────────
 export function useThaiAddress() {
-  // ข้อมูลทั้งหมด (โหลดครั้งเดียว)
-  const entries = ref<AddressEntry[]>([])
-  const isLoading = ref(true)
-  const loadError = ref(false)
+  const isLoading  = ref(true)
+  const loadError  = ref(false)
 
-  // ค่าที่ผู้ใช้เลือก
+  // ข้อมูลดิบจาก API (reactive — ใช้ใน computed ด้านล่าง)
+  const provinces    = ref<Province[]>([])
+  const districts    = ref<District[]>([])
+  const subDistricts = ref<SubDistrict[]>([])
+
+  // ค่าที่ผู้ใช้เลือก (เก็บเป็นชื่อเพื่อแสดงผล)
   const province    = ref('')
   const district    = ref('')
   const subdistrict = ref('')
-  const zipcode     = ref('')   // auto-fill จากตำบลที่เลือก (read-only)
+  const zipcode     = ref('')   // auto-fill เมื่อเลือกตำบล (read-only)
 
-  // โหลดข้อมูลตอน composable ถูกใช้ครั้งแรก
-  loadAddressData()
-    .then(data => {
-      entries.value = data
-      isLoading.value = false
-    })
-    .catch(() => {
-      loadError.value = true
-      isLoading.value = false
-    })
+  // ID ที่ได้จากการเลือก — ใช้ตอนส่ง API
+  const provinceId            = ref<number | null>(null)
+  const districtId            = ref<number | null>(null)
+  // bridge ID สำหรับ sub_district_postcode_id ที่ต้องส่งไปหลังบ้าน
+  const subDistrictPostcodeId = ref<number | null>(null)
+
+  // โหลดจังหวัดทันทีที่ composable ถูกใช้ (ได้จาก cache ถ้ามีแล้ว)
+  geoApi.fetchProvinces()
+    .then(data => { provinces.value = data; isLoading.value = false })
+    .catch(() => { loadError.value = true; isLoading.value = false })
 
   // ─── รายการสำหรับ dropdown แต่ละระดับ ──────────────────────────────────────
-
-  // รายชื่อจังหวัดทั้งหมด (unique, เรียงตัวอักษร)
-  const provinceList = computed(() =>
-    [...new Set(entries.value.map(e => e.p))].sort((a, b) =>
-      a.localeCompare(b, 'th')
-    )
+  const provinceList    = computed(() => provinces.value)
+  const districtList    = computed(() => districts.value)
+  const subdistrictList = computed(() =>
+    subDistricts.value.map(sd => ({
+      name:     sd.name,
+      zip:      sd.sub_districts_postcode[0]?.postcode.name ?? '',
+      bridgeId: sd.sub_districts_postcode[0]?.id ?? null,
+    }))
   )
 
-  // รายชื่ออำเภอ: กรองจากจังหวัดที่เลือก
-  const districtList = computed(() => {
-    if (!province.value) return []
-    return [...new Set(
-      entries.value
-        .filter(e => e.p === province.value)
-        .map(e => e.a)
-    )].sort((a, b) => a.localeCompare(b, 'th'))
+  // ─── Cascade watchers (ใช้เมื่อผู้ใช้เลือกเอง) ──────────────────────────────
+  // เมื่อเปลี่ยนจังหวัด → fetch อำเภอใหม่ + reset ระดับล่าง
+  watch(province, async (name) => {
+    district.value              = ''
+    subdistrict.value           = ''
+    zipcode.value               = ''
+    districtId.value            = null
+    subDistrictPostcodeId.value = null
+    districts.value             = []
+    subDistricts.value          = []
+
+    if (!name) { provinceId.value = null; return }
+
+    const found = provinces.value.find(p => p.name === name)
+    if (!found) { provinceId.value = null; return }
+    provinceId.value = found.id
+
+    try {
+      districts.value = await geoApi.fetchDistricts(found.id)
+    } catch {
+      districts.value = []
+    }
   })
 
-  // รายชื่อตำบล: กรองจากจังหวัด + อำเภอที่เลือก
-  const subdistrictList = computed(() => {
-    if (!province.value || !district.value) return []
-    return entries.value
-      .filter(e => e.p === province.value && e.a === district.value)
-      .map(e => ({ name: e.d, zip: e.z }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+  // เมื่อเปลี่ยนอำเภอ → fetch ตำบลใหม่ + reset ระดับล่าง
+  watch(district, async (name) => {
+    subdistrict.value           = ''
+    zipcode.value               = ''
+    subDistrictPostcodeId.value = null
+    subDistricts.value          = []
+
+    if (!name) { districtId.value = null; return }
+
+    const found = districts.value.find(d => d.name === name)
+    if (!found) { districtId.value = null; return }
+    districtId.value = found.id
+
+    try {
+      subDistricts.value = await geoApi.fetchSubDistricts(found.id)
+    } catch {
+      subDistricts.value = []
+    }
   })
 
-  // ─── Cascade watchers ────────────────────────────────────────────────────────
-  // เมื่อเปลี่ยนจังหวัด → reset อำเภอ ตำบล รหัสไปรษณีย์
-  watch(province, () => {
-    district.value    = ''
-    subdistrict.value = ''
-    zipcode.value     = ''
+  // เมื่อเลือกตำบล → auto-fill รหัสไปรษณีย์ และ bridge ID
+  watch(subdistrict, (name) => {
+    if (!name) {
+      zipcode.value               = ''
+      subDistrictPostcodeId.value = null
+      return
+    }
+    const found = subdistrictList.value.find(s => s.name === name)
+    zipcode.value               = found?.zip      ?? ''
+    subDistrictPostcodeId.value = found?.bridgeId ?? null
   })
 
-  // เมื่อเปลี่ยนอำเภอ → reset ตำบล รหัสไปรษณีย์
-  watch(district, () => {
-    subdistrict.value = ''
-    zipcode.value     = ''
-  })
+  // ─── restore() ────────────────────────────────────────────────────────────────
+  // ใช้ตอน onMounted เพื่อกรอกข้อมูลกลับเมื่อ user ย้อนกลับมา
+  // ต้อง await เพราะ API fetch เป็น async — nextTick() ไม่เพียงพอ
+  async function restore(
+    savedProvince: string,
+    savedDistrict: string,
+    savedSubdistrict: string,
+  ) {
+    if (!savedProvince) return
 
-  // เมื่อเลือกตำบล → auto-fill รหัสไปรษณีย์
-  watch(subdistrict, val => {
-    if (!val) { zipcode.value = ''; return }
-    const found = subdistrictList.value.find(s => s.name === val)
-    zipcode.value = found?.zip ?? ''
-  })
+    // รอจังหวัดโหลดเสร็จก่อน (อาจยังอยู่ระหว่าง fetch ครั้งแรก)
+    if (provinces.value.length === 0) {
+      try { provinces.value = await geoApi.fetchProvinces() } catch { return }
+    }
+
+    // หา province ID แล้ว fetch อำเภอ (จาก cache)
+    const prov = provinces.value.find(p => p.name === savedProvince)
+    if (!prov) return
+    provinceId.value = prov.id
+    province.value   = savedProvince   // ตั้ง province โดยไม่ให้ watcher reset ระดับล่าง
+
+    try {
+      districts.value = await geoApi.fetchDistricts(prov.id)
+    } catch { return }
+
+    if (!savedDistrict) return
+
+    // หา district ID แล้ว fetch ตำบล (จาก cache)
+    const dist = districts.value.find(d => d.name === savedDistrict)
+    if (!dist) return
+    districtId.value = dist.id
+    district.value   = savedDistrict   // ตั้ง district โดยไม่ให้ watcher reset ระดับล่าง
+
+    try {
+      subDistricts.value = await geoApi.fetchSubDistricts(dist.id)
+    } catch { return }
+
+    if (!savedSubdistrict) return
+
+    // ตั้ง subdistrict และ auto-fill zipcode + bridge ID
+    subdistrict.value = savedSubdistrict
+    const sub = subdistrictList.value.find(s => s.name === savedSubdistrict)
+    zipcode.value               = sub?.zip      ?? ''
+    subDistrictPostcodeId.value = sub?.bridgeId ?? null
+  }
 
   return {
     isLoading,
@@ -115,8 +152,12 @@ export function useThaiAddress() {
     district,
     subdistrict,
     zipcode,
+    provinceId,
+    districtId,
+    subDistrictPostcodeId,
     provinceList,
     districtList,
     subdistrictList,
+    restore,
   }
 }

@@ -1,22 +1,26 @@
 import { ref } from 'vue'
 
+// ─── ขีดจำกัดขนาดไฟล์ input (ตรงกับ backend MAX_UPLOAD_BYTES) ─────────────────
+const MAX_INPUT_BYTES = 10 * 1024 * 1024  // 10 MB
+
 // ─── ตัวเลือกการ compress ──────────────────────────────────────────────────────
 export interface ImageCompressOptions {
   // ความกว้างสูงสุด (px) — ความสูงจะถูก scale ตามสัดส่วน
   maxWidth?: number
   // ความสูงสูงสุด (px) — ใช้คู่กับ maxWidth เพื่อ clamp ทั้งสองด้าน
   maxHeight?: number
-  // คุณภาพของภาพ 0–1 (ใช้กับ JPEG/WebP)
+  // คุณภาพของภาพ 0–1 (ใช้กับ JPEG/WebP) — 0.85 คือค่ามาตรฐานที่ให้คุณภาพดีและไฟล์เล็ก
   quality?: number
   // ฟอร์แมตที่ต้องการ output (WebP คือค่าเริ่มต้น fallback เป็น JPEG ถ้าไม่รองรับ)
   outputType?: 'image/webp' | 'image/jpeg' | 'image/png'
 }
 
-// ─── ค่า default ที่เหมาะกับรูปเอกสาร/สมุดบัญชี ──────────────────────────────
+// ─── ค่า default: 1920px max side, quality 0.85, WebP ──────────────────────────
+// 1920px ครอบคลุม Full HD ทั้ง portrait และ landscape โดยไม่ upscale ถ้าเล็กกว่า
 const DEFAULT_OPTIONS: Required<ImageCompressOptions> = {
-  maxWidth:   1200,
-  maxHeight:  1600,
-  quality:    0.82,
+  maxWidth:   1920,
+  maxHeight:  1920,
+  quality:    0.85,
   outputType: 'image/webp',
 }
 
@@ -138,6 +142,13 @@ export function useImageUpload(options: ImageCompressOptions = {}) {
     // รองรับเฉพาะไฟล์รูปภาพ
     if (!selected.type.startsWith('image/')) {
       error.value = 'กรุณาเลือกไฟล์รูปภาพเท่านั้น'
+      return
+    }
+
+    // ตรวจสอบขนาดไฟล์ก่อน compress — เกิน 10 MB ปฏิเสธทันที
+    if (selected.size > MAX_INPUT_BYTES) {
+      const mb = (selected.size / (1024 * 1024)).toFixed(1)
+      error.value = `ไฟล์มีขนาด ${mb} MB เกินกว่าที่อนุญาต (สูงสุด 10 MB)`
       return
     }
 

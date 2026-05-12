@@ -6,12 +6,13 @@ export type AuthMethod = 'thaid' | 'tangrath'
 
 // ข้อมูลผู้ใช้ที่ได้กลับมาจากการ Login ด้วย ThaID
 export interface ThaiDUser {
-  pid: string       // เลขบัตรประชาชน 13 หลัก
-  title: string     // คำนำหน้า เช่น "นาย", "นาง"
-  fname: string     // ชื่อ
-  lname: string     // นามสกุล
-  /** จาก ThaID userinfo อาจไม่มี — ใช้ '' ถ้าไม่ได้รับ */
-  dob?: string
+  pid: string        // เลขบัตรประชาชน 13 หลัก
+  title: string      // คำนำหน้า เช่น "นาย", "นาง"
+  fname: string      // ชื่อ
+  lname: string      // นามสกุล
+  dob: string        // วันเกิด YYYY-MM-DD (จาก ThaiD birthdate — '' ถ้าไม่ได้รับ)
+  gender: string     // เพศ ('' ถ้าไม่ได้รับ)
+  person_id: number  // ID ของ person ในฐานข้อมูลหลังบ้าน (0 ถ้ายังไม่มีบันทึก)
 }
 
 // ข้อมูลผู้ใช้ที่ได้กลับมาจากการยืนยันตัวตนด้วย DGA (Face Recognition)

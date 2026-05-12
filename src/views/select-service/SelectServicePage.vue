@@ -8,17 +8,8 @@
       class="fixed top-0 left-0 right-0 z-50 h-14 bg-[#1A56DB] text-white shadow-md"
       style="padding-top: env(safe-area-inset-top)"
     >
-      <div class="relative mx-auto w-full max-w-md flex items-center px-4 h-full">
-        <button
-          @click="handleBack"
-          class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
-          aria-label="ย้อนกลับ"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
+      <div class="relative mx-auto w-full max-w-md flex items-center justify-center px-4 h-full">
+        <h1 class="text-white text-[16px] font-semibold">
           เลือกบริการ
         </h1>
       </div>
@@ -48,20 +39,28 @@
       <!-- ── Card: ลงทะเบียนยื่นคำขอ ──────────────────────────────────────────── -->
       <button
         type="button"
-        class="group w-full text-left mb-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A56DB]/50 rounded-2xl"
+        :disabled="isChecking"
+        class="group w-full text-left mb-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A56DB]/50 rounded-2xl disabled:opacity-70 disabled:cursor-wait"
         @click="selectOption('register')"
       >
         <div class="bg-white rounded-2xl border-2 border-blue-200 shadow-sm p-5 transition-all duration-200 hover:border-blue-400 hover:shadow-md active:scale-[0.98] active:bg-blue-50">
           <div class="flex items-center gap-4">
             <div class="w-12 h-12 rounded-xl bg-[#1A56DB] flex items-center justify-center flex-shrink-0 shadow-sm" aria-hidden="true">
-              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <!-- loading spinner ขณะตรวจสอบ -->
+              <svg v-if="isChecking" class="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <svg v-else class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
                   d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-[16px] font-bold text-slate-900 leading-snug mb-0.5">ลงทะเบียนยื่นคำขอ</p>
-              <p class="text-[13px] text-slate-500 leading-relaxed">ยื่นคำขอรับความช่วยเหลือด้านสังคมสงเคราะห์</p>
+              <p class="text-[13px] text-slate-500 leading-relaxed">
+                {{ isChecking ? 'กำลังตรวจสอบสถานะ...' : 'ยื่นคำขอรับความช่วยเหลือด้านสังคมสงเคราะห์' }}
+              </p>
             </div>
             <svg
               class="w-5 h-5 text-slate-300 flex-shrink-0 transition-colors group-hover:text-blue-500"
@@ -130,22 +129,61 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import type { ThaiDUser } from '@/types/auth'
+import { welfareApi } from '@/api/welfare'
 
 type ServiceOption = 'register' | 'track'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const isChecking = ref(false)
 
-function handleBack() {
-  if (window.history.length > 1) router.back()
-  else router.push({ name: 'login' })
+function isThaiDUser(u: unknown): u is ThaiDUser {
+  return u != null && typeof (u as ThaiDUser).fname === 'string'
 }
 
-function selectOption(option: ServiceOption) {
-  if (option === 'register') {
-    router.push({ name: 'pdpa' })
-  } else {
+
+async function selectOption(option: ServiceOption) {
+  if (option === 'track') {
     router.push({ name: 'case-tracking' })
+    return
   }
+
+  // ตรวจสอบว่าเคยผ่านการ screening แล้วหรือยัง
+  const u = authStore.user
+  const personId = isThaiDUser(u) ? u.person_id : 0
+
+  if (personId > 0) {
+    isChecking.value = true
+    try {
+      // ดึงรายการคำร้องทั้งหมดของ person แล้วเช็กว่ามี case ที่ยังดำเนินการอยู่หรือไม่
+      // สถานะที่ถือว่า "active": 1=รับเรื่อง, 2=อยู่ระหว่างการเบิก, 3=เบิกจ่ายสำเร็จ
+      // 1. เช็คว่ามี case ที่ยังดำเนินการอยู่หรือไม่ (สถานะ 1/2/3)
+      const cases = await welfareApi.getCasesDisplay(personId)
+      const activeCase = cases.find(c => [1, 2, 3].includes(c.current_status?.id ?? -1))
+      if (activeCase) {
+        router.push({ name: 'case-tracking', query: { applicantId: String(activeCase.applicant_id) } })
+        return
+      }
+
+      // 2. เช็คว่าเคยผ่านการตรวจสอบสิทธิ์แล้วหรือยัง
+      const latestPassed = await welfareApi.getLatestPassedScreening(personId)
+      if (latestPassed) {
+        // ผ่านแล้ว → ข้ามไปหน้าผลการตรวจสอบสิทธิ์โดยตรง
+        router.push({ name: 'check-self', query: { result: 'passed' } })
+        return
+      }
+    } catch {
+      // ถ้า API ล้มเหลวให้ไปตามปกติ ไม่ block user
+    } finally {
+      isChecking.value = false
+    }
+  }
+
+  // ยังไม่เคยผ่าน หรือยังไม่เคยตรวจสอบ → ไปหน้า PDPA ตามปกติ
+  router.push({ name: 'pdpa' })
 }
 </script>

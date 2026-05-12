@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
+import { lookupsApi } from '@/api/lookups'
 
 const app = useApplicationStore()
 
@@ -9,11 +10,12 @@ const app = useApplicationStore()
 const problemDescription = ref('')
 
 // ─── 10.1 ประเภทความช่วยเหลือ ────────────────────────────────────────────────
-// ณ ตอนนี้เลือกได้เฉพาะ "ช่วยเหลือเป็นเงิน" เท่านั้น (อนาคตอาจเพิ่มตัวเลือก)
 const aidTypes = ref<string[]>([])
-const aidTypeOptions = [
-  { value: 'money', label: 'ช่วยเหลือเป็นเงิน' },
-]
+const aidTypeOptions = ref<{ value: string; label: string }[]>([])
+// แสดงเฉพาะ "ช่วยเหลือเป็นเงิน" — ตัวเลือกอื่นไม่เกี่ยวข้องกับระบบนี้
+const filteredAidTypeOptions = computed(() =>
+  aidTypeOptions.value.filter(o => o.label.includes('เงิน'))
+)
 
 function toggleAidType(value: string) {
   const idx = aidTypes.value.indexOf(value)
@@ -22,44 +24,22 @@ function toggleAidType(value: string) {
 }
 
 // ─── 10.2 ข้อมูลบัญชีธนาคาร ─────────────────────────────────────────────────
-const bankName        = ref('')
-const bankAccountName = ref('')  // applicants.bank_account_name
-const bankOptions = [
-  { value: 'krungthai',    label: 'ธนาคารกรุงไทย' },
-  { value: 'bangkok',      label: 'ธนาคารกรุงเทพ' },
-  { value: 'kasikorn',     label: 'ธนาคารกสิกรไทย' },
-  { value: 'scb',          label: 'ธนาคารไทยพาณิชย์' },
-  { value: 'gsb',          label: 'ธนาคารออมสิน' },
-  { value: 'baac',         label: 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)' },
-  { value: 'krungsri',     label: 'ธนาคารกรุงศรีอยุธยา' },
-  { value: 'ttb',          label: 'ธนาคารทหารไทยธนชาต (ttb)' },
-  { value: 'uob',          label: 'ธนาคารยูโอบี' },
-  { value: 'cimb',         label: 'ธนาคารซีไอเอ็มบี ไทย' },
-  { value: 'lhbank',       label: 'ธนาคารแลนด์ แอนด์ เฮ้าส์' },
-  { value: 'tisco',        label: 'ธนาคารทิสโก้' },
-  { value: 'kiatnakin',    label: 'ธนาคารเกียรตินาคินภัทร' },
-]
-
+const bankNameId  = ref('')   // applicants.bank_name_id — เก็บเป็น string เพื่อ v-model select
+const bankOptions = ref<{ value: string; label: string }[]>([])
 const bankAccount = ref('')
 
 // ─── Bank Account Validation ──────────────────────────────────────────────────
-
-// จำนวนหลัก, maxChars (หลัก + ขีด -), และ placeholder ของแต่ละธนาคาร
-// maxChars = จำนวนหลัก + จำนวนขีดที่อาจกรอก เช่น XXX-X-XXXXX-X = 10 หลัก + 3 ขีด = 13
+// key = bank_name_id (string) ตรงกับ id ใน DB
+// id 1=กรุงไทย 2=กรุงเทพ 3=กสิกร 4=ไทยพาณิชย์ 5=ออมสิน 6=ธ.ก.ส. 7=กรุงศรี 8=ttb
 const bankAccountConfig: Record<string, { digits: number; maxChars: number; placeholder: string }> = {
-  krungthai:  { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  bangkok:    { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  kasikorn:   { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  scb:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  gsb:        { digits: 12, maxChars: 14, placeholder: 'เช่น 1234-567890-12' },   // ออมสิน: XXXX-XXXXXX-XX
-  baac:       { digits: 12, maxChars: 15, placeholder: 'เช่น 123-4-567890-1' },   // ธ.ก.ส.: XXX-X-XXXXXX-X
-  krungsri:   { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  ttb:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  uob:        { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  cimb:       { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  lhbank:     { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  tisco:      { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
-  kiatnakin:  { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '1': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '2': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '3': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '4': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '5': { digits: 12, maxChars: 14, placeholder: 'เช่น 1234-567890-12' },  // ออมสิน: XXXX-XXXXXX-XX
+  '6': { digits: 12, maxChars: 15, placeholder: 'เช่น 123-4-567890-1' },  // ธ.ก.ส.: XXX-X-XXXXXX-X
+  '7': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
+  '8': { digits: 10, maxChars: 13, placeholder: 'เช่น 123-4-56789-0' },
 }
 
 const bankAccountTouched = ref(false)
@@ -69,9 +49,9 @@ const bankAccountDigits = computed(() => bankAccount.value.replace(/\D/g, ''))
 
 // สร้าง error message ตามธนาคารที่เลือกและจำนวนหลักที่กรอก
 const bankAccountError = computed(() => {
-  if (!bankAccountTouched.value || !bankName.value) return ''
+  if (!bankAccountTouched.value || !bankNameId.value) return ''
   if (!bankAccount.value.trim()) return 'กรุณากรอกเลขที่บัญชี'
-  const config = bankAccountConfig[bankName.value]
+  const config = bankAccountConfig[bankNameId.value]
   if (!config) return ''
   const current = bankAccountDigits.value.length
   if (current !== config.digits) {
@@ -82,8 +62,8 @@ const bankAccountError = computed(() => {
 
 // placeholder เปลี่ยนตามธนาคารที่เลือก
 const bankAccountPlaceholder = computed(() => {
-  if (!bankName.value) return 'เช่น 123-4-56789-0'
-  return bankAccountConfig[bankName.value]?.placeholder ?? 'เช่น 123-4-56789-0'
+  if (!bankNameId.value) return 'เช่น 123-4-56789-0'
+  return bankAccountConfig[bankNameId.value]?.placeholder ?? 'เช่น 123-4-56789-0'
 })
 
 // รับเฉพาะตัวเลขและขีด - (รูปแบบ XXX-X-XXXXX-X)
@@ -99,7 +79,7 @@ const isRestoring = ref(false)
 
 // เมื่อเปลี่ยนธนาคาร ให้ reset ช่องเลขบัญชีและ touched ใหม่
 // แต่ข้ามช่วงที่ onMounted กำลัง pre-fill ข้อมูลจาก store
-watch(bankName, () => {
+watch(bankNameId, () => {
   if (isRestoring.value) return
   bankAccount.value = ''
   bankAccountTouched.value = false
@@ -113,10 +93,10 @@ const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82
 const isReady = computed(() => {
   if (!problemDescription.value.trim()) return false
   if (aidTypes.value.length === 0) return false
-  if (!bankName.value) return false
+  if (!bankNameId.value) return false
   if (!bankAccount.value.trim()) return false
   // ตรวจจำนวนหลักตามธนาคารที่เลือก
-  const config = bankAccountConfig[bankName.value]
+  const config = bankAccountConfig[bankNameId.value]
   if (config && bankAccountDigits.value.length !== config.digits) return false
   if (!bankBook.file.value) return false
   return true
@@ -140,14 +120,21 @@ watch(() => bankBook.file.value, (file) => {
 
 // ─── Pre-fill จาก store เมื่อ user ย้อนกลับ ─────────────────────────────────
 onMounted(async () => {
+  // ดึงประเภทความช่วยเหลือและรายชื่อธนาคารจาก API พร้อมกัน
+  const [requestTypeData, bankNameData] = await Promise.all([
+    lookupsApi.fetchRequestTypes().catch(() => []),
+    lookupsApi.fetchBankNames().catch(() => []),
+  ])
+  aidTypeOptions.value = requestTypeData.map(d => ({ value: String(d.id), label: d.name }))
+  bankOptions.value    = bankNameData.map(d => ({ value: String(d.id), label: d.name }))
+
   const s = app.step3
   if (s) {
     isRestoring.value = true          // บอก watcher ให้ข้ามการ reset
     problemDescription.value = s.problemDescription
     aidTypes.value           = [...s.aidTypes]
-    bankName.value           = s.bankName
+    bankNameId.value         = s.bankNameId
     bankAccount.value        = s.bankAccount
-    bankAccountName.value    = s.bankAccountName
     await nextTick()                  // รอให้ watcher ที่ถูก schedule ไว้ยิงก่อน
     isRestoring.value = false         // คืนสถานะปกติให้ watcher ทำงานเมื่อ user เปลี่ยนธนาคาร
   }
@@ -160,9 +147,8 @@ defineExpose({
   getData: () => ({
     problemDescription: problemDescription.value,
     aidTypes:           aidTypes.value,
-    bankName:           bankName.value,
+    bankNameId:         bankNameId.value,
     bankAccount:        bankAccount.value,
-    bankAccountName:    bankAccountName.value,
     // bankBookPhoto ส่งผ่าน store (key 'bank_book') — ไม่ส่งผ่าน getData()
   }),
 })
@@ -224,7 +210,7 @@ defineExpose({
 
           <div class="space-y-2">
             <label
-              v-for="opt in aidTypeOptions"
+              v-for="opt in filteredAidTypeOptions"
               :key="opt.value"
               class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
               :class="aidTypes.includes(opt.value) ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
@@ -261,9 +247,9 @@ defineExpose({
             </label>
             <div class="relative">
               <select
-                v-model="bankName"
+                v-model="bankNameId"
                 class="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
-                :class="bankName ? 'border-slate-300' : 'border-slate-200'"
+                :class="bankNameId ? 'border-slate-300' : 'border-slate-200'"
               >
                 <option value="" disabled>— กรุณาเลือกธนาคาร —</option>
                 <option v-for="opt in bankOptions" :key="opt.value" :value="opt.value">
@@ -278,27 +264,14 @@ defineExpose({
             </div>
           </div>
 
-          <!-- ชื่อบัญชีธนาคาร -->
-          <div class="mb-4">
-            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-              ชื่อบัญชีธนาคาร <span class="text-red-500">*</span>
-            </label>
-            <input
-              v-model="bankAccountName"
-              type="text"
-              placeholder="ชื่อ-นามสกุลเจ้าของบัญชี"
-              class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-            />
-          </div>
-
           <!-- เลขที่บัญชี -->
           <div class="mb-4">
             <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
               เลขที่บัญชี <span class="text-red-500">*</span>
             </label>
             <!-- hint แสดงจำนวนหลักที่ต้องกรอกตามธนาคารที่เลือก -->
-            <p v-if="bankName" class="text-[11px] text-slate-400 mb-1.5">
-              ต้องกรอก {{ bankAccountConfig[bankName]?.digits }} หลัก (ไม่นับขีด -)
+            <p v-if="bankNameId" class="text-[11px] text-slate-400 mb-1.5">
+              ต้องกรอก {{ bankAccountConfig[bankNameId]?.digits }} หลัก (ไม่นับขีด -)
             </p>
             <input
               :value="bankAccount"
@@ -306,7 +279,7 @@ defineExpose({
               @blur="bankAccountTouched = true"
               type="text"
               inputmode="numeric"
-              :maxlength="bankName ? bankAccountConfig[bankName]?.maxChars : 15"
+              :maxlength="bankNameId ? bankAccountConfig[bankNameId]?.maxChars : 15"
               :placeholder="bankAccountPlaceholder"
               class="w-full border rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
               :class="bankAccountError
@@ -344,7 +317,14 @@ defineExpose({
                 </div>
               </div>
               <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
-                <span class="text-[12px] text-slate-500 truncate max-w-[60%]">{{ bankBook.file.value?.name }}</span>
+                <div class="flex flex-col min-w-0 max-w-[60%]">
+                  <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name }}</span>
+                  <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
+                    {{ bankBook.file.value.size < 1024 * 1024
+                      ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
+                      : `${(bankBook.file.value.size / (1024 * 1024)).toFixed(2)} MB` }}
+                  </span>
+                </div>
                 <button
                   type="button"
                   @click="bankBook.clear()"

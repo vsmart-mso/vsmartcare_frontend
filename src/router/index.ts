@@ -11,7 +11,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',              // URL: https://example.com/
     name: 'login',         // ชื่อ route (ใช้ router.push({ name: 'login' }) แทนการพิมพ์ path)
-    component: () => import('@/views/Login.vue'), // lazy load — โหลดไฟล์เมื่อต้องการจริงๆ
+    component: () => import('@/views/login/LoginPage.vue'),
     meta: { requiresGuest: true }, // หน้านี้สำหรับคนที่ยังไม่ได้ Login เท่านั้น
   },
   {
@@ -20,34 +20,38 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/login/LoginThaIDReturnPage.vue'),
     meta: { public: true },
   },
-  {
-    path: '/login/thaid/dev-mock',
-    name: 'login-thaid-dev-mock',
-    component: () => import('@/views/login/LoginThaIDDevMockPage.vue'),
-    meta: { public: true },
-  },
+  // หน้านี้มีเฉพาะตอน dev (vite dev server) — ใน production build จะไม่มี route นี้
+  // ป้องกันไม่ให้ผู้ใช้จริงเข้าหน้าจำลองได้
+  ...(import.meta.env.DEV
+    ? [{
+        path: '/login/thaid/dev-mock',
+        name: 'login-thaid-dev-mock',
+        component: () => import('@/views/login/LoginThaIDDevMockPage.vue'),
+        meta: { public: true },
+      }]
+    : []),
   {
     path: '/pdpa',
     name: 'pdpa',
-    component: () => import('@/views/PDPA.vue'),
+    component: () => import('@/views/pdpa/PDPAPage.vue'),
     meta: { requiresAuth: true }, // ต้อง Login ก่อนจึงจะเข้าหน้านี้ได้
   },
   {
     path: '/check-self',
     name: 'check-self',
-    component: () => import('@/views/CheckSelf.vue'),
+    component: () => import('@/views/check-self/CheckSelfPage.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/select-service',
     name: 'select-service',
-    component: () => import('@/views/SelectService.vue'),
+    component: () => import('@/views/select-service/SelectServicePage.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/submit-request',
     name: 'submit-request',
-    component: () => import('@/views/SubmitRequest.vue'),
+    component: () => import('@/views/submit-request/SubmitRequestPage.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -59,7 +63,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/case-tracking',
     name: 'case-tracking',
-    component: () => import('@/views/CaseTrackingPage.vue'),
+    component: () => import('@/views/case-tracking/CaseTrackingPage.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -89,11 +93,13 @@ router.beforeEach(async (to) => {
     try {
       const me = await authApi.fetchMe()
       const u: ThaiDUser = {
-        pid: me.pid,
-        title: me.title_th,
-        fname: me.given_name,
-        lname: me.family_name,
-        dob: '',
+        pid:       me.pid,
+        title:     me.title_th,
+        fname:     me.given_name,
+        lname:     me.family_name,
+        dob:       me.birthdate  ?? '',
+        gender:    me.gender     ?? '',
+        person_id: me.person_id  ?? 0,
       }
       // auth.method ถูก restore จาก sessionStorage แล้วตอนสร้าง store — ใช้ค่าเดิมได้เลย
       auth.setAuth(u, auth.token, auth.method ?? 'thaid')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { THAID_DEV_MOCK_STORAGE_KEY } from '@/api/auth'
 
@@ -19,12 +19,6 @@ type StoredMock = {
 const router = useRouter()
 const stored = ref<StoredMock | null>(null)
 const parseError = ref(false)
-
-const qrImageSrc = computed(() => {
-  const u = stored.value?.authorization_url
-  if (!u) return ''
-  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(u)}`
-})
 
 onMounted(() => {
   try {
@@ -100,25 +94,16 @@ function goBack() {
         </div>
 
         <div class="flex flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 bg-white p-6 shadow-sm">
-          <img
-            v-if="qrImageSrc"
-            :src="qrImageSrc"
-            width="260"
-            height="260"
-            alt="QR จำลอง — ชี้ไปขั้นตอน mock บน auth service"
-            class="rounded-lg bg-white"
-          />
-
           <button
             type="button"
-            class="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 text-[15px] font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-[0.99]"
+            class="w-full rounded-xl bg-blue-600 px-4 py-3 text-[15px] font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-[0.99]"
             @click="confirmMockLogin"
           >
-            จำลองยืนยัน (ไม่ต้องสแกน QR)
+            จำลองยืนยัน (เข้าสู่ระบบ mock)
           </button>
 
           <p class="mt-3 text-center text-[12px] text-slate-500 leading-relaxed">
-            ปุ่มนี้ทำหน้าที่เดียวกับสแกน QR — พาไป callback จำลองแล้วกลับแอปด้วย token เหมือน flow จริง
+            กดปุ่มเพื่อผ่าน callback จำลอง แล้วกลับแอปด้วย token เหมือน flow จริง
           </p>
         </div>
       </template>
