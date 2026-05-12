@@ -30,9 +30,14 @@ export interface CheckSelfData {
   checkedAt: string     // ISO date
 }
 
+/** map label จาก UI → requester_relation_type.id (ดู `/v1/lookups/requester-relation-types`) */
+export const REQUESTER_RELATION_MAP: Readonly<Record<string, number>> = {
+  ตนเอง: 1,
+}
+
 // ข้อมูล Step 1 — ข้อมูลส่วนตัว, ที่อยู่, ติดต่อ
 export interface Step1Data {
-  relationship: string  // ความสัมพันธ์กับผู้รับสิทธิ์ — applicants.requester_relation
+  relationship: string  // ข้อความแสดงผล — ส่ง API เป็น applicants.requester_relation_id
   address: {
     houseNo: string       // address.house_number
     mooNum: string        // address.house_moo
@@ -261,6 +266,56 @@ export const useApplicationStore = defineStore('application', () => {
       if (!passed) y--
       return y
     }
+    return {
+      // ─── applicants ──────────────────────────────────────────────────────
+      applicant: {
+        prefix_id:              PREFIX_MAP[authUser?.title ?? ''] ?? null,
+        first_name:             authUser?.fname ?? null,
+        last_name:              authUser?.lname ?? null,
+        cid:                    authUser?.pid ?? null,
+        birth_date:             authUser?.dob || cs?.dob || null,
+        requester_relation_id:  REQUESTER_RELATION_MAP[s1?.relationship ?? ''] ?? 1,
+        case_number:            null as string | null,
+        marital_status_id:      MARITAL_STATUS_MAP[s1?.maritalStatus ?? ''] ?? null,
+        mobile_phone:           s1?.contact.mobile ?? null,
+        home_phone:             s1?.contact.phone ?? null,
+        fax_number:             s1?.contact.fax ?? null,
+        email_address:          s1?.contact.email ?? null,
+        // ข้าราชการ = true ถ้า occupation เป็น 'ข้าราชการ'
+        is_government_officer:  s2?.occupation === 'ข้าราชการ',
+        problem_details:        s3?.problemDescription ?? null,
+        bank_account_name:      s3?.bankAccountName ?? null,
+        bank_account_no:        s3?.bankAccount ?? null,
+      },
+
+      // ─── address ─────────────────────────────────────────────────────────
+      address: {
+        house_number:             s1?.address.houseNo ?? null,
+        house_moo:                s1?.address.mooNum ?? null,
+        house_name:               s1?.address.villageName ?? null,
+        sub_lane:                 s1?.address.soi ?? null,
+        road:                     s1?.address.road ?? null,
+        latitude:                 s1?.address.gpsLat ?? null,
+        longitude:                s1?.address.gpsLng ?? null,
+        // TODO: resolve subdistrict + postalCode string → sub_district_postcode_id int
+        // โดยใช้ข้อมูลจาก /public/thai-address.json
+        sub_district_postcode_id: null as number | null,
+      },
+
+      // ─── economic_infos ───────────────────────────────────────────────────
+      economic_info: {
+        occupation:         s2?.occupation ?? cs?.occupation ?? null,
+        family_occupation:  s2?.familyOccupation ?? null,
+        // รายได้ต่อปี ÷ 12 = รายได้ต่อเดือน; ถ้ากรอก Step2 ใช้ Step2 ก่อน
+        monthly_income:     s2?.monthlyIncome
+                              ? Number(s2.monthlyIncome)
+                              : cs?.annualIncome
+                                ? Math.round(cs.annualIncome / 12)
+                                : null,
+        household_members:  Number(s1?.familyCount ?? 0) || null,
+        housing_types_id:   HOUSING_TYPE_MAP[s1?.housingType ?? ''] ?? null,
+        housing_types_rent: Number(s1?.rentPerMonth ?? 0) || null,
+      },
 
     const effectiveDob = authUser?.dob?.trim() || cs?.dob || null
     const age = computeAge(effectiveDob)

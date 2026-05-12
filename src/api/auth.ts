@@ -47,7 +47,7 @@ export interface MeResponse {
 }
 
 function resolveApiBaseUrl(): string {
-  return (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+  return (import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api-vsmartcare').replace(/\/$/, '')
 }
 
 // ข้อมูลที่ส่งไปหลังจาก DGA Liveness SDK ยืนยันสำเร็จ
