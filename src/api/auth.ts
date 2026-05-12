@@ -41,6 +41,9 @@ export interface MeResponse {
   given_name: string
   family_name: string
   title_th: string
+  birthdate: string   // วันเกิด YYYY-MM-DD ('' ถ้า ThaiD ไม่ได้ส่งมา)
+  gender: string      // เพศ ('' ถ้า ThaiD ไม่ได้ส่งมา)
+  person_id: number   // ID ของ person ในฐานข้อมูล (0 ถ้ายังไม่มีบันทึก)
 }
 
 function resolveApiBaseUrl(): string {

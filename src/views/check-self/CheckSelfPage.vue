@@ -1,96 +1,73 @@
 <script setup lang="ts">
-// นำเข้า ref, computed, onMounted จาก Vue
 import { ref, computed, onMounted } from 'vue'
-// นำเข้า useRouter สำหรับเปลี่ยนหน้า
-import { useRouter } from 'vue-router'
-// นำเข้า auth store เพื่อดึงข้อมูลผู้ใช้จริงที่ login ด้วย ThaiID
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useApplicationStore } from '@/stores/application'
+import { welfareApi } from '@/api/welfare'
 
 const router = useRouter()
+const route  = useRoute()
 const authStore = useAuthStore()
 const app = useApplicationStore()
 
-// ─── Type Guard: แยก ThaiDUser ออกจาก DGAUser ────────────────────────────────
-// AuthUser อาจเป็น ThaiDUser (มีชื่อ-นามสกุล) หรือ DGAUser (มีแค่ใบหน้า)
-// ต้อง narrow type ก่อนนำไปใช้เพื่อความปลอดภัย
+// ─── Type Guard ────────────────────────────────────────────────────────────────
 function isThaiDUser(u: unknown): u is ThaiDUser {
   return u != null && typeof (u as ThaiDUser).fname === 'string'
 }
 
 // ─── Auth User ─────────────────────────────────────────────────────────────────
-// ดึง user จาก store และ narrow type ให้เป็น ThaiDUser
 const authUser = computed((): ThaiDUser | null => {
   const u = authStore.user
   return isThaiDUser(u) ? u : null
 })
 
-// ─── Guard: redirect ถ้ายังไม่ได้ login หรือ login ด้วยวิธีอื่นที่ไม่ใช่ ThaiID ─
 onMounted(() => {
   if (!authStore.isAuthenticated || !authUser.value) {
     router.replace({ name: 'login' })
+    return
+  }
+  // ถ้ามี query ?result=passed → แสดงหน้าผลการตรวจสอบโดยตรง (มาจาก SelectService ที่ตรวจพบว่าผ่านแล้ว)
+  if (route.query.result === 'passed') {
+    screeningPassed.value = true
+    currentView.value = 'result'
+    arrivedDirectlyAtResult.value = true
   }
 })
 
 // ─── View State ────────────────────────────────────────────────────────────────
-// currentView ควบคุมว่าจะแสดง 'form' (แบบฟอร์ม) หรือ 'result' (ผลลัพธ์)
 const currentView = ref<'form' | 'result'>('form')
+// true = มาที่หน้า result โดยตรง (ผ่านสิทธิ์แล้ว) ไม่ได้กรอก form → กดกลับควรออกจากหน้านี้
+const arrivedDirectlyAtResult = ref(false)
+// ผลการตรวจสอบ: true = ผ่าน, false = ไม่ผ่าน, null = ยังไม่ได้ตรวจ
+const screeningPassed = ref<boolean | null>(null)
+// สถานะระหว่างเรียก API
+const isSubmitting = ref(false)
+const submitError  = ref('')
 
-// เก็บเหตุผลที่ไม่ผ่านเกณฑ์ (อาจมีหลายข้อ)
-const failReasons = ref<string[]>([])
-
-// ─── DOB: MeResponse (/v1/me) ไม่มีฟิลด์ birthdate ────────────────────────────
-// ThaiID.dob จะเป็น '' เสมอในระบบนี้ → ให้ผู้ใช้กรอกเองถ้าว่าง
-// ตรวจว่า ThaiID ส่ง dob มาจริงหรือเปล่า
+// ─── วันเกิด ──────────────────────────────────────────────────────────────────
 const dobFromThaiD = computed(() => {
   const d = authUser.value?.dob
   return !!(d && d.trim() !== '')
 })
-
-// วันเกิดที่ผู้ใช้กรอกเองเมื่อ ThaiID ไม่ส่งมา (format: YYYY-MM-DD จาก input[type=date])
 const manualDob = ref('')
-
-// dob ที่ใช้จริง: ใช้จาก ThaiID ถ้ามีข้อมูล มิฉะนั้นใช้ที่ผู้ใช้กรอกเอง
 const effectiveDob = computed(() => {
   const d = authUser.value?.dob
   return d && d.trim() !== '' ? d : manualDob.value
 })
 
 // ─── Form Fields ───────────────────────────────────────────────────────────────
-// อาชีพที่เลือก (เริ่มต้นว่างเปล่า)
 const selectedOccupation = ref('')
-// อาชีพอื่นๆ (แสดงเมื่อเลือก "อื่น ๆ")
-const otherOccupation = ref('')
-// เก็บตัวเลขล้วน (ไม่มีลูกน้ำ) — ใช้สำหรับคำนวณ
-const annualIncome = ref('')
-// ค่าที่แสดงใน input — จะมีลูกน้ำหลังจากผู้ใช้ออกจาก input (blur)
-const displayIncome = ref('')
+const annualIncome = ref('')    // ตัวเลขล้วน ไม่มีลูกน้ำ
+const displayIncome = ref('')   // ค่าที่แสดงใน input (มีลูกน้ำ)
 
-// รายการอาชีพ 10 ตัวเลือก + อื่นๆ
-const occupationOptions = [
-  'ราชการ / รัฐวิสาหกิจ',
-  'พนักงานบริษัทเอกชน',
-  'ค้าขาย / ธุรกิจส่วนตัว',
-  'เกษตรกร',
-  'รับจ้างทั่วไป',
-  'ประมง',
-  'นักเรียน / นักศึกษา',
-  'แม่บ้าน / พ่อบ้าน',
-  'ไม่มีอาชีพ / ว่างงาน',
-  'ผู้สูงอายุ / เกษียณแล้ว',
-  'อื่น ๆ',
-]
-
-// ─── Computed: คำนวณอายุจากวันเกิด ───────────────────────────────────────────
-// คืน null ถ้าไม่มีวันเกิดหรือรูปแบบวันที่ไม่ถูกต้อง
+// ─── Computed: อายุจากวันเกิด ─────────────────────────────────────────────────
 const age = computed((): number | null => {
   if (!effectiveDob.value) return null
   const birthDate = new Date(effectiveDob.value)
   if (isNaN(birthDate.getTime())) return null
   const today = new Date()
   let years = today.getFullYear() - birthDate.getFullYear()
-  // ตรวจว่ายังไม่ถึงวันเกิดในปีนี้หรือเปล่า ถ้าใช่ ลบ 1 ปี
   const hasBirthdayPassed =
     today.getMonth() > birthDate.getMonth() ||
     (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate())
@@ -98,82 +75,40 @@ const age = computed((): number | null => {
   return years
 })
 
-// ─── Computed: ผ่านเกณฑ์อายุหรือไม่ ─────────────────────────────────────────
-// null = ยังไม่ทราบ (รอผู้ใช้กรอกวันเกิด), true = ผ่าน, false = ไม่ผ่าน
-const agePass = computed((): boolean | null => {
-  if (age.value === null) return null
-  return age.value >= 18
-})
-
-// ─── Computed: ตรวจสอบว่าเลือกอาชีพแล้ว (และถ้าเลือก "อื่น ๆ" ต้องกรอกด้วย) ─
-const occupationValid = computed(() => {
-  if (!selectedOccupation.value) return false
-  if (selectedOccupation.value === 'อื่น ๆ' && !otherOccupation.value.trim()) return false
-  return true
-})
-
-// ─── Handler: รับเฉพาะตัวเลข 0-9 และใส่ลูกน้ำขณะพิมพ์ทันที ─────────────────
-function handleIncomeInput(e: Event) {
-  const input = e.target as HTMLInputElement
-  const digitsOnly = input.value.replace(/[^0-9]/g, '')
-  annualIncome.value = digitsOnly
-  // ใส่ลูกน้ำทันทีขณะพิมพ์ เช่น 100000 → "100,000"
-  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('th-TH') : ''
-  displayIncome.value = formatted
-  input.value = formatted
-}
-
-// ไม่ตัดลูกน้ำออกเมื่อ focus — แสดงลูกน้ำตลอดเหมือน Step2
-function handleIncomeFocus() {}
-
-// ─── Handler: ใส่ลูกน้ำเมื่อ blur (กันกรณี displayIncome ยังไม่ format) ──────
-function handleIncomeBlur() {
-  if (!annualIncome.value) return
-  const num = parseInt(annualIncome.value, 10)
-  if (!isNaN(num)) displayIncome.value = num.toLocaleString('th-TH')
-}
-
-// ─── Computed: แปลง string รายได้เป็น number ─────────────────────────────────
+// ─── Computed: รายได้เป็น number ──────────────────────────────────────────────
 const incomeNumber = computed(() => {
   if (!annualIncome.value) return null
   const num = parseInt(annualIncome.value, 10)
   return isNaN(num) ? null : num
 })
 
-// ─── Computed: ผ่านเกณฑ์รายได้หรือไม่ (ต้องไม่เกิน 100,000 บาท/ปี) ───────────
-const incomePass = computed(() => {
-  if (incomeNumber.value === null) return null // ยังไม่ได้กรอก
-  return incomeNumber.value <= 100000
-})
-
-// ─── Computed: ผ่านเกณฑ์เบื้องต้นทุกข้อหรือไม่ ──────────────────────────────
-// ใช้ === true เพื่อป้องกัน null ถูกแปลงเป็น truthy โดยไม่ตั้งใจ
-const basicEligible = computed(() => {
-  return agePass.value === true && occupationValid.value && incomePass.value === true
-})
-
 // ─── Computed: ฟอร์มพร้อมส่งหรือยัง ──────────────────────────────────────────
-// ต้องกรอกทุกช่อง (รวมวันเกิด) จึงจะส่งได้
-const formReady = computed(() => {
-  return (
-    effectiveDob.value !== '' &&
-    occupationValid.value &&
-    incomeNumber.value !== null
-  )
-})
+const formReady = computed(() =>
+  effectiveDob.value !== '' &&
+  selectedOccupation.value.trim() !== '' &&
+  incomeNumber.value !== null
+)
 
-// ─── Helper: จัดรูปแบบตัวเลขมี comma ─────────────────────────────────────────
-// เช่น 100000 → "100,000"
-function formatNumber(n: number): string {
-  return n.toLocaleString('th-TH')
+// ─── Handlers: income input ───────────────────────────────────────────────────
+function handleIncomeInput(e: Event) {
+  const input = e.target as HTMLInputElement
+  const digitsOnly = input.value.replace(/[^0-9]/g, '')
+  annualIncome.value = digitsOnly
+  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('th-TH') : ''
+  displayIncome.value = formatted
+  input.value = formatted
+}
+function handleIncomeFocus() {}
+function handleIncomeBlur() {
+  if (!annualIncome.value) return
+  const num = parseInt(annualIncome.value, 10)
+  if (!isNaN(num)) displayIncome.value = num.toLocaleString('th-TH')
 }
 
-// ─── Helper: แปลงวันเกิดเป็นภาษาไทย พ.ศ. ─────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatThaiDate(dateStr: string): string {
   const date = new Date(dateStr)
-  // guard ถ้าวันที่ไม่ valid ให้คืน string เดิมกลับไป
   if (isNaN(date.getTime())) return dateStr
-  // ชื่อเดือนภาษาไทย (index 0 = มกราคม)
   const thaiMonths = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
     'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
@@ -181,57 +116,83 @@ function formatThaiDate(dateStr: string): string {
   ]
   const day = date.getDate()
   const month = thaiMonths[date.getMonth()]
-  // แปลงปี ค.ศ. เป็น พ.ศ. โดยบวก 543
   const year = date.getFullYear() + 543
   return `${day} ${month} ${year}`
 }
 
-// ─── Handler: เมื่อกดปุ่มตรวจสอบสิทธิ์ ──────────────────────────────────────
-function handleSubmit() {
-  const reasons: string[] = []
+// ─── Handler: กดปุ่ม "ตรวจสอบสิทธิ์" ────────────────────────────────────────
+// เกณฑ์หลัก 2 ข้อ: อายุ >= 18 ปี, รายได้ <= 100,000 บาท/ปี
+async function handleSubmit() {
+  if (!formReady.value || isSubmitting.value) return
 
-  // ใช้ === false เพื่อแยกจาก null (ยังไม่ทราบ) ออกจาก false (ไม่ผ่าน)
-  if (agePass.value === false) {
-    reasons.push(`อายุ ${age.value} ปี — ต้องมีอายุ 18 ปีขึ้นไป`)
-  }
-  if (incomePass.value === false && incomeNumber.value !== null) {
-    reasons.push(`รายได้ ${formatNumber(incomeNumber.value)} บาท/ปี — ต้องไม่เกิน 100,000 บาท/ปี`)
-  }
-  // TODO: เกณฑ์ที่ 4 — ตรวจสอบประวัติใน MSO Logbook และ พม.Smart (รอ API)
+  const ageVal    = age.value ?? 0
+  const income    = incomeNumber.value ?? 0
+  const ageOk     = ageVal >= 18
+  const incomeOk  = income <= 100000
+  const passed    = ageOk && incomeOk
 
-  failReasons.value = reasons
-  currentView.value = 'result'
+  // สร้าง failure_reason_code จากเกณฑ์ที่ไม่ผ่าน
+  const failCodes: string[] = []
+  if (!ageOk)    failCodes.push('AGE_UNDER_18')
+  if (!incomeOk) failCodes.push('INCOME_OVER_100000')
+  const failureReasonCode = failCodes.length > 0 ? failCodes.join(',') : null
+
+  const u = authStore.user
+  const personId = isThaiDUser(u) ? u.person_id : 0
+
+  isSubmitting.value = true
+  submitError.value  = ''
+  try {
+    // บันทึกผลการคัดกรองลงฐานข้อมูล พร้อม user_agent เพื่อระบุอุปกรณ์ของผู้ใช้
+    await welfareApi.createScreeningLog({
+      person_id:           personId,
+      criteria_version:    '1.0',
+      screening_status:    passed,
+      failure_reason_code: failureReasonCode,
+      input_data_snapshot: {
+        birthdate:     effectiveDob.value,
+        age:           ageVal,
+        occupation:    selectedOccupation.value.trim(),
+        annual_income: income,
+      },
+      user_agent: navigator.userAgent,
+      ip_address:  null, // frontend ไม่สามารถระบุ IP จริงได้ — backend ตรวจจากต้นทาง request
+    })
+
+    // บันทึกลง store เพื่อ pre-fill Step2
+    app.setCheckSelf({
+      occupation:   selectedOccupation.value.trim(),
+      annualIncome: income,
+      dob:          effectiveDob.value,
+      eligible:     passed,
+      checkedAt:    new Date().toISOString(),
+    })
+
+    screeningPassed.value = passed
+    currentView.value = 'result'
+  } catch {
+    submitError.value = 'เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
-// ─── Handler: กดปุ่มถัดไปหลังผ่านเกณฑ์ ──────────────────────────────────────
+// ─── Handler: ดำเนินการต่อหลังผ่านเกณฑ์ ──────────────────────────────────────
 function handleProceed() {
-  // บันทึกข้อมูลการตรวจสิทธิ์ลง store — ใช้ pre-fill Step2 และส่ง API ใน Step5
-  const occupationValue = selectedOccupation.value === 'อื่น ๆ'
-    ? otherOccupation.value.trim()
-    : selectedOccupation.value
-  app.setCheckSelf({
-    occupation:   occupationValue,
-    annualIncome: incomeNumber.value ?? 0,
-    dob:          effectiveDob.value,
-    eligible:     true,
-    checkedAt:    new Date().toISOString(),
-  })
-  // ผ่านเกณฑ์เบื้องต้น → ไปยื่นคำขอรับความช่วยเหลือ
   router.push({ name: 'submit-request' })
 }
 
-// ─── Handler: กลับหน้าก่อนหน้า ───────────────────────────────────────────────
+// ─── Handler: ย้อนกลับ ────────────────────────────────────────────────────────
 function handleBack() {
-  if (currentView.value === 'result') {
-    // กลับไปหน้าฟอร์ม
+  if (currentView.value === 'result' && !arrivedDirectlyAtResult.value) {
+    // กรอก form แล้วได้ผล → กดกลับควรไปที่ form
     currentView.value = 'form'
   } else {
-    // กลับไปหน้า PDPA
-    router.push({ name: 'pdpa' })
+    // มาโดยตรงจาก select-service หรืออยู่ที่ form → กลับหน้าก่อนหน้า
+    router.back()
   }
 }
 
-// ─── Handler: กดปุ่มติดต่อเจ้าหน้าที่ ───────────────────────────────────────
 function handleContactStaff() {
   window.open('tel:1300')
 }
@@ -253,8 +214,9 @@ function handleContactStaff() {
             style="padding-top: env(safe-area-inset-top)">
       <div class="relative mx-auto w-full max-w-md flex items-center px-4 h-full">
 
-        <!-- ปุ่มย้อนกลับ -->
+        <!-- ปุ่มย้อนกลับ: แสดงเฉพาะ form view เท่านั้น -->
         <button
+          v-if="currentView === 'form'"
           @click="handleBack"
           class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
           aria-label="ย้อนกลับ"
@@ -264,7 +226,7 @@ function handleContactStaff() {
           </svg>
         </button>
 
-        <!-- ชื่อหน้า — absolute center เหมือน PDPA เพื่อให้อยู่กลางจอเสมอ -->
+        <!-- ชื่อหน้า -->
         <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
           {{ currentView === 'form' ? 'ตรวจสอบสิทธิ์เบื้องต้น' : 'ผลการตรวจสอบสิทธิ์' }}
         </h1>
@@ -287,12 +249,11 @@ function handleContactStaff() {
 
       <!-- Banner แจ้งเกณฑ์ที่จะตรวจสอบ -->
       <div class="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
-        <!-- ไอคอน info -->
         <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-[1px]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
         </svg>
         <p class="text-[13px] text-blue-700 leading-relaxed">
-          ระบบจะตรวจสอบเกณฑ์: <strong>อายุ</strong>, <strong>อาชีพ</strong> และ <strong>รายได้</strong>
+          ระบบจะตรวจสอบเกณฑ์: อายุ อาชีพ และรายได้
         </p>
       </div>
 
@@ -331,43 +292,11 @@ function handleContactStaff() {
         <!-- อายุที่คำนวณได้ -->
         <div>
           <label class="block text-[13px] text-slate-500 mb-1">อายุ</label>
-          <div class="flex items-center justify-between bg-slate-50 border rounded-xl px-4 py-3"
-               :class="{
-                 'border-[#BE185D]/30': agePass === true,
-                 'border-red-300': agePass === false,
-                 'border-slate-200': agePass === null,
-               }">
-            <span class="text-[15px] font-medium"
-                  :class="{
-                    'text-slate-900': agePass === true,
-                    'text-red-600': agePass === false,
-                    'text-slate-400': agePass === null,
-                  }">
+          <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+            <span class="text-[15px] font-medium" :class="age !== null ? 'text-slate-900' : 'text-slate-400'">
               {{ age !== null ? `${age} ปี` : '—' }}
             </span>
-            <!-- แสดงผลผ่าน/ไม่ผ่าน/รอข้อมูล -->
-            <div class="flex items-center gap-1.5">
-              <template v-if="agePass === true">
-                <!-- ผ่าน: checkmark สีชมพู -->
-                <svg class="w-4 h-4 text-[#BE185D]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-[#BE185D] font-medium">ผ่านเกณฑ์</span>
-              </template>
-              <template v-else-if="agePass === false">
-                <!-- ไม่ผ่าน: X สีแดง -->
-                <svg class="w-4 h-4 text-red-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-red-500 font-medium">ไม่ผ่านเกณฑ์</span>
-              </template>
-              <!-- agePass === null: รอผู้ใช้กรอกวันเกิด ไม่แสดงอะไร -->
-            </div>
           </div>
-          <!-- ข้อความอธิบายเกณฑ์ -->
-          <p v-if="agePass === false" class="text-[12px] text-red-500 mt-1 px-1">
-            ต้องมีอายุ 18 ปีขึ้นไปเท่านั้น
-          </p>
         </div>
       </div>
 
@@ -375,54 +304,20 @@ function handleContactStaff() {
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
         <p class="text-[12px] font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
 
-        <!-- Dropdown เลือกอาชีพ -->
-        <div class="mb-3">
+        <!-- ช่องพิมพ์อาชีพ: freetext แทน dropdown -->
+        <div>
           <label for="occupation" class="block text-[13px] text-slate-600 mb-1.5 font-medium">
             อาชีพปัจจุบัน <span class="text-red-500">*</span>
           </label>
-          <div class="relative">
-            <select
-              id="occupation"
-              v-model="selectedOccupation"
-              class="w-full appearance-none bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30"
-              :class="selectedOccupation ? 'border-slate-300' : 'border-slate-200'"
-            >
-              <option value="" disabled>— กรุณาเลือกอาชีพ —</option>
-              <option v-for="opt in occupationOptions" :key="opt" :value="opt">
-                {{ opt }}
-              </option>
-            </select>
-            <!-- ไอคอนลูกศรลง custom (แทน default arrow ของ browser) -->
-            <div class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-              <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
+          <input
+            id="occupation"
+            v-model="selectedOccupation"
+            type="text"
+            placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
+            class="w-full bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            :class="selectedOccupation ? 'border-slate-300' : 'border-slate-200'"
+          />
         </div>
-
-        <!-- ช่องกรอกอาชีพอื่นๆ (แสดงเฉพาะเมื่อเลือก "อื่น ๆ") -->
-        <Transition
-          enter-active-class="transition-all duration-200 ease-out"
-          enter-from-class="opacity-0 -translate-y-1"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition-all duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 -translate-y-1"
-        >
-          <div v-if="selectedOccupation === 'อื่น ๆ'">
-            <label for="other-occupation" class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-              ระบุอาชีพ <span class="text-red-500">*</span>
-            </label>
-            <input
-              id="other-occupation"
-              v-model="otherOccupation"
-              type="text"
-              placeholder="กรุณาระบุอาชีพของท่าน"
-              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-            />
-          </div>
-        </Transition>
       </div>
 
       <!-- ─── Card: รายได้ ─────────────────────────────────────────────────── -->
@@ -444,99 +339,27 @@ function handleContactStaff() {
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="0"
-              class="w-full bg-white border rounded-xl px-4 py-3 pr-16 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2"
-              :class="{
-                'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]': incomePass === null,
-                'border-[#BE185D]/30 focus:ring-[#BE185D]/20': incomePass === true,
-                'border-red-300 focus:ring-red-200': incomePass === false,
-              }"
+              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-16 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
-            <!-- หน่วย "บาท/ปี" ด้านขวา -->
             <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">
               บาท/ปี
             </span>
           </div>
-
-          <!-- ข้อความ validation แสดงผลแบบ real-time -->
-          <Transition
-            enter-active-class="transition-all duration-200 ease-out"
-            enter-from-class="opacity-0 -translate-y-1"
-            enter-to-class="opacity-100 translate-y-0"
-          >
-            <div v-if="incomeNumber !== null" class="mt-2 flex items-center gap-1.5 px-1">
-              <!-- ผ่านเกณฑ์รายได้ -->
-              <template v-if="incomePass === true">
-                <svg class="w-4 h-4 text-[#BE185D] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-[#BE185D]">
-                  รายได้ {{ formatNumber(incomeNumber!) }} บาท/ปี ผ่านเกณฑ์
-                </span>
-              </template>
-              <!-- ไม่ผ่านเกณฑ์รายได้ -->
-              <template v-else-if="incomePass === false">
-                <svg class="w-4 h-4 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-red-500">
-                  รายได้เกิน 100,000 บาท/ปี — ไม่ผ่านเกณฑ์
-                </span>
-              </template>
-            </div>
-          </Transition>
-        </div>
-
-        <!-- เส้นคั่น + ข้อความเกณฑ์ -->
-        <div class="mt-4 pt-4 border-t border-slate-100">
-          <p class="text-[12px] text-slate-400 leading-relaxed">
-            เกณฑ์: รายได้รวมทุกแหล่งไม่เกิน <span class="font-medium text-slate-500">100,000 บาท</span> ต่อปี
-          </p>
         </div>
       </div>
 
-      <!-- TODO: เมื่อ API พร้อม ให้เรียก MSO Logbook + พม.Smart ตรงนี้ใน handleSubmit -->
-
-      <!-- Banner สรุปผล (แสดงเมื่อกรอกครบ) -->
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="opacity-0 scale-95"
-        enter-to-class="opacity-100 scale-100"
-      >
-        <div
-          v-if="formReady"
-          class="flex items-center gap-3 rounded-xl p-4 mb-4 border"
-          :class="basicEligible
-            ? 'bg-green-50 border-green-200'
-            : 'bg-red-50 border-red-200'"
-        >
-          <!-- ผ่าน -->
-          <template v-if="basicEligible">
-            <svg class="w-5 h-5 text-green-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-            </svg>
-            <p class="text-[13px] font-semibold text-green-700">ผ่านเกณฑ์เบื้องต้น สามารถยื่นคำขอได้</p>
-          </template>
-          <!-- ไม่ผ่าน -->
-          <template v-else>
-            <svg class="w-5 h-5 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-            </svg>
-            <p class="text-[13px] font-semibold text-red-600">ไม่ผ่านเกณฑ์เบื้องต้น</p>
-          </template>
-        </div>
-      </Transition>
+      <!-- Error message จาก API -->
+      <p v-if="submitError" class="text-[13px] text-red-500 text-center mb-4">{{ submitError }}</p>
 
     </main>
 
     <!-- ══════════════════════════════════════════════════════════
-         RESULT VIEW: แสดงผลการตรวจสอบ
+         RESULT VIEW: แสดงผลการตรวจสอบ (ผ่าน / ไม่ผ่าน เท่านั้น)
          ══════════════════════════════════════════════════════════ -->
     <main v-else class="flex-1 flex flex-col mx-auto w-full max-w-md px-4 pt-[calc(3.5rem+2rem)] pb-32">
 
       <!-- ─── ผ่านเกณฑ์ ──────────────────────────────────────────────────── -->
-      <template v-if="failReasons.length === 0">
-
-        <!-- ไอคอน checkmark วงกลมสีเขียว -->
+      <template v-if="screeningPassed === true">
         <div class="flex justify-center mb-5">
           <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
             <svg class="w-10 h-10 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -544,54 +367,14 @@ function handleContactStaff() {
             </svg>
           </div>
         </div>
-
         <h2 class="text-center text-[22px] font-bold text-green-700 mb-2">ผ่านเกณฑ์เบื้องต้น</h2>
-        <p class="text-center text-[14px] text-slate-500 mb-6 leading-relaxed px-4">
+        <p class="text-center text-[14px] text-slate-500 leading-relaxed px-4">
           ท่านผ่านการตรวจสอบคุณสมบัติเบื้องต้นแล้ว<br>สามารถยื่นคำขอรับความช่วยเหลือได้
         </p>
-
-        <!-- สรุปผลเกณฑ์ -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-          <p class="text-[12px] font-medium text-slate-400 uppercase tracking-wider mb-3">สรุปผลการตรวจสอบ</p>
-          <div class="space-y-3">
-            <!-- แถวอายุ -->
-            <div class="flex items-center justify-between">
-              <span class="text-[14px] text-slate-600">อายุ</span>
-              <div class="flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-green-600 font-medium">{{ age !== null ? age : '?' }} ปี — ผ่าน</span>
-              </div>
-            </div>
-            <!-- แถวอาชีพ -->
-            <div class="flex items-center justify-between">
-              <span class="text-[14px] text-slate-600">อาชีพ</span>
-              <div class="flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-green-600 font-medium">ผ่าน</span>
-              </div>
-            </div>
-            <!-- แถวรายได้ -->
-            <div class="flex items-center justify-between">
-              <span class="text-[14px] text-slate-600">รายได้</span>
-              <div class="flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-[13px] text-green-600 font-medium">{{ incomeNumber !== null ? formatNumber(incomeNumber) : '' }} บาท/ปี — ผ่าน</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </template>
 
       <!-- ─── ไม่ผ่านเกณฑ์ ───────────────────────────────────────────────── -->
       <template v-else>
-
-        <!-- ไอคอน X วงกลมสีแดง -->
         <div class="flex justify-center mb-5">
           <div class="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
             <svg class="w-10 h-10 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -599,45 +382,19 @@ function handleContactStaff() {
             </svg>
           </div>
         </div>
-
         <h2 class="text-center text-[22px] font-bold text-red-600 mb-2">ไม่ผ่านเกณฑ์การพิจารณา</h2>
         <p class="text-center text-[14px] text-slate-500 mb-6">
           ท่านไม่ผ่านเกณฑ์คุณสมบัติขั้นต้น
         </p>
 
-        <!-- Card เหตุผล — header icon + เส้นคั่น + รายการเหตุผล -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-4 overflow-hidden">
-          <!-- Header ของ card -->
-          <div class="flex items-center gap-2 px-5 py-3.5">
-            <svg class="w-[18px] h-[18px] text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-            </svg>
-            <p class="text-[14px] font-semibold text-slate-800">เหตุผล</p>
-          </div>
-          <!-- เส้นคั่น -->
-          <div class="h-px bg-slate-100" />
-          <!-- รายการเหตุผล -->
-          <ul class="px-5 py-4 space-y-2">
-            <li
-              v-for="(reason, i) in failReasons"
-              :key="i"
-              class="text-[13px] text-slate-600 leading-relaxed"
-            >
-              {{ reason }}
-            </li>
-          </ul>
-        </div>
-
-        <!-- Card แนะนำทางเลือก (สีเหลือง) — bullet point แบบในรูป -->
+        <!-- Card แนะนำทางเลือก -->
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
-          <!-- Header มี lightbulb icon -->
           <div class="flex items-center gap-2 mb-3">
             <svg class="w-4 h-4 text-amber-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
             </svg>
             <p class="text-[13px] font-semibold text-amber-800">ท่านยังสามารถ...</p>
           </div>
-          <!-- รายการ bullet -->
           <ul class="space-y-2">
             <li class="flex items-start gap-2">
               <span class="text-amber-600 font-bold leading-[1.6] flex-shrink-0">•</span>
@@ -672,25 +429,31 @@ function handleContactStaff() {
     >
       <div class="mx-auto w-full max-w-md px-4 pt-3 pb-1">
 
-        <!-- Footer สำหรับ Form View -->
+        <!-- Footer: Form View -->
         <template v-if="currentView === 'form'">
           <button
             @click="handleSubmit"
-            :disabled="!formReady"
+            :disabled="!formReady || isSubmitting"
             class="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
-            :class="formReady
+            :class="formReady && !isSubmitting
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
           >
-            ตรวจสอบสิทธิ์
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            <svg v-if="isSubmitting" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
+            <template v-else>
+              ตรวจสอบสิทธิ์
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </template>
           </button>
         </template>
 
-        <!-- Footer สำหรับ Result View — ผ่านเกณฑ์ -->
-        <template v-else-if="failReasons.length === 0">
+        <!-- Footer: Result View — ผ่านเกณฑ์ -->
+        <template v-else-if="screeningPassed === true">
           <button
             @click="handleProceed"
             class="w-full flex items-center justify-center gap-2 bg-[#1A56DB] text-white rounded-2xl py-3.5 text-[16px] font-semibold shadow-md shadow-blue-200 hover:bg-[#1648C4] transition-all duration-150 active:scale-[0.98]"
@@ -702,17 +465,15 @@ function handleContactStaff() {
           </button>
         </template>
 
-        <!-- Footer สำหรับ Result View — ไม่ผ่านเกณฑ์ (ปุ่มเรียงแนวตั้ง) -->
+        <!-- Footer: Result View — ไม่ผ่านเกณฑ์ -->
         <template v-else>
           <div class="flex flex-col gap-2.5">
-            <!-- ปุ่มติดต่อเจ้าหน้าที่ (outline สีน้ำเงิน) -->
             <button
               @click="handleContactStaff"
               class="w-full flex items-center justify-center gap-2 border-2 border-[#1A56DB] text-[#1A56DB] bg-white rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 hover:bg-blue-50 active:scale-[0.98]"
             >
               ติดต่อเจ้าหน้าที่
             </button>
-            <!-- ปุ่มกลับหน้าหลัก (outline สีเทา) -->
             <button
               @click="router.push({ name: 'login' })"
               class="w-full flex items-center justify-center gap-2 border-2 border-slate-200 text-slate-600 bg-white rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 hover:bg-slate-50 active:scale-[0.98]"

@@ -2,18 +2,29 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApplicationStore } from '@/stores/application'
+import { useAuthStore } from '@/stores/auth'
+import type { ThaiDUser } from '@/types/auth'
+import { welfareApi } from '@/api/welfare'
 
 const router = useRouter()
 const app = useApplicationStore()
+const authStore = useAuthStore()
+
+// ─── Type Guard ────────────────────────────────────────────────────────────────
+function isThaiDUser(u: unknown): u is ThaiDUser {
+  return u != null && typeof (u as ThaiDUser).fname === 'string'
+}
 
 // ─── State: checkbox ทั้ง 3 ตัว ───────────────────────────────────────────────
-// ref(false) = ค่าเริ่มต้นเป็น false (ยังไม่ได้ติ๊ก)
 const consentPDPA    = ref(false) // ยินยอมให้จัดเก็บข้อมูลส่วนบุคคลตาม PDPA
 const consentTerms   = ref(false) // รับทราบเงื่อนไขการใช้บริการ
 const consentWarning = ref(false) // รับทราบคำเตือนก่อนบันทึกข้อมูล
 
+// สถานะระหว่างเรียก API
+const isSubmitting = ref(false)
+const submitError  = ref('')
+
 // computed: ปุ่ม "ยืนยัน" จะ active เฉพาะเมื่อติ๊กครบทั้ง 3
-// computed() จะคำนวณใหม่อัตโนมัติทุกครั้งที่ค่าใด checkbox เปลี่ยน
 const canProceed = computed(() =>
   consentPDPA.value && consentTerms.value && consentWarning.value
 )
@@ -26,16 +37,33 @@ function handleBack() {
 }
 
 function handleReject() {
-  // ปฏิเสธ: พาผู้ใช้กลับหน้า Login
   router.push({ name: 'login' })
 }
 
-function handleProceed() {
-  if (!canProceed.value) return
-  // บันทึก consent พร้อม timestamp + version ลง store
-  app.setPdpa(true)
-  // TODO: บันทึก consent log ผ่าน API (consent_type = 'Initial') เมื่อ backend พร้อม
-  router.push({ name: 'check-self' })
+async function handleProceed() {
+  if (!canProceed.value || isSubmitting.value) return
+
+  const u = authStore.user
+  const personId = isThaiDUser(u) ? u.person_id : 0
+
+  isSubmitting.value = true
+  submitError.value = ''
+  try {
+    // บันทึก consent ลงฐานข้อมูลก่อน แล้วจึง navigate ไปหน้าถัดไป
+    await welfareApi.createConsent({
+      person_id:               personId,
+      consent_type:            'initial',
+      initial_pdpa_accepted:   consentPDPA.value,
+      initial_terms_accepted:  consentTerms.value,
+      initial_warning_accepted: consentWarning.value,
+    })
+    app.setPdpa(true)
+    router.push({ name: 'check-self' })
+  } catch {
+    submitError.value = 'เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -185,7 +213,7 @@ function handleProceed() {
               </svg>
             </div>
             <span class="text-[14px] text-slate-700 leading-snug">
-              ข้าพเจ้ายินยอมให้จัดเก็บและใช้ข้อมูลส่วนบุคคลตาม PDPA
+              ผู้ยื่นขอรับความช่วยเหลือยินยอมให้จัดเก็บและใช้ข้อมูลส่วนบุคคลตาม PDPA
             </span>
           </label>
 
@@ -206,7 +234,7 @@ function handleProceed() {
               </svg>
             </div>
             <span class="text-[14px] text-slate-700 leading-snug">
-              ข้าพเจ้ารับทราบเงื่อนไขการใช้บริการของระบบ พม. CARE
+              ผู้ยื่นขอรับความช่วยเหลือรับทราบเงื่อนไขการใช้บริการของระบบ พม. CARE
             </span>
           </label>
 
@@ -235,7 +263,7 @@ function handleProceed() {
 
         <!-- เนื้อหาคำเตือน พร้อม highlighted text สีน้ำเงิน -->
         <p class="text-[14px] text-slate-700 leading-relaxed mb-5">
-          ข้าพเจ้าขอรับรองว่า จะให้หรือแจ้งข้อมูลและเอกสารที่
+          ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอรับรองว่า จะให้หรือแจ้งข้อมูลและเอกสารที่
           <span class="text-[#1A56DB] font-medium">ถูกต้องตามความเป็นจริง</span>
           และรับทราบว่าการให้หรือแจ้งข้อมูลและเอกสารอันเป็นเท็จ
           อาจต้อง<span class="text-[#1A56DB] font-medium">รับผิดตามกฎหมายทั้งทางแพ่งและทางอาญา</span>
@@ -275,7 +303,7 @@ function handleProceed() {
               consentWarning ? 'text-[#1A56DB] font-medium' : 'text-slate-600'
             ]"
           >
-            ข้าพเจ้ารับทราบคำเตือนข้างต้น
+            ผู้ยื่นขอรับความช่วยเหลือรับทราบคำเตือนข้างต้น
           </span>
         </label>
 
@@ -292,11 +320,11 @@ function handleProceed() {
     >
       <div class="mx-auto max-w-md px-4 pt-3">
 
-        <!-- hint text: แสดงเฉพาะตอนที่ยังไม่ครบ -->
-        <p
-          v-show="!canProceed"
-          class="text-center text-[12px] text-slate-400 mb-2"
-        >
+        <!-- hint text -->
+        <p v-if="submitError" class="text-center text-[12px] text-red-500 mb-2">
+          {{ submitError }}
+        </p>
+        <p v-else-if="!canProceed" class="text-center text-[12px] text-slate-400 mb-2">
           กรุณายืนยันรายการทั้งหมดก่อนดำเนินการต่อ
         </p>
 
@@ -318,15 +346,20 @@ function handleProceed() {
           -->
           <button
             @click="handleProceed"
-            :disabled="!canProceed"
+            :disabled="!canProceed || isSubmitting"
             :class="[
-              'flex-1 h-12 rounded-xl text-[15px] font-semibold text-white transition-all duration-200',
-              canProceed
+              'flex-1 h-12 rounded-xl text-[15px] font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2',
+              canProceed && !isSubmitting
                 ? 'bg-[#1A56DB] hover:bg-blue-700 active:bg-blue-800 shadow-sm'
                 : 'bg-slate-300 cursor-not-allowed'
             ]"
           >
-            ยืนยันและดำเนินการต่อ
+            <!-- ไอคอน loading วนเมื่อกำลังบันทึก -->
+            <svg v-if="isSubmitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            {{ isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันและดำเนินการต่อ' }}
           </button>
 
         </div>

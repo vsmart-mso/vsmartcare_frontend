@@ -7,6 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import type { CasePayload } from '@/api/welfare'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
@@ -39,10 +40,11 @@ export interface Step1Data {
     alley: string         // (เพิ่มเติม)
     soi: string           // address.sub_lane
     road: string          // address.road
-    subdistrict: string   // ใช้ resolve → address.sub_district_postcode_id
+    subdistrict: string
     district: string
     province: string
-    postalCode: string    // ใช้ resolve → address.sub_district_postcode_id
+    postalCode: string
+    subDistrictPostcodeId: number | null  // bridge ID จาก geo API → address.sub_district_postcode_id
     gpsLat: string        // address.latitude
     gpsLng: string        // address.longitude
   }
@@ -60,8 +62,7 @@ export interface Step1Data {
 
 // ข้อมูล Step 2 — เศรษฐกิจ (economic_infos + income_sources + dependency_loads + welfare_histories)
 export interface Step2Data {
-  occupation: string          // economic_infos.occupation (pre-fill จาก CheckSelf)
-  occupationOther: string     // กรณีเลือก "อื่นๆ" ในอาชีพหลัก
+  // occupation ไม่อยู่ที่นี่ — ดึงจาก CheckSelfData.occupation แทน
   familyOccupation: string    // economic_infos.family_occupation
   familyOccupationOther: string // กรณีเลือก "อื่นๆ" ในอาชีพของคนในครอบครัว
   monthlyIncome: string       // economic_infos.monthly_income (บาท/เดือน)
@@ -80,9 +81,8 @@ export interface Step2Data {
 export interface Step3Data {
   problemDescription: string  // applicants.problem_details
   aidTypes: string[]          // welfare_request_types.request_type_id (หลาย row)
-  bankName: string            // frontend only (แสดงชื่อธนาคาร — ไม่ส่ง API)
+  bankNameId: string          // applicants.bank_name_id (FK → bank_name.id)
   bankAccount: string         // applicants.bank_account_no
-  bankAccountName: string     // applicants.bank_account_name
   // bankBookPhoto → ส่งแยกผ่าน files Map ใช้ key คงที่ 'bank_book'
 }
 
@@ -128,28 +128,19 @@ function saveDraftToStorage(draft: SerializableDraft): void {
   }
 }
 
-// ─── Mapping tables: string → int ตาม ERD ────────────────────────────────────
-// ใช้ตอนสร้าง payload ก่อนส่ง API
-
-const MARITAL_STATUS_MAP: Record<string, number> = {
-  'โสด': 1,
-  'สมรส': 2,
-  'หม้าย': 3,
-  'หย่าร้าง': 4,
-  'แยกกันอยู่': 5,
-}
-
-const HOUSING_TYPE_MAP: Record<string, number> = {
-  'บ้านตนเอง': 1,
-  'บ้านเช่า': 2,
-  'บ้านผู้อื่น': 3,
-  'ไม่มีที่พัก': 4,
-}
-
-const PREFIX_MAP: Record<string, number> = {
-  'นาย': 1,
-  'นาง': 2,
-  'นางสาว': 3,
+// ─── Attachment type ID map: docType → attachment_types.id ───────────────────
+// ใช้ตอนอัปโหลดไฟล์หลักฐานเพื่อระบุประเภทไฟล์ใน DB
+// IDs ตรงกับ seed ใน 0002_seed_master_data.py
+export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
+  bank_book:    1, // รูปหน้าสมุดบัญชีธนาคาร
+  exterior:     2, // รูปสภาพบ้านภายนอก
+  interior:     3, // รูปสภาพบ้านภายใน
+  person:       4, // รูปผู้ประสบปัญหา
+  problem:      5, // รูปสภาพปัญหา
+  house_home:   6, // รูปทะเบียนบ้าน (รายการบ้าน)
+  house_person: 7, // รูปทะเบียนบ้าน (รายการบุคคล)
+  family:       8, // รูปสมาชิกครอบครัว — ใช้ id 8 (อื่น ๆ) เพราะยังไม่มี type เฉพาะ
+  other_doc:    8, // รูปอื่น ๆ
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -241,107 +232,122 @@ export const useApplicationStore = defineStore('application', () => {
     return files.value.get(id)
   }
 
-  // ─── buildApiPayload: แปลงข้อมูลจาก store → ERD field names ──────────────
+  // ─── buildApiPayload: แปลงข้อมูลจาก store → รูปแบบที่ POST /v1/cases ต้องการ ──
   // เรียกจาก handleSubmit() ใน SubmitRequestPage ก่อนส่ง API
   //
   // หมายเหตุ:
-  //   - prefix_id, marital_status_id, housing_types_id: map string → int
-  //   - sub_district_postcode_id: ต้อง resolve จาก thai-address.json (TODO)
-  //   - ค่า null แสดงว่าข้อมูลยังไม่ครบ — API ควร validate อีกรอบ
-  function buildApiPayload(authUser: { title?: string; fname?: string; lname?: string; pid?: string; dob?: string } | null = null) {
+  //   - marital_status_id / housing_types_id: เก็บเป็น String(id) จาก API → แปลงด้วย Number()
+  //   - incomeSources / caregiverRoles / aidTypes: เก็บเป็น string[] ของ id → แปลงด้วย Number()
+  //   - requester_relation_id = 1 เสมอ (ตนเอง — มีแค่รายการเดียวใน DB)
+  //   - initial_current_status_id = 1 (รับเรื่อง)
+  function buildApiPayload(
+    authUser: { dob?: string; person_id?: number } | null = null,
+  ): CasePayload {
     const s1 = step1.value
     const s2 = step2.value
     const s3 = step3.value
     const cs = checkSelf.value
 
+    // คำนวณอายุจากวันเกิด YYYY-MM-DD
+    function computeAge(dob: string | null | undefined): number | null {
+      if (!dob || !dob.trim()) return null
+      const birth = new Date(dob)
+      if (isNaN(birth.getTime())) return null
+      const today = new Date()
+      let y = today.getFullYear() - birth.getFullYear()
+      const passed =
+        today.getMonth() > birth.getMonth() ||
+        (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate())
+      if (!passed) y--
+      return y
+    }
+
+    const effectiveDob = authUser?.dob?.trim() || cs?.dob || null
+    const age = computeAge(effectiveDob)
+
+    // ─── addresses ────────────────────────────────────────────────────────
+    // address_type_id = 1 = "ที่อยู่ปัจจุบัน" (seed ข้อมูลไว้แล้ว)
+    // sub_district_postcode_id ต้องไม่เป็น null — validate ใน handleSubmit ก่อนเรียกฟังก์ชันนี้
+    const addresses: CasePayload['addresses'] = s1?.address.subDistrictPostcodeId
+      ? [{
+          sub_district_postcode_id: s1.address.subDistrictPostcodeId,
+          address_type_id:          1,
+          house_number:  s1.address.houseNo      || null,
+          house_moo:     s1.address.mooNum       || null,
+          house_name:    s1.address.villageName  || null,
+          sub_lane:      s1.address.soi          || null,
+          road:          s1.address.road         || null,
+          latitude:      s1.address.gpsLat       || null,
+          longitude:     s1.address.gpsLng       || null,
+        }]
+      : []
+
+    // ─── dependency_loads ─────────────────────────────────────────────────
+    // caregiverRoles เก็บ id ของประเภทภาระการอุปการะ (string[] จาก API)
+    // caregiverOther ใช้เป็น other_text กรณีเลือก "อื่น ๆ"
+    const dependency_loads = (s2?.caregiverRoles ?? []).map(idStr => ({
+      dependency_type_id:    Number(idStr),
+      dependency_other_text: s2?.caregiverOther || null,
+    }))
+
+    // ─── economic_infos ───────────────────────────────────────────────────
+    // income_sources เก็บ id ของแหล่งรายได้ (string[] จาก API)
+    const income_sources = (s2?.incomeSources ?? []).map(idStr => ({
+      income_source_type_id: Number(idStr),
+      other_details:         s2?.incomeSourceOther || null,
+    }))
+
+    const economic_infos: CasePayload['economic_infos'] = [{
+      housing_types_id:  Number(s1?.housingType ?? '0') || null,
+      occupation:        cs?.occupation || null,
+      // Step2 เก็บรายได้ต่อเดือน; ถ้าไม่มีให้ fallback จาก CheckSelf (รายได้ต่อปี ÷ 12)
+      monthly_income:    s2?.monthlyIncome
+                           ? Number(s2.monthlyIncome)
+                           : cs?.annualIncome
+                             ? Math.round(cs.annualIncome / 12)
+                             : null,
+      household_members: Number(s1?.familyCount ?? '0') || null,
+      family_occupation: s2?.familyOccupation || null,
+      income_sources,
+    }]
+
+    // ─── welfare_history ──────────────────────────────────────────────────
+    // history_details เก็บ id ของประเภทสวัสดิการที่เคยได้รับ (string[] จาก API)
+    const welfare_history: CasePayload['welfare_history'] =
+      s2?.govAidHistory === 'received'
+        ? {
+            has_received_welfare:  true,
+            received_count:        Number(s2.timesThisYear ?? '0') || null,
+            total_received_amount: Number(s2.totalAmount ?? '0') || null,
+            history_details: (s2.aidTypes ?? []).map(idStr => ({
+              received_welfare_type_id: Number(idStr),
+              received_other:           s2.aidTypeOther || null,
+            })),
+          }
+        : null
+
     return {
-      // ─── applicants ──────────────────────────────────────────────────────
       applicant: {
-        prefix_id:              PREFIX_MAP[authUser?.title ?? ''] ?? null,
-        first_name:             authUser?.fname ?? null,
-        last_name:              authUser?.lname ?? null,
-        cid:                    authUser?.pid ?? null,
-        birth_date:             authUser?.dob || cs?.dob || null,
-        requester_relation:     s1?.relationship ?? null,
-        marital_status_id:      MARITAL_STATUS_MAP[s1?.maritalStatus ?? ''] ?? null,
-        mobile_phone:           s1?.contact.mobile ?? null,
-        home_phone:             s1?.contact.phone ?? null,
-        fax_number:             s1?.contact.fax ?? null,
-        email_address:          s1?.contact.email ?? null,
-        // ข้าราชการ = true ถ้า occupation เป็น 'ข้าราชการ'
-        is_government_officer:  s2?.occupation === 'ข้าราชการ',
-        problem_details:        s3?.problemDescription ?? null,
-        bank_account_name:      s3?.bankAccountName ?? null,
-        bank_account_no:        s3?.bankAccount ?? null,
+        persons_id:            authUser?.person_id ?? 0,
+        requester_relation_id: 1, // ตนเอง — ตาราง requester_relation_type มีเพียง id=1
+        marital_status_id:     Number(s1?.maritalStatus) || 0,
+        mobile_phone:          s1?.contact.mobile  || null,
+        home_phone:            s1?.contact.phone   || null,
+        fax_number:            s1?.contact.fax     || null,
+        // trim แล้วส่ง null ถ้าว่าง — EmailStr ใน backend reject empty string
+        email_address:         s1?.contact.email?.trim() || null,
+        problem_details:       s3?.problemDescription || null,
+        bank_name_id:          Number(s3?.bankNameId) || null,
+        bank_account_no:       s3?.bankAccount     || null,
+        age,
       },
-
-      // ─── address ─────────────────────────────────────────────────────────
-      address: {
-        house_number:             s1?.address.houseNo ?? null,
-        house_moo:                s1?.address.mooNum ?? null,
-        house_name:               s1?.address.villageName ?? null,
-        sub_lane:                 s1?.address.soi ?? null,
-        road:                     s1?.address.road ?? null,
-        latitude:                 s1?.address.gpsLat ?? null,
-        longitude:                s1?.address.gpsLng ?? null,
-        // TODO: resolve subdistrict + postalCode string → sub_district_postcode_id int
-        // โดยใช้ข้อมูลจาก /public/thai-address.json
-        sub_district_postcode_id: null as number | null,
-      },
-
-      // ─── economic_infos ───────────────────────────────────────────────────
-      economic_info: {
-        occupation:         s2?.occupation ?? cs?.occupation ?? null,
-        family_occupation:  s2?.familyOccupation ?? null,
-        // รายได้ต่อปี ÷ 12 = รายได้ต่อเดือน; ถ้ากรอก Step2 ใช้ Step2 ก่อน
-        monthly_income:     s2?.monthlyIncome
-                              ? Number(s2.monthlyIncome)
-                              : cs?.annualIncome
-                                ? Math.round(cs.annualIncome / 12)
-                                : null,
-        household_members:  Number(s1?.familyCount ?? 0) || null,
-        housing_types_id:   HOUSING_TYPE_MAP[s1?.housingType ?? ''] ?? null,
-        housing_types_rent: Number(s1?.rentPerMonth ?? 0) || null,
-      },
-
-      // ─── economic_income_sources (many rows) ──────────────────────────────
-      // TODO: map string label → income_source_type_id int ตาม lookup table
-      income_sources:   s2?.incomeSources ?? [],
-
-      // ─── dependency_loads (many rows) ─────────────────────────────────────
-      // TODO: map string label → dependency_type_id int ตาม lookup table
-      dependency_loads: s2?.caregiverRoles ?? [],
-
-      // ─── welfare_histories ────────────────────────────────────────────────
-      welfare_history: {
-        has_received_welfare:   s2?.govAidHistory === 'received',
-        received_count:         Number(s2?.timesThisYear ?? 0) || null,
-        total_received_amount:  Number(s2?.totalAmount ?? 0) || null,
-        // welfare_histories_types (many rows)
-        // TODO: map string label → received_welfare_type_id int
-        received_types: s2?.aidTypes ?? [],
-      },
-
-      // ─── welfare_request_types (many rows) ────────────────────────────────
-      // TODO: map string label → request_type_id int ตาม lookup table
-      request_types: s3?.aidTypes ?? [],
-
-      // ─── welfare_request_consents ─────────────────────────────────────────
-      consents: {
-        // consent_type = 'Initial': บันทึกตอน PDPA ยินยอม
-        Initial_pdpa_accepted:    pdpa.value?.consented ?? false,
-        Initial_terms_accepted:   pdpa.value?.consented ?? false,
-        initial_warning_accepted: pdpa.value?.consented ?? false,
-        // consent_type = 'final': บันทึกตอน Step5 ยืนยัน
-        final_data_correct_accepted: true,
-      },
-
-      // ─── welfare_evidences (many rows): metadata ไฟล์ ────────────────────
-      // ไฟล์จริงส่งแยกผ่าน multipart/form-data โดยใช้ getFile(id)
-      documents: documentsMeta.value,
-
-      // ─── metadata ─────────────────────────────────────────────────────────
-      selected_service: selectedService.value,
+      addresses,
+      dependency_loads,
+      economic_infos,
+      // request_type_ids เก็บ id ของประเภทความช่วยเหลือที่ร้องขอ (Step3)
+      request_type_ids: (s3?.aidTypes ?? []).map(idStr => Number(idStr)),
+      welfare_history,
+      initial_current_status_id: 1, // รับเรื่อง
     }
   }
 

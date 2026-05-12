@@ -1,51 +1,70 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import type { ThaiDUser } from '@/types/auth'
+import { welfareApi } from '@/api/welfare'
 
 const route  = useRoute()
 const router = useRouter()
+const auth   = useAuthStore()
 
-// รับ case ID จาก query param ที่ส่งมาตอน submit
-const caseId = computed(() => (route.query.caseId as string) || 'CASE-000001')
+// applicant_id ที่ได้หลัง submit สำเร็จ
+const applicantId = computed(() => Number(route.query.caseId) || 0)
 
-// วันที่ยื่นในรูปแบบไทย (พ.ศ.)
+// วันที่ยื่น = ตอนนี้เลย (เพิ่งยื่นสำเร็จ)
 const submittedDate = new Date().toLocaleDateString('th-TH', {
-  day:   'numeric',
-  month: 'short',
-  year:  'numeric',
+  day: 'numeric', month: 'long', year: 'numeric',
+  hour: '2-digit', minute: '2-digit',
 })
 
-// copy case ID ไปยัง clipboard
+// ─── โหลด case_number + is_existing_case จาก API ───────────────────────────────
+const caseNumber    = ref<string | null>(null)
+const isExistingCase = ref<boolean | null>(null)
+
+onMounted(async () => {
+  const u = auth.user as ThaiDUser | null
+  if (!u?.person_id || !applicantId.value) return
+  try {
+    const cases = await welfareApi.getCasesDisplay(u.person_id)
+    const found = cases.find(c => c.applicant_id === applicantId.value)
+    if (found) {
+      caseNumber.value    = found.case_number
+      isExistingCase.value = found.is_existing_case
+    }
+  } catch {
+    // ถ้าโหลดไม่ได้ แสดง applicant_id แทน — ไม่ block หน้า
+  }
+})
+
+// หมายเลขที่แสดง: case_number จาก API หรือ fallback เป็น applicant_id
+const displayCaseId = computed(() => caseNumber.value ?? (applicantId.value ? `#${applicantId.value}` : '—'))
+
+// ─── copy ───────────────────────────────────────────────────────────────────────
 const copied = ref(false)
 async function copyCaseId() {
   try {
-    await navigator.clipboard.writeText(caseId.value)
+    await navigator.clipboard.writeText(displayCaseId.value)
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
-  } catch {
-    // browser เก่าที่ไม่รองรับ clipboard API — silent fail
-  }
+  } catch { /* silent */ }
 }
 
-// ขั้นตอนการดำเนินการ
-const statusSteps = [
-  { id: 1, label: 'รอรับเรื่อง',      active: true  },
-  { id: 2, label: 'รับเรื่องแล้ว',    active: false },
-  { id: 3, label: 'รอคณะกรรมการ',     active: false },
-  { id: 4, label: 'คกก. รับทราบ',     active: false },
-  { id: 5, label: 'อนุมัติแล้ว',      active: false },
-  { id: 6, label: 'กำลังเบิกจ่าย',   active: false },
-  { id: 7, label: 'ช่วยเหลือแล้ว',   active: false },
+// ─── Timeline: 4 steps จริงจาก DB (post-submit เสมออยู่ที่ step 1 = รอรับเรื่อง) ──
+const TIMELINE_STEPS = [
+  { id: 1, label: 'รอรับเรื่อง' },
+  { id: 2, label: 'รับเรื่องเรียบร้อย' },
+  { id: 3, label: 'อยู่ระหว่างการเบิก' },
+  { id: 4, label: 'เบิกจ่ายสำเร็จ' },
 ]
 
-// scroll timeline ซ้าย/ขวา
 const timelineRef = ref<HTMLElement | null>(null)
 function scrollTimeline(dir: 'left' | 'right') {
   timelineRef.value?.scrollBy({ left: dir === 'right' ? 140 : -140, behavior: 'smooth' })
 }
 
 function goToTracking() {
-  router.push({ name: 'case-tracking', query: { caseId: caseId.value } })
+  router.push({ name: 'case-tracking', query: { applicantId: String(applicantId.value) } })
 }
 </script>
 
@@ -59,17 +78,8 @@ function goToTracking() {
       class="fixed top-0 left-0 right-0 z-50 h-14 bg-[#1A56DB] text-white shadow-md"
       style="padding-top: env(safe-area-inset-top)"
     >
-      <div class="relative mx-auto w-full max-w-md flex items-center px-4 h-full">
-        <button
-          @click="router.push({ name: 'select-service' })"
-          class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
-          aria-label="กลับ"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
+      <div class="relative mx-auto w-full max-w-md flex items-center justify-center px-4 h-full">
+        <h1 class="text-white text-[16px] font-semibold">
           ยื่นคำขอสำเร็จ
         </h1>
       </div>
@@ -80,7 +90,7 @@ function goToTracking() {
          ══════════════════════════════════════════════════════════ -->
     <main class="flex-1 mx-auto w-full max-w-md px-4 pt-[4.5rem] pb-8 space-y-4">
 
-      <!-- ── Hero: checkmark + ชื่อสถานะ ── -->
+      <!-- ── Hero ── -->
       <div class="flex flex-col items-center pt-6 pb-2">
         <div class="w-[72px] h-[72px] rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-200 mb-4">
           <svg class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -98,25 +108,22 @@ function goToTracking() {
           <div class="text-center">
             <p class="text-[12px] text-slate-400 mb-1">หมายเลขคำขอ</p>
             <div class="flex items-center justify-center gap-2">
-              <span class="text-[22px] font-bold text-[#1A56DB] tracking-wide">{{ caseId }}</span>
+              <span class="text-[22px] font-bold text-[#1A56DB] tracking-wide">{{ displayCaseId }}</span>
               <button
                 type="button"
                 @click="copyCaseId"
                 class="text-slate-400 hover:text-[#1A56DB] active:scale-90 transition-all"
                 :aria-label="copied ? 'คัดลอกแล้ว' : 'คัดลอกหมายเลขคำขอ'"
               >
-                <!-- copy icon -->
-                <svg v-if="!copied" class="w-4.5 h-4.5 w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <svg v-if="!copied" class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                <!-- check icon (copied) -->
                 <svg v-else class="w-[18px] h-[18px] text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </button>
             </div>
-            <!-- คัดลอกแล้ว toast inline -->
-            <p v-if="copied" class="text-[11px] text-green-500 mt-0.5 transition-opacity">คัดลอกแล้ว</p>
+            <p v-if="copied" class="text-[11px] text-green-500 mt-0.5">คัดลอกแล้ว</p>
           </div>
 
           <div class="h-px bg-slate-100" />
@@ -126,10 +133,13 @@ function goToTracking() {
             วันที่ยื่น: <span class="font-medium text-slate-700">{{ submittedDate }}</span>
           </p>
 
-          <!-- badge สถานะ -->
-          <div class="flex justify-center">
-            <span class="text-[12px] font-semibold px-3 py-1 rounded-full bg-pink-100 text-pink-600">
-              รายใหม่ (ผ่านคณะกรรมการ)
+          <!-- badge รายใหม่/รายเดิม (แสดงเฉพาะเมื่อโหลดข้อมูลสำเร็จ) -->
+          <div v-if="isExistingCase !== null" class="flex justify-center">
+            <span
+              class="text-[12px] font-semibold px-3 py-1 rounded-full"
+              :class="isExistingCase ? 'bg-slate-100 text-slate-600' : 'bg-pink-100 text-pink-600'"
+            >
+              {{ isExistingCase ? 'รายเดิม' : 'รายใหม่' }}
             </span>
           </div>
 
@@ -149,7 +159,7 @@ function goToTracking() {
         </div>
       </div>
 
-      <!-- ── Timeline สถานะ (horizontal scroll) ── -->
+      <!-- ── Timeline ── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="px-4 pt-3 pb-1">
           <p class="text-[12px] font-semibold text-slate-500 mb-3">ขั้นตอนการดำเนินการ</p>
@@ -157,66 +167,44 @@ function goToTracking() {
 
         <div class="relative flex items-center px-2 pb-4">
           <!-- ลูกศรซ้าย -->
-          <button
-            type="button"
-            @click="scrollTimeline('left')"
+          <button type="button" @click="scrollTimeline('left')"
             class="flex-shrink-0 w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm z-10 active:scale-90 transition-all"
-            aria-label="เลื่อนซ้าย"
-          >
+            aria-label="เลื่อนซ้าย">
             <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
 
-          <!-- Steps -->
-          <div
-            ref="timelineRef"
-            class="flex-1 overflow-x-auto scrollbar-hide px-1"
-            style="scrollbar-width: none; -ms-overflow-style: none;"
-          >
+          <div ref="timelineRef" class="flex-1 overflow-x-auto px-1" style="scrollbar-width: none; -ms-overflow-style: none;">
             <div class="flex items-start gap-0 min-w-max py-1">
-              <template v-for="(step, i) in statusSteps" :key="step.id">
-                <!-- Step item -->
+              <template v-for="(step, i) in TIMELINE_STEPS" :key="step.id">
                 <div class="flex flex-col items-center w-[72px]">
-                  <!-- Circle -->
-                  <div
-                    class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
-                    :class="step.active
+                  <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
+                    :class="step.id === 1
                       ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
                       : 'bg-slate-100 text-slate-400'"
                   >
-                    <!-- hourglass icon สำหรับ step ที่ active (กำลังรอ) -->
-                    <svg v-if="step.active" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg v-if="step.id === 1" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     <span v-else>{{ step.id }}</span>
                   </div>
-                  <!-- Label -->
-                  <p
-                    class="text-[10px] text-center mt-1.5 leading-tight max-w-[64px]"
-                    :class="step.active ? 'text-amber-600 font-semibold' : 'text-slate-400'"
-                  >
+                  <p class="text-[10px] text-center mt-1.5 leading-tight max-w-[64px]"
+                    :class="step.id === 1 ? 'text-amber-600 font-semibold' : 'text-slate-400'">
                     {{ step.label }}
                   </p>
                 </div>
-
-                <!-- Connector line (ไม่แสดงหลัง step สุดท้าย) -->
-                <div
-                  v-if="i < statusSteps.length - 1"
+                <div v-if="i < TIMELINE_STEPS.length - 1"
                   class="h-px w-4 mt-[18px] flex-shrink-0"
-                  :class="step.active ? 'bg-amber-300' : 'bg-slate-200'"
-                />
+                  :class="step.id === 1 ? 'bg-amber-300' : 'bg-slate-200'" />
               </template>
             </div>
           </div>
 
           <!-- ลูกศรขวา -->
-          <button
-            type="button"
-            @click="scrollTimeline('right')"
+          <button type="button" @click="scrollTimeline('right')"
             class="flex-shrink-0 w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm z-10 active:scale-90 transition-all"
-            aria-label="เลื่อนขวา"
-          >
+            aria-label="เลื่อนขวา">
             <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
             </svg>

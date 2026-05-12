@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { welfareApi } from '@/api/welfare'
 import type { ThaiDUser } from '@/types/auth'
 
 const router = useRouter()
@@ -10,6 +11,28 @@ const authStore = useAuthStore()
 
 const message = ref('กำลังเข้าสู่ระบบ…')
 const isError = ref(false)
+
+// ตรวจสอบสถานะของผู้ใช้แล้วคืน route ที่เหมาะสม
+async function resolvePostLoginRoute(personId: number): Promise<{ name: string; query?: Record<string, string> }> {
+  if (!personId) return { name: 'pdpa' }
+  try {
+    // 1. มีคำขอที่ค้างอยู่ (สถานะ 1=รอรับเรื่อง, 2=รับเรื่องเรียบร้อย, 3=อยู่ระหว่างการเบิก) → ติดตามผล
+    const cases = await welfareApi.getCasesDisplay(personId)
+    const activeCase = cases.find(c => [1, 2, 3].includes(c.current_status?.id ?? -1))
+    if (activeCase) {
+      return { name: 'case-tracking', query: { applicantId: String(activeCase.applicant_id) } }
+    }
+    // 2. ผ่านการตรวจสอบสิทธิ์แล้ว → หน้าผลการตรวจสอบ
+    const latestPassed = await welfareApi.getLatestPassedScreening(personId)
+    if (latestPassed) {
+      return { name: 'check-self', query: { result: 'passed' } }
+    }
+  } catch {
+    // ถ้า API ล้มเหลวให้ไปหน้า pdpa ตามปกติ ไม่ block user
+  }
+  // 3. ยังไม่เคยทำอะไรในระบบ → เริ่มกรอก PDPA
+  return { name: 'pdpa' }
+}
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
@@ -35,15 +58,20 @@ onMounted(async () => {
   try {
     const me = await authApi.fetchMe()
     const u: ThaiDUser = {
-      pid: me.pid,
-      title: me.title_th,
-      fname: me.given_name,
-      lname: me.family_name,
-      dob: '',
+      pid:       me.pid,
+      title:     me.title_th,
+      fname:     me.given_name,
+      lname:     me.family_name,
+      dob:       me.birthdate  ?? '',
+      gender:    me.gender     ?? '',
+      person_id: me.person_id  ?? 0,
     }
     // setAuth จะเขียน token ลง sessionStorage อีกครั้ง (พร้อมข้อมูลหมดอายุ)
     authStore.setAuth(u, accessToken, 'thaid', expiresIn || undefined)
-    await router.replace({ name: 'select-service' })
+
+    // เลือกหน้าปลายทางอัตโนมัติตามสถานะของผู้ใช้
+    message.value = 'กำลังตรวจสอบข้อมูล...'
+    await router.replace(await resolvePostLoginRoute(u.person_id))
   } catch (e: unknown) {
     // fetchMe ล้มเหลว — ลบ token ออกเพื่อไม่ให้ค้างอยู่ใน storage
     sessionStorage.removeItem('auth_token')

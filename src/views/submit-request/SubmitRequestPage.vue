@@ -6,17 +6,20 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
-import { useApplicationStore } from '@/stores/application'
+import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
+import { welfareApi } from '@/api/welfare'
 
 const router = useRouter()
 const app    = useApplicationStore()
 const auth   = useAuthStore()
 
-const currentStep = ref(1)
-const stepReady   = ref(false)
+const currentStep  = ref(1)
+const stepReady    = ref(false)
+const isSubmitting = ref(false)
+const submitError  = ref('')
 
 const steps = [
   { id: 1, label: 'ข้อมูลส่วนตัว' },
@@ -37,7 +40,7 @@ const stepRef = ref<StepExpose | null>(null)
 
 function handleBack() {
   if (currentStep.value > 1) currentStep.value--
-  else router.push({ name: 'select-service' })
+  else router.back()
 }
 
 function handleNext() {
@@ -63,26 +66,85 @@ function handleNavigateTo(step: number) {
   stepReady.value = true // step ก่อนหน้าผ่านมาแล้ว ถือว่า valid
 }
 
-// Step 5: submit form
+// Step 5: submit form — บันทึกคำร้อง แล้วอัปโหลดไฟล์ทีละไฟล์
 async function handleSubmit() {
-  if (!stepReady.value) return
-  void stepRef.value?.getData()
+  if (!stepReady.value || isSubmitting.value) return
 
-  // แปลง auth.user เป็น ThaiDUser เพื่อส่งเข้า buildApiPayload
+  // ตรวจสอบว่ามี person_id (ต้องเข้าสู่ระบบผ่าน ThaiD แล้ว)
   const thaiDUser = auth.user as ThaiDUser | null
+  if (!thaiDUser?.person_id) {
+    submitError.value = 'ไม่พบข้อมูลผู้ใช้ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่'
+    return
+  }
 
-  // สร้าง payload ที่ map ไปยัง ERD field names
   const payload = app.buildApiPayload(thaiDUser)
-  console.log('[submit payload]', payload)
 
-  // TODO: เรียก API จริงเมื่อ backend พร้อม
-  // const { caseId } = await submitApi.create(payload)
-  // const fileEntries = app.documentsMeta.map(d => ({ meta: d, file: app.getFile(d.id)! }))
-  // await submitApi.uploadFiles(caseId, fileEntries)
-  // app.clearAll()
+  // ── guard ตรวจสอบ payload ก่อนส่ง ──────────────────────────────────────────
+  if (!payload.addresses[0]?.sub_district_postcode_id) {
+    submitError.value = 'กรุณากลับไป Step 1 และเลือกตำบล/แขวงให้ครบถ้วน'
+    return
+  }
+  if (!payload.applicant.marital_status_id) {
+    submitError.value = 'กรุณากลับไป Step 1 และเลือกสถานภาพสมรส'
+    return
+  }
+  if (payload.request_type_ids.length === 0) {
+    submitError.value = 'กรุณากลับไป Step 3 และเลือกประเภทความช่วยเหลือที่ต้องการอย่างน้อย 1 รายการ'
+    return
+  }
 
-  const mockCaseId = `CASE-${String(Date.now()).slice(-6).padStart(6, '0')}`
-  router.push({ name: 'submit-success', query: { caseId: mockCaseId } })
+  isSubmitting.value = true
+  submitError.value  = ''
+
+  try {
+    // 1. บันทึกคำร้องและตารางย่อยทั้งหมดในครั้งเดียว
+    const result      = await welfareApi.createCase(payload)
+    const applicantId = result.applicant.id as number
+
+    // 2. บันทึก consent ยืนยันความถูกต้องข้อมูล (final)
+    //    initial_* = false เพราะ PDPA ถูกบันทึกแยกไปแล้วในขั้นตอนแรก
+    await welfareApi.createConsent({
+      person_id:                   thaiDUser.person_id,
+      consent_type:                'final',
+      initial_pdpa_accepted:       false,
+      initial_terms_accepted:      false,
+      initial_warning_accepted:    false,
+      final_data_correct_accepted: true,
+    })
+
+    // 3. อัปโหลดไฟล์หลักฐานทีละไฟล์ (ลำดับ: bank_book ก่อน แล้วตามด้วยรูปเยี่ยมบ้าน)
+    for (const meta of app.documentsMeta) {
+      const file = app.getFile(meta.id)
+      if (!file) continue
+      const attachmentTypeId = ATTACHMENT_TYPE_MAP[meta.docType] ?? 8
+      await welfareApi.uploadEvidence(applicantId, attachmentTypeId, file)
+    }
+
+    // 3. ล้างข้อมูล draft ออกจาก memory และ sessionStorage
+    app.clearAll()
+
+    // 4. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
+    router.push({ name: 'submit-success', query: { caseId: String(applicantId) } })
+
+  } catch (err: unknown) {
+    // FastAPI 422 ส่ง detail เป็น array of {loc, msg, type}; 4xx อื่นส่งเป็น string
+    // ofetch/fetch error มี .data = parsed response body
+    const rawDetail = (err as { data?: { detail?: unknown } })?.data?.detail
+    let detail: string
+    if (Array.isArray(rawDetail)) {
+      // validation errors — แสดงเฉพาะ msg แต่ละรายการ
+      detail = rawDetail
+        .map(d => (d as { msg?: string })?.msg ?? JSON.stringify(d))
+        .join(', ')
+    } else if (typeof rawDetail === 'string') {
+      detail = rawDetail
+    } else {
+      detail = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'
+    }
+    submitError.value = `บันทึกคำขอไม่สำเร็จ: ${detail}`
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -198,11 +260,23 @@ async function handleSubmit() {
           กรุณายืนยันรายการทั้งหมดก่อนดำเนินการต่อ
         </p>
 
+        <!-- error message กรณีส่งคำขอไม่สำเร็จ -->
+        <div
+          v-if="submitError"
+          class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 mb-2"
+        >
+          <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+          </svg>
+          <p class="text-[12px] text-red-700 leading-snug">{{ submitError }}</p>
+        </div>
+
         <div class="flex gap-3">
           <!-- ปุ่มย้อนกลับ -->
           <button
             @click="handleBack"
-            class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0"
+            :disabled="isSubmitting"
+            class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"
             aria-label="ย้อนกลับ"
           >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -229,16 +303,21 @@ async function handleSubmit() {
           <button
             v-else
             @click="handleSubmit"
-            :disabled="!stepReady"
+            :disabled="!stepReady || isSubmitting"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
-            :class="stepReady
+            :class="stepReady && !isSubmitting
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
           >
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <!-- spinner ขณะกำลังบันทึก -->
+            <svg v-if="isSubmitting" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            ยืนยันและส่งคำขอ
+            {{ isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันและส่งคำขอ' }}
           </button>
         </div>
       </div>

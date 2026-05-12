@@ -28,7 +28,9 @@ export const useAuthStore = defineStore('auth', () => {
   )
 
   // เวลาที่ token หมดอายุ (Unix timestamp หน่วย ms) — null = ไม่ทราบเวลา
-  const expiresAt = ref<number | null>(null)
+  // อ่านจาก sessionStorage ด้วย เพื่อให้ token expiry ยังคงใช้งานได้หลัง refresh หน้า
+  const _storedExpiry = sessionStorage.getItem('auth_expires_at')
+  const expiresAt = ref<number | null>(_storedExpiry ? Number(_storedExpiry) : null)
 
   // --- Computed (ค่าที่คำนวณจาก state) ---
   // isAuthenticated จะตรวจทั้ง token, user และเวลาหมดอายุ
@@ -53,6 +55,12 @@ export const useAuthStore = defineStore('auth', () => {
       : null
     sessionStorage.setItem('auth_token', authToken)   // บันทึก token ไว้ใน browser ด้วย
     sessionStorage.setItem('auth_method', authMethod) // บันทึก method เพื่อ restore หลัง refresh
+    // บันทึก expiresAt เพื่อให้ตรวจ token expiry ได้ถูกต้องแม้หลัง refresh
+    if (expiresAt.value !== null) {
+      sessionStorage.setItem('auth_expires_at', String(expiresAt.value))
+    } else {
+      sessionStorage.removeItem('auth_expires_at')
+    }
   }
 
   // เรียกเมื่อ Logout — ล้างข้อมูลทั้งหมด
@@ -61,8 +69,9 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     method.value = null
     expiresAt.value = null
-    sessionStorage.removeItem('auth_token')  // ลบ token จาก browser ด้วย
-    sessionStorage.removeItem('auth_method') // ลบ method ด้วยเสมอ
+    sessionStorage.removeItem('auth_token')      // ลบ token จาก browser ด้วย
+    sessionStorage.removeItem('auth_method')     // ลบ method ด้วยเสมอ
+    sessionStorage.removeItem('auth_expires_at') // ลบ expiry ด้วย
   }
 
   // คืนค่าทั้งหมดออกไปให้ component อื่นใช้ได้
