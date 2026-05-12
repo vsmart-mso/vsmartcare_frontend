@@ -2,8 +2,8 @@
 // <script setup> คือรูปแบบใหม่ของ Vue 3 (Composition API)
 // โค้ดในนี้ทำงานครั้งเดียวตอน component ถูกสร้าง
 
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
 
 // import โลโก้จาก src/assets/ — Vite จะ optimize ไฟล์ให้อัตโนมัติ
@@ -11,9 +11,20 @@ import logoMSDHS from '@/assets/logo-msdhs.png'
 
 // useRouter() ดึง router instance มาใช้สำหรับเปลี่ยนหน้า
 const router = useRouter()
+const route  = useRoute()
 
 const thaidError = ref<string | null>(null)
 const thaidLoading = ref(false)
+
+// รับ error message ที่ส่งมาจาก LoginThaIDReturnPage (เช่น ผู้ใช้ปฏิเสธในแอป ThaiD)
+onMounted(() => {
+  const err = route.query.auth_error
+  if (typeof err === 'string' && err) {
+    thaidError.value = err
+    // ลบ query ออกจาก URL ไม่ให้ค้างเมื่อ user refresh
+    router.replace({ name: 'login' })
+  }
+})
 
 /** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
 async function handleThaID() {

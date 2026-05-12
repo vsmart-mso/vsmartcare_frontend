@@ -34,8 +34,22 @@ async function resolvePostLoginRoute(personId: number): Promise<{ name: string; 
   return { name: 'pdpa' }
 }
 
+function resolveThaiDErrorMessage(_error: string, _description?: string | null): string {
+  return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+}
+
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
+
+  // ThaiD ส่ง error กลับมา (เช่น ผู้ใช้กดปฏิเสธในแอป) → พากลับหน้า login พร้อม error message
+  const errorCode = params.get('error')?.trim()
+  if (errorCode) {
+    const desc = params.get('error_description')?.trim() || null
+    history.replaceState(null, '', window.location.pathname)
+    await router.replace({ name: 'login', query: { auth_error: resolveThaiDErrorMessage(errorCode, desc) } })
+    return
+  }
+
   const accessToken = params.get('access_token')?.trim()
   // อ่านอายุ token (หน่วย "วินาที") ที่ backend แนบมาพร้อม redirect
   const expiresIn = Number(params.get('expires_in') ?? '0') || 0
@@ -45,8 +59,8 @@ onMounted(async () => {
   history.replaceState(null, '', window.location.pathname)
 
   if (!accessToken) {
-    isError.value = true
-    message.value = 'ไม่พบ access_token จาก ThaiD — กรุณาลองเข้าสู่ระบบใหม่'
+    // ไม่มี error และไม่มี access_token — backend ไม่ได้ส่งอะไรมา
+    await router.replace({ name: 'login', query: { auth_error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' } })
     return
   }
 
@@ -72,11 +86,10 @@ onMounted(async () => {
     // เลือกหน้าปลายทางอัตโนมัติตามสถานะของผู้ใช้
     message.value = 'กำลังตรวจสอบข้อมูล...'
     await router.replace(await resolvePostLoginRoute(u.person_id))
-  } catch (e: unknown) {
-    // fetchMe ล้มเหลว — ลบ token ออกเพื่อไม่ให้ค้างอยู่ใน storage
+  } catch {
+    // fetchMe ล้มเหลว — ลบ token ออกเพื่อไม่ให้ค้างอยู่ใน storage แล้วพากลับหน้า login
     sessionStorage.removeItem('auth_token')
-    isError.value = true
-    message.value = 'ดึงข้อมูลผู้ใช้ไม่สำเร็จ — กรุณาลองเข้าสู่ระบบใหม่'
+    await router.replace({ name: 'login', query: { auth_error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' } })
   }
 })
 

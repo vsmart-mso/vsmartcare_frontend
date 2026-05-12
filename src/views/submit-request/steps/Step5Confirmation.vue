@@ -1,23 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useApplicationStore } from '@/stores/application'
-import { useAuthStore } from '@/stores/auth'
-import type { ThaiDUser } from '@/types/auth'
-
-const app  = useApplicationStore()
-const auth = useAuthStore()
-
-// ดึงข้อมูลจาก store สำหรับแสดง summary
-const thaiDUser  = computed(() => auth.user as ThaiDUser | null)
-const fullName   = computed(() => {
-  const u = thaiDUser.value
-  if (!u?.fname) return '—'
-  return `${u.title ?? ''} ${u.fname} ${u.lname}`.trim()
-})
-const s1 = computed(() => app.step1)
-const s2 = computed(() => app.step2)
-const s3 = computed(() => app.step3)
-const docCount = computed(() => app.documentsMeta.length)
 
 // checkbox ยืนยันความถูกต้อง
 const confirmed = ref(false)
@@ -51,78 +33,6 @@ defineExpose({
       <p class="text-[13px] text-slate-500 leading-relaxed max-w-xs">
         กรุณาอ่านและยืนยันข้อมูลก่อนดำเนินการบันทึกคำขอรับความช่วยเหลือ
       </p>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════
-         Card: สรุปข้อมูลทั้งหมด (อ่านจาก store)
-         ══════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
-        <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-        <p class="text-[14px] font-bold text-[#1A56DB]">สรุปข้อมูลคำขอ</p>
-      </div>
-      <div class="divide-y divide-slate-100">
-
-        <!-- ผู้ยื่นคำขอ -->
-        <div class="px-4 py-3">
-          <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">ผู้ยื่นคำขอ</p>
-          <p class="text-[14px] font-semibold text-slate-800">{{ fullName }}</p>
-          <p class="text-[12px] text-slate-500 mt-0.5">{{ thaiDUser?.pid ?? '—' }}</p>
-        </div>
-
-        <!-- ที่อยู่ -->
-        <div class="px-4 py-3">
-          <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">ที่อยู่</p>
-          <p class="text-[13px] text-slate-700 leading-relaxed">
-            <template v-if="s1">
-              {{ [s1.address.houseNo && `บ้านเลขที่ ${s1.address.houseNo}`, s1.address.subdistrict, s1.address.district, s1.address.province].filter(Boolean).join(' ') || '—' }}
-            </template>
-            <span v-else class="text-slate-400">ยังไม่ได้กรอก</span>
-          </p>
-        </div>
-
-        <!-- เศรษฐกิจ -->
-        <div class="px-4 py-3">
-          <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">เศรษฐกิจ</p>
-          <div class="flex gap-6">
-            <div>
-              <p class="text-[12px] text-slate-400">อาชีพ</p>
-              <p class="text-[13px] text-slate-700">{{ app.checkSelf?.occupation || '—' }}</p>
-            </div>
-            <div>
-              <p class="text-[12px] text-slate-400">รายได้ต่อเดือน</p>
-              <p class="text-[13px] text-slate-700">
-                {{ s2?.monthlyIncome ? Number(s2.monthlyIncome).toLocaleString('th-TH') + ' บาท' : '—' }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- ปัญหาและธนาคาร -->
-        <div class="px-4 py-3">
-          <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">ปัญหาและความช่วยเหลือ</p>
-          <p class="text-[13px] text-slate-700 line-clamp-2 leading-relaxed mb-2">
-            {{ s3?.problemDescription || '—' }}
-          </p>
-          <p class="text-[12px] text-slate-500">
-            บัญชี: {{ s3?.bankAccountName || '—' }} — {{ s3?.bankAccount || '—' }}
-          </p>
-        </div>
-
-        <!-- เอกสารแนบ -->
-        <div class="px-4 py-3">
-          <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">เอกสารและรูปภาพ</p>
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4" :class="docCount > 0 ? 'text-green-500' : 'text-slate-300'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span class="text-[13px] text-slate-700">อัปโหลดแล้ว {{ docCount }} ไฟล์</span>
-          </div>
-        </div>
-
-      </div>
     </div>
 
     <!-- ══════════════════════════════════════════════════
