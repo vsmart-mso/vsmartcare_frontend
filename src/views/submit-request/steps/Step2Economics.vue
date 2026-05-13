@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
 
@@ -39,11 +39,26 @@ const totalAmount   = ref('')
 
 // ─── 8.3 ประเภทความช่วยเหลือที่เคยได้รับ ─────────────────────────────────────
 const aidTypes = ref<string[]>([])
-const aidTypeOther = ref('')
 const aidTypeOptions = ref<Option[]>([])
-const aidTypeOtherVal = computed(() =>
-  aidTypeOptions.value.find(o => o.label.includes('อื่น'))?.value ?? ''
+
+// หา id ของตัวเลือกที่ต้องระบุรายละเอียด (ค้นจาก label ที่ได้จาก API)
+const aidTypeRepairId   = computed(() => aidTypeOptions.value.find(o => o.label.includes('ซ่อม'))?.value ?? '')
+const aidTypeGovId      = computed(() => aidTypeOptions.value.find(o => o.label.includes('ภาครัฐ'))?.value ?? '')
+const aidTypePrivateId  = computed(() => aidTypeOptions.value.find(o => o.label.includes('ภาคเอกชน'))?.value ?? '')
+const aidTypeLoanId     = computed(() => aidTypeOptions.value.find(o => o.label.includes('เงินกู้'))?.value ?? '')
+// "อื่น ๆ" คือ option ที่มีคำว่า "อื่น" แต่ไม่ใช่ "ภาครัฐ" หรือ "ภาคเอกชน"
+const aidTypeOtherId    = computed(() =>
+  aidTypeOptions.value.find(o => o.label.includes('อื่น') && !o.label.includes('ภาค'))?.value ?? ''
 )
+
+// ชุด id ที่ต้องมีช่องระบุรายละเอียด — ใช้ใน template และ isReady
+const aidTypeDetailIds  = computed(() =>
+  [aidTypeRepairId.value, aidTypeGovId.value, aidTypePrivateId.value, aidTypeLoanId.value, aidTypeOtherId.value]
+    .filter(Boolean)
+)
+
+// เก็บข้อความระบุรายละเอียดต่อ option id — key = id, value = ข้อความ
+const aidTypeDetails = reactive<Record<string, string>>({})
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toggleItem(arr: string[], value: string) {
@@ -73,6 +88,22 @@ function handleMoneyInput(e: Event, setter: (v: string) => void) {
   el.value = digits ? Number(digits).toLocaleString('th-TH') : ''
 }
 
+// กรองอาชีพ — รับเฉพาะตัวอักษรไทย/อังกฤษ และช่องว่าง ห้ามตัวเลข/อักขระพิเศษ
+function handleFamilyOccupationInput(e: Event) {
+  const input = e.target as HTMLInputElement
+  const filtered = input.value.replace(/[^ก-๙฀-๿a-zA-Z\s]/g, '')
+  familyOccupation.value = filtered
+  input.value = filtered
+}
+
+const familyOccupationError = computed(() => {
+  const val = familyOccupation.value.trim()
+  if (!val) return ''
+  return /[^ก-๙฀-๿a-zA-Z\s]/.test(val)
+    ? 'กรอกได้เฉพาะตัวอักษรไทยหรืออังกฤษเท่านั้น'
+    : ''
+})
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 const isReady = computed(() => {
   if (!familyOccupation.value.trim()) return false
@@ -85,7 +116,10 @@ const isReady = computed(() => {
     if (!timesThisYear.value) return false
     if (!totalAmount.value) return false
     if (aidTypes.value.length === 0) return false
-    if (aidTypeOtherVal.value && aidTypes.value.includes(aidTypeOtherVal.value) && !aidTypeOther.value.trim()) return false
+    // ตัวเลือกที่ต้องระบุรายละเอียด — ต้องกรอกก่อนจึงจะ ready
+    for (const id of aidTypeDetailIds.value) {
+      if (aidTypes.value.includes(id) && !(aidTypeDetails[id] ?? '').trim()) return false
+    }
   }
   return true
 })
@@ -117,8 +151,9 @@ onMounted(async () => {
     govAidHistory.value     = s.govAidHistory    ?? 'none'
     timesThisYear.value     = s.timesThisYear    ?? ''
     totalAmount.value       = s.totalAmount      ?? ''
-    aidTypes.value          = [...(s.aidTypes    ?? [])]
-    aidTypeOther.value      = s.aidTypeOther     ?? ''
+    aidTypes.value = [...(s.aidTypes ?? [])]
+    // restore รายละเอียดของแต่ละตัวเลือก
+    Object.assign(aidTypeDetails, s.aidTypeDetails ?? {})
   }
 })
 
@@ -134,8 +169,8 @@ defineExpose({
     govAidHistory:      govAidHistory.value,
     timesThisYear:      timesThisYear.value,
     totalAmount:        totalAmount.value,
-    aidTypes:           aidTypes.value,
-    aidTypeOther:       aidTypeOther.value,
+    aidTypes:        aidTypes.value,
+    aidTypeDetails:  { ...aidTypeDetails },
   }),
 })
 </script>
@@ -167,11 +202,14 @@ defineExpose({
             อาชีพหลักของครอบครัว <span class="text-red-500">*</span>
           </label>
           <input
-            v-model="familyOccupation"
+            :value="familyOccupation"
+            @input="handleFamilyOccupationInput"
             type="text"
             placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
-            class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full border rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            :class="familyOccupationError ? 'border-red-300' : 'border-slate-200'"
           />
+          <p v-if="familyOccupationError" class="text-[12px] text-red-500 mt-1 px-1">{{ familyOccupationError }}</p>
         </div>
 
         <div>
@@ -408,48 +446,53 @@ defineExpose({
               <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
 
               <div class="space-y-2">
-                <label
-                  v-for="opt in aidTypeOptions"
-                  :key="opt.value"
-                  class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
-                  :class="aidTypes.includes(opt.value) ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
-                  @click.prevent="toggleItem(aidTypes, opt.value)"
-                >
-                  <div
-                    class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150"
-                    :class="aidTypes.includes(opt.value) ? 'bg-[#1A56DB] border-[#1A56DB]' : 'bg-white border-slate-300'"
+                <!-- แต่ละตัวเลือก — ถ้าเป็นตัวที่ต้องระบุรายละเอียดและถูกเลือก จะแสดงช่อง input ใต้นั้นเลย -->
+                <div v-for="opt in aidTypeOptions" :key="opt.value">
+                  <label
+                    class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
+                    :class="aidTypes.includes(opt.value) ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
+                    @click.prevent="toggleItem(aidTypes, opt.value)"
                   >
-                    <svg v-if="aidTypes.includes(opt.value)" class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <polyline points="1,5 4.5,9 11,1" />
-                    </svg>
-                  </div>
-                  <span class="text-[14px] leading-snug transition-colors" :class="aidTypes.includes(opt.value) ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
-                    {{ opt.label }}
-                  </span>
-                </label>
-              </div>
-
-              <!-- ช่องระบุรายละเอียด เมื่อเลือก "อื่น ๆ" -->
-              <Transition
-                enter-active-class="transition-all duration-200 ease-out"
-                enter-from-class="opacity-0 -translate-y-1"
-                enter-to-class="opacity-100 translate-y-0"
-                leave-active-class="transition-all duration-150 ease-in"
-                leave-from-class="opacity-100 translate-y-0"
-                leave-to-class="opacity-0 -translate-y-1"
-              >
-                <div v-if="aidTypeOtherVal && aidTypes.includes(aidTypeOtherVal)" class="mt-3">
-                  <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-                    ระบุความช่วยเหลืออื่น ๆ <span class="text-red-500">*</span>
+                    <div
+                      class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                      :class="aidTypes.includes(opt.value) ? 'bg-[#1A56DB] border-[#1A56DB]' : 'bg-white border-slate-300'"
+                    >
+                      <svg v-if="aidTypes.includes(opt.value)" class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="1,5 4.5,9 11,1" />
+                      </svg>
+                    </div>
+                    <span class="text-[14px] leading-snug transition-colors" :class="aidTypes.includes(opt.value) ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+                      {{ opt.label }}
+                    </span>
                   </label>
-                  <input
-                    v-model="aidTypeOther"
-                    type="text"
-                    placeholder="ระบุรายละเอียด"
-                    class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-                  />
+
+                  <!-- ช่องระบุรายละเอียด — แสดงใต้ตัวเลือกนั้นๆ ทันทีเมื่อถูกเลือก -->
+                  <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="opacity-0 -translate-y-1"
+                    enter-to-class="opacity-100 translate-y-0"
+                    leave-active-class="transition-all duration-150 ease-in"
+                    leave-from-class="opacity-100 translate-y-0"
+                    leave-to-class="opacity-0 -translate-y-1"
+                  >
+                    <div
+                      v-if="aidTypeDetailIds.includes(opt.value) && aidTypes.includes(opt.value)"
+                      class="mt-2 pl-2"
+                    >
+                      <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+                        ระบุรายละเอียด <span class="text-red-500">*</span>
+                      </label>
+                      <input
+                        :value="aidTypeDetails[opt.value] ?? ''"
+                        @input="aidTypeDetails[opt.value] = ($event.target as HTMLInputElement).value"
+                        type="text"
+                        placeholder="ระบุรายละเอียด"
+                        class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+                      />
+                    </div>
+                  </Transition>
                 </div>
-              </Transition>
+              </div>
 
             </div>
 

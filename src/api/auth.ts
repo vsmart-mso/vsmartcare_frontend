@@ -129,6 +129,20 @@ function resolveThaIDLoginFlow(start: ThaIDLoginStartResponse): 'thaid' | 'dev_m
 export async function redirectBrowserToThaIDLogin(router: Router) {
   const returnUrl = `${window.location.origin}/login/thaid/return`
   const apiBase = resolveApiBaseUrl()
+
+  // บน production ใช้ GET endpoint ของ backend โดยตรง (synchronous — ไม่มี await ก่อน navigate)
+  // เพราะ iOS Safari จะ honor Universal Link (เปิดแอป ThaiD) ได้ก็ต่อเมื่อ
+  // การ navigate เกิดจาก user gesture โดยตรง ไม่ผ่าน async/Promise
+  // backend จะสร้าง state แล้วทำ 302 redirect ไป ThaiD ให้เอง
+  if (!import.meta.env.DEV) {
+    const loginUrl = new URL(`${apiBase}/v1/auth/thaid/login`)
+    loginUrl.searchParams.set('post_login_redirect', returnUrl)
+    loginUrl.searchParams.set('browser_oauth_base', apiBase)
+    window.location.assign(loginUrl.toString())
+    return
+  }
+
+  // บน dev ยังต้องใช้ POST เพื่อดัก flow "dev_mock" และแสดงหน้าจำลอง QR/ปุ่ม
   const start = await authApi.startThaIDLogin({
     post_login_redirect: returnUrl,
     browser_oauth_base: apiBase,

@@ -78,8 +78,8 @@ export interface Step2Data {
   govAidHistory: 'none' | 'received' // welfare_histories.has_received_welfare
   timesThisYear: string       // welfare_histories.received_count
   totalAmount: string         // welfare_histories.total_received_amount
-  aidTypes: string[]          // welfare_histories_types.received_welfare_type_id (หลาย row)
-  aidTypeOther: string        // กรณีเลือก "อื่นๆ"
+  aidTypes: string[]              // welfare_histories_types.received_welfare_type_id (หลาย row)
+  aidTypeDetails: Record<string, string> // key = option id, value = ข้อความระบุรายละเอียด → welfare_histories_detail.received_other
 }
 
 // ข้อมูล Step 3 — ปัญหาและความต้องการ + บัญชีธนาคาร
@@ -302,7 +302,8 @@ export const useApplicationStore = defineStore('application', () => {
     }))
 
     const economic_infos: CasePayload['economic_infos'] = [{
-      housing_types_id:  Number(s1?.housingType ?? '0') || null,
+      housing_types_id:   Number(s1?.housingType ?? '0') || null,
+      housing_types_rent: s1?.rentPerMonth ? (Number(s1.rentPerMonth) || null) : null,
       occupation:        cs?.occupation || null,
       // Step2 เก็บรายได้ต่อเดือน; ถ้าไม่มีให้ fallback จาก CheckSelf (รายได้ต่อปี ÷ 12)
       monthly_income:    s2?.monthlyIncome
@@ -325,7 +326,7 @@ export const useApplicationStore = defineStore('application', () => {
             total_received_amount: Number(s2.totalAmount ?? '0') || null,
             history_details: (s2.aidTypes ?? []).map(idStr => ({
               received_welfare_type_id: Number(idStr),
-              received_other:           s2.aidTypeOther || null,
+              received_other: s2.aidTypeDetails?.[idStr] || null,
             })),
           }
         : null

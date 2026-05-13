@@ -129,6 +129,7 @@ export interface CaseIncomeSourcePayload {
 
 export interface CaseEconomicInfoPayload {
   housing_types_id?: number | null
+  housing_types_rent?: number | null  // ค่าเช่าต่อเดือน (บาท) — ส่งเฉพาะเมื่อเลือกบ้านเช่า
   occupation?: string | null
   monthly_income?: number | null
   household_members?: number | null
