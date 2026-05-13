@@ -26,7 +26,7 @@ const fullName  = computed(() => {
   if (!u?.fname) return 'ผู้ใช้งาน'
   return `${u.title} ${u.fname} ${u.lname}`.trim()
 })
-const avatarLetter = computed(() => fullName.value.charAt(0))
+const avatarLetter = computed(() => thaiDUser.value?.fname?.charAt(0) ?? fullName.value.charAt(0))
 const nationalId   = computed(() => thaiDUser.value?.pid ?? '—')
 
 // ─── Query param: รับทั้ง applicantId และ caseId (fallback) ────────────────────

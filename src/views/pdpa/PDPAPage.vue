@@ -31,11 +31,6 @@ const canProceed = computed(() =>
 
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
-function handleBack() {
-  if (window.history.length > 1) router.back()
-  else router.push({ name: 'login' })
-}
-
 function handleReject() {
   router.push({ name: 'login' })
 }
@@ -70,31 +65,21 @@ async function handleProceed() {
 <template>
   <!--
     Layout หน้า PDPA:
-    - Header: ติดบนสุด (fixed) สีน้ำเงิน
-    - Main: เนื้อหา scroll ได้ มี padding ชดเชย header และ footer
-    - Footer: ติดล่างสุด (fixed) มีปุ่มยืนยัน/ปฏิเสธ
+    - ใช้ h-dvh + flex-col เพื่อให้เนื้อหาพอดีหน้าจอพอดี ไม่ต้อง scroll
+    - Header: ติดบนสุด ความสูงคงที่
+    - Main: flex-1 overflow-y-auto ใช้พื้นที่ที่เหลือระหว่าง header กับ footer
+    - Footer: ติดล่างสุด ความสูงคงที่
   -->
-  <div class="min-h-dvh bg-slate-100">
+  <div class="h-dvh flex flex-col bg-slate-100">
 
     <!-- ══════════════════════════════════════════
-         App Bar (fixed header)
+         App Bar (header ไม่ fixed แล้ว เป็นส่วนหนึ่งของ flex column)
          ══════════════════════════════════════════ -->
-    <header class="fixed top-0 left-0 right-0 h-14 bg-[#1A56DB] z-50"
+    <header class="flex-shrink-0 h-14 bg-[#1A56DB] z-50"
             style="padding-top: env(safe-area-inset-top)">
       <div class="relative mx-auto h-full flex items-center max-w-md px-4">
 
-        <!-- ปุ่ม Back -->
-        <button
-          @click="handleBack"
-          class="flex items-center justify-center w-9 h-9 rounded-full text-white hover:bg-white/20 active:bg-white/30 transition-colors"
-          aria-label="ย้อนกลับ"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        <!-- Title: absolute center เพื่อให้อยู่กลางจอเสมอแม้ปุ่มซ้าย-ขวาไม่เท่ากัน -->
+        <!-- Title -->
         <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
           ความยินยอม (PDPA)
         </h1>
@@ -102,36 +87,36 @@ async function handleProceed() {
     </header>
 
     <!-- ══════════════════════════════════════════
-         Main Content (scrollable)
-         pt-14 = ชดเชยความสูง header
-         pb-28 = ชดเชยความสูง footer
+         Main Content
+         flex-1 = ใช้พื้นที่ที่เหลือทั้งหมดระหว่าง header กับ footer
+         overflow-y-auto = scroll ได้เฉพาะตรงนี้ถ้าจอเล็กมากจริงๆ
          ══════════════════════════════════════════ -->
-    <main class="pt-14 pb-28 mx-auto w-full max-w-md">
+    <main class="flex-1 overflow-y-auto mx-auto w-full max-w-md">
 
       <!-- ── ไอคอนโล่ + Title ── -->
-      <div class="flex flex-col items-center px-5 pt-7 pb-5 text-center">
+      <div class="flex flex-col items-center px-5 pt-4 pb-3 text-center">
 
         <!-- ไอคอนโล่: วงกลมสีน้ำเงินอ่อน + shield SVG สีน้ำเงิน -->
-        <div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center mb-4" aria-hidden="true">
-          <svg class="w-7 h-7 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+        <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3" aria-hidden="true">
+          <svg class="w-6 h-6 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
           </svg>
         </div>
 
-        <h2 class="text-[20px] font-bold text-slate-900 leading-snug mb-2">
+        <h2 class="text-[18px] font-bold text-slate-900 leading-snug mb-1">
           การแจ้งเตือนและการยืนยันข้อมูล
         </h2>
-        <p class="text-[13px] text-slate-500 leading-relaxed">
-          กรุณาอ่านและยืนยันข้อมูลก่อนดำเนินการบันทึกคำขอรับ<br />ความช่วยเหลือ
+        <p class="text-[12px] text-slate-500 leading-relaxed">
+          กรุณาอ่านและยืนยันข้อมูลก่อนดำเนินการบันทึกคำขอรับความช่วยเหลือ
         </p>
       </div>
 
       <!-- ── Card: ข้อมูลการยินยอม + Checkboxes ── -->
-      <div class="mx-4 mb-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="mx-4 mb-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
         <!-- รายการข้อมูล 3 ข้อ -->
-        <div class="px-5 pt-5 pb-4 space-y-4">
+        <div class="px-4 pt-4 pb-3 space-y-3">
 
           <!-- ข้อ 1: วัตถุประสงค์ -->
           <div class="flex gap-3">
@@ -187,10 +172,10 @@ async function handleProceed() {
         </div>
 
         <!-- เส้นคั่น -->
-        <div class="h-px bg-slate-100 mx-5" />
+        <div class="h-px bg-slate-200 mx-5" />
 
         <!-- Checkboxes ในกลุ่มแรก -->
-        <div class="px-5 py-4 space-y-4">
+        <div class="px-4 py-3 space-y-3">
 
           <!-- Checkbox 1: ยินยอม PDPA -->
           <label class="flex items-start gap-3 cursor-pointer select-none">
@@ -242,12 +227,12 @@ async function handleProceed() {
       </div>
 
       <!-- ── Card: คำเตือนก่อนบันทึกข้อมูล ── -->
-      <div class="mx-4 mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div class="mx-4 mb-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
 
         <!-- หัวคำเตือน: ไอคอน + label + title -->
-        <div class="flex gap-3 mb-4">
+        <div class="flex gap-3 mb-3">
           <!-- วงกลม amber + ไอคอนสามเหลี่ยมเตือน -->
-          <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+          <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
             <svg class="w-5 h-5 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
               <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
             </svg>
@@ -262,30 +247,19 @@ async function handleProceed() {
         </div>
 
         <!-- เนื้อหาคำเตือน พร้อม highlighted text สีน้ำเงิน -->
-        <p class="text-[14px] text-slate-700 leading-relaxed mb-5">
+        <p class="text-[13px] text-slate-700 leading-relaxed mb-3">
           ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอรับรองว่า จะให้หรือแจ้งข้อมูลและเอกสารที่
           <span class="text-[#1A56DB] font-medium">ถูกต้องตามความเป็นจริง</span>
           และรับทราบว่าการให้หรือแจ้งข้อมูลและเอกสารอันเป็นเท็จ
-          อาจต้อง<span class="text-[#1A56DB] font-medium">รับผิดตามกฎหมายทั้งทางแพ่งและทางอาญา</span>
+          อาจต้อง<span class="text-[#1A56DB] font-medium">รับผิดตามกฎหมาย</span>ทั้ง<span class="text-[#1A56DB] font-medium">ทางแพ่งและทางอาญา</span>
         </p>
 
-        <!-- Checkbox 3: อยู่ในกรอบ — เปลี่ยน border + bg เมื่อติ๊ก -->
-        <!--
-          transition-all = animation ทุก property
-          border-dashed เมื่อยังไม่ติ๊ก / border-solid สีน้ำเงินเมื่อติ๊ก
-        -->
-        <label
-          :class="[
-            'flex items-center gap-3 cursor-pointer select-none rounded-xl border-2 px-4 py-3 transition-all duration-200',
-            consentWarning
-              ? 'border-[#1A56DB] bg-blue-50'
-              : 'border-dashed border-slate-300 bg-white'
-          ]"
-        >
+        <!-- Checkbox 3: style เดียวกันกับ checkbox 1 และ 2 -->
+        <label class="flex items-start gap-3 cursor-pointer select-none mt-3">
           <input type="checkbox" v-model="consentWarning" class="sr-only" />
           <div
             :class="[
-              'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150',
+              'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-150',
               consentWarning
                 ? 'bg-[#1A56DB] border-[#1A56DB]'
                 : 'bg-white border-slate-300'
@@ -296,13 +270,7 @@ async function handleProceed() {
               <polyline points="1,5 4.5,9 11,1" />
             </svg>
           </div>
-          <!-- ข้อความเปลี่ยนสีตามสถานะ -->
-          <span
-            :class="[
-              'text-[14px] leading-snug transition-colors duration-200',
-              consentWarning ? 'text-[#1A56DB] font-medium' : 'text-slate-600'
-            ]"
-          >
+          <span class="text-[14px] text-slate-700 leading-snug">
             ผู้ยื่นขอรับความช่วยเหลือรับทราบคำเตือนข้างต้น
           </span>
         </label>
@@ -312,10 +280,10 @@ async function handleProceed() {
     </main>
 
     <!-- ══════════════════════════════════════════
-         Sticky Footer
+         Footer (flex-shrink-0 = ติดล่างจอเสมอ ไม่ถูกบีบ)
          ══════════════════════════════════════════ -->
     <footer
-      class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200"
+      class="flex-shrink-0 bg-white border-t border-slate-200"
       style="padding-bottom: max(env(safe-area-inset-bottom), 12px)"
     >
       <div class="mx-auto max-w-md px-4 pt-3">

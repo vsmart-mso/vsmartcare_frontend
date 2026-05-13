@@ -126,36 +126,13 @@ function goToTracking() {
             <p v-if="copied" class="text-[11px] text-green-500 mt-0.5">คัดลอกแล้ว</p>
           </div>
 
-          <div class="h-px bg-slate-100" />
+          <div class="h-px bg-slate-200" />
 
           <!-- วันที่ยื่น -->
           <p class="text-center text-[13px] text-slate-500">
             วันที่ยื่น: <span class="font-medium text-slate-700">{{ submittedDate }}</span>
           </p>
 
-          <!-- badge รายใหม่/รายเดิม (แสดงเฉพาะเมื่อโหลดข้อมูลสำเร็จ) -->
-          <div v-if="isExistingCase !== null" class="flex justify-center">
-            <span
-              class="text-[12px] font-semibold px-3 py-1 rounded-full"
-              :class="isExistingCase ? 'bg-slate-100 text-slate-600' : 'bg-pink-100 text-pink-600'"
-            >
-              {{ isExistingCase ? 'รายเดิม' : 'รายใหม่' }}
-            </span>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ── ระยะเวลาดำเนินการ ── -->
-      <div class="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-start gap-3">
-        <svg class="w-4 h-4 text-[#1A56DB] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div>
-          <p class="text-[13px] font-semibold text-[#1A56DB]">ระยะเวลาดำเนินการ</p>
-          <p class="text-[12px] text-slate-500 mt-0.5">
-            เจ้าหน้าที่จะตรวจสอบและติดต่อกลับภายใน 7-15 วันทำการ
-          </p>
         </div>
       </div>
 
@@ -220,9 +197,6 @@ function goToTracking() {
           class="w-full flex items-center justify-center gap-2 bg-[#1A56DB] text-white rounded-2xl py-3.5 text-[16px] font-semibold shadow-md shadow-blue-200 hover:bg-[#1648C4] active:scale-[0.98] transition-all"
         >
           ติดตามสถานะคำขอ
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-          </svg>
         </button>
       </div>
 

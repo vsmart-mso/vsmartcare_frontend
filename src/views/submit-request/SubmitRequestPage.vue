@@ -159,15 +159,6 @@ async function handleSubmit() {
       style="padding-top: env(safe-area-inset-top)"
     >
       <div class="relative mx-auto w-full max-w-md flex items-center px-4 h-full">
-        <button
-          @click="handleBack"
-          class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
-          aria-label="ย้อนกลับ"
-        >
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
         <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
           ยื่นคำขอรับความช่วยเหลือ
         </h1>
@@ -272,8 +263,9 @@ async function handleSubmit() {
         </div>
 
         <div class="flex gap-3">
-          <!-- ปุ่มย้อนกลับ -->
+          <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1) -->
           <button
+            v-if="currentStep > 1"
             @click="handleBack"
             :disabled="isSubmitting"
             class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"

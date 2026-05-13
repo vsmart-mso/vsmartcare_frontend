@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/api/auth'
+import { welfareApi } from '@/api/welfare'
 import type { ThaiDUser } from '@/types/auth'
 
 const routes: RouteRecordRaw[] = [
@@ -43,12 +44,6 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/select-service',
-    name: 'select-service',
-    component: () => import('@/views/select-service/SelectServicePage.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
     path: '/submit-request',
     name: 'submit-request',
     component: () => import('@/views/submit-request/SubmitRequestPage.vue'),
@@ -79,6 +74,31 @@ const router = createRouter({
   routes,
   scrollBehavior: () => ({ top: 0 }), // เมื่อเปลี่ยนหน้า ให้ scroll กลับขึ้นบนสุดเสมอ
 })
+
+// ─── Helper: หาหน้า "home" ที่เหมาะสมตามสถานะของผู้ใช้ ─────────────────────────
+// ใช้ร่วมกันระหว่าง guard (กรณี login แล้วเข้าหน้า login) และ LoginThaIDReturnPage
+//
+// เงื่อนไข:
+//   1. มีคำขอค้างอยู่ (status 1-3) → case-tracking
+//   2. ผ่านการตรวจสอบสิทธิ์แล้ว   → submit-request
+//   3. ไม่มีข้อมูลอะไรเลย          → pdpa
+async function resolveHomeRoute(personId: number): Promise<string> {
+  if (!personId) return 'pdpa'
+  try {
+    const cases = await welfareApi.getCasesDisplay(personId)
+    const activeCase = cases.find(c => [1, 2, 3].includes(c.current_status?.id ?? -1))
+    if (activeCase) return 'case-tracking'
+
+    const latestPassed = await welfareApi.getLatestPassedScreening(personId)
+    if (latestPassed) return 'submit-request'
+  } catch {
+    // API ล้มเหลว → ไป pdpa เป็น fallback ปลอดภัย
+  }
+  return 'pdpa'
+}
+
+// ─── Export ให้ LoginThaIDReturnPage ใช้ได้ด้วย ────────────────────────────────
+export { resolveHomeRoute }
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
@@ -112,10 +132,15 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login' }
   }
+
+  // ถ้า login แล้วพยายามเข้าหน้า login → พาไปหน้า home ที่เหมาะสมตามสถานะ
   if (to.meta.requiresGuest && auth.isAuthenticated) {
-    // ถ้า login แล้วพยายามเข้าหน้า login ให้พาไปหน้าเลือกบริการแทน
-    return { name: 'select-service' }
+    const user = auth.user as ThaiDUser | null
+    const personId = user?.person_id ?? 0
+    const home = await resolveHomeRoute(personId)
+    return { name: home }
   }
+
   return true
 })
 

@@ -6,6 +6,7 @@ import { useThaiAddress } from '@/composables/useThaiAddress'
 import { useApplicationStore } from '@/stores/application'
 import { formatThaiDate } from '@/utils/formatDate'
 import { lookupsApi } from '@/api/lookups'
+import GpsMapPicker from '@/components/GpsMapPicker.vue'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore()
@@ -86,6 +87,13 @@ const maritalOptions = ref<{ value: string; label: string }[]>([])
 const housingType = ref('')
 // ดึงจาก API แทนการ hardcode
 const housingOptions = ref<{ value: string; label: string }[]>([])
+
+// หา id ของตัวเลือก "บ้านเช่า" จาก API — ใช้แทน hardcode 'rent'
+// เพราะ value จริงคือ String(id) เช่น "3" ไม่ใช่ "rent"
+const rentOptionId = computed(() =>
+  housingOptions.value.find(o => o.label.includes('เช่า'))?.value ?? '__rent__'
+)
+const isRentSelected = computed(() => housingType.value === rentOptionId.value)
 
 // ─── 4.2 ค่าเช่าต่อเดือน ──────────────────────────────────────────────────────
 const rentPerMonth  = ref('')   // ตัวเลขล้วน ใช้คำนวณ
@@ -188,7 +196,7 @@ const errors = computed(() => ({
       ? 'กรุณาเลือกลักษณะที่อยู่อาศัย'
       : '',
   rentPerMonth:
-    touched.rentPerMonth && housingType.value === 'rent' && !rentPerMonth.value
+    touched.rentPerMonth && isRentSelected.value && !rentPerMonth.value
       ? 'กรุณากรอกค่าเช่าต่อเดือน'
       : '',
   familyCount:
@@ -198,16 +206,6 @@ const errors = computed(() => ({
 }))
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
-function handleGetGPS() {
-  if (!navigator.geolocation) return
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      gpsLat.value = pos.coords.latitude.toFixed(6)
-      gpsLng.value = pos.coords.longitude.toFixed(6)
-    },
-    () => {},
-  )
-}
 
 // บ้านเลขที่: รับตัวเลขและ / เท่านั้น (เช่น 123/4)
 function handleHouseNoInput(e: Event) {
@@ -253,7 +251,7 @@ const isReady = computed(() => {
     maritalStatus.value     !== '' &&
     housingType.value       !== '' &&
     familyCount.value       !== ''
-  if (housingType.value === 'rent') return base && rentPerMonth.value !== ''
+  if (isRentSelected.value) return base && rentPerMonth.value !== ''
   return base
 })
 
@@ -511,7 +509,6 @@ defineExpose({
               @blur="touched.houseNo = true"
               type="text"
               inputmode="numeric"
-              placeholder="123/4"
               class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
               :class="errors.houseNo ? 'border-red-300' : 'border-slate-200'"
             />
@@ -524,7 +521,6 @@ defineExpose({
               @input="(e) => handleDigitsInput(e, v => mooNum = v)"
               type="text"
               inputmode="numeric"
-              placeholder="5"
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
@@ -536,7 +532,6 @@ defineExpose({
           <input
             v-model="villageName"
             type="text"
-            placeholder="บ้านสุขใจ"
             class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
@@ -556,7 +551,6 @@ defineExpose({
             <input
               v-model="soi"
               type="text"
-              placeholder="สุขสวัสดิ์ 3"
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
@@ -568,7 +562,6 @@ defineExpose({
           <input
             v-model="road"
             type="text"
-            placeholder="พหลโยธิน"
             class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
@@ -627,7 +620,7 @@ defineExpose({
                 class="w-full appearance-none border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:text-slate-400"
                 :class="errors.district ? 'border-red-300' : 'border-slate-200'"
               >
-                <option value="">{{ addr.province.value ? '— เลือกอำเภอ/เขต —' : '— เลือกจังหวัดก่อน —' }}</option>
+                <option value="">— เลือกอำเภอ/เขต —</option>
                 <option v-for="d in addr.districtList.value" :key="d.id" :value="d.name">{{ d.name }}</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
@@ -653,7 +646,7 @@ defineExpose({
                 class="w-full appearance-none border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:text-slate-400"
                 :class="errors.subdistrict ? 'border-red-300' : 'border-slate-200'"
               >
-                <option value="">{{ addr.district.value ? '— เลือกตำบล/แขวง —' : '— เลือกอำเภอก่อน —' }}</option>
+                <option value="">— เลือกตำบล/แขวง —</option>
                 <option v-for="s in addr.subdistrictList.value" :key="s.name" :value="s.name">{{ s.name }}</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
@@ -670,7 +663,7 @@ defineExpose({
             <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">รหัสไปรษณีย์</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
               <span class="text-[14px]" :class="addr.zipcode.value ? 'text-slate-700' : 'text-slate-400'">
-                {{ addr.zipcode.value || '— กรอกอัตโนมัติเมื่อเลือกตำบล —' }}
+                {{ addr.zipcode.value || ' ' }}
               </span>
               <svg v-if="addr.zipcode.value" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -679,42 +672,13 @@ defineExpose({
           </div>
         </template>
 
-        <!-- GPS -->
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <div class="flex items-center justify-between mb-3">
-            <p class="text-[13px] font-medium text-slate-600">พิกัด GPS (ที่อยู่ปัจจุบัน)</p>
-            <button
-              @click="handleGetGPS"
-              type="button"
-              class="flex items-center gap-1.5 bg-[#1A56DB] text-white text-[12px] font-semibold px-3 py-1.5 rounded-lg hover:bg-[#1648C4] active:scale-[0.97] transition-all"
-            >
-              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clip-rule="evenodd" />
-              </svg>
-              รับพิกัด GPS
-            </button>
-          </div>
-          <div class="flex gap-3">
-            <div class="flex-1">
-              <label class="block text-[11px] text-slate-500 mb-1">Latitude</label>
-              <input
-                v-model="gpsLat"
-                type="text"
-                placeholder="เช่น 16.8211"
-                class="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-              />
-            </div>
-            <div class="flex-1">
-              <label class="block text-[11px] text-slate-500 mb-1">Longitude</label>
-              <input
-                v-model="gpsLng"
-                type="text"
-                placeholder="เช่น 100.2659"
-                class="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-              />
-            </div>
-          </div>
-        </div>
+        <!-- GPS — แผนที่แบบ interactive -->
+        <GpsMapPicker
+          :lat="gpsLat"
+          :lng="gpsLng"
+          @update:lat="gpsLat = $event"
+          @update:lng="gpsLng = $event"
+        />
 
         <div class="h-px bg-slate-100 my-4" />
 
@@ -734,7 +698,7 @@ defineExpose({
             type="text"
             inputmode="tel"
             maxlength="9"
-            placeholder="เช่น 021234567"
+            placeholder="เบอร์บ้าน/ที่ทำงาน"
             class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.phone
               ? 'border-red-300 focus:ring-red-200'
@@ -753,7 +717,6 @@ defineExpose({
             type="text"
             inputmode="tel"
             maxlength="9"
-            placeholder="เช่น 021234567"
             class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.fax
               ? 'border-red-300 focus:ring-red-200'
@@ -773,7 +736,6 @@ defineExpose({
             type="text"
             inputmode="tel"
             maxlength="10"
-            placeholder="0812345678"
             @blur="touched.mobile = true"
             class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.mobile
@@ -892,7 +854,7 @@ defineExpose({
           leave-from-class="opacity-100 translate-y-0"
           leave-to-class="opacity-0 -translate-y-1"
         >
-          <div v-if="housingType === 'rent'" class="mt-4 pt-4 border-t border-slate-100">
+          <div v-if="isRentSelected" class="mt-4 pt-4 border-t border-slate-100">
             <div class="flex items-center gap-2 mb-3">
               <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">4.2</span>
               <span class="text-[13px] font-medium text-slate-600">ค่าเช่าต่อเดือน</span>
@@ -908,7 +870,6 @@ defineExpose({
                 type="text"
                 inputmode="numeric"
                 pattern="[0-9]*"
-                placeholder="2,500"
                 class="w-full border rounded-xl px-3 py-2.5 pr-20 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
                 :class="errors.rentPerMonth
                   ? 'border-red-300 focus:ring-red-200'

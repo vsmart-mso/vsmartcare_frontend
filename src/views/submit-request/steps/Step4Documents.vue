@@ -31,8 +31,9 @@ const totalUploaded = computed(() =>
 
 // ─── Validation: ต้องอัปโหลดครบ 5 รูปบังคับ ─────────────────────────────────
 const isReady = computed(() =>
-  !!(exterior.file.value && interior.file.value &&
-     person.file.value   && problem.file.value  && family.file.value)
+  !!(exterior.file.value   && interior.file.value  &&
+     person.file.value     && problem.file.value   && family.file.value &&
+     houseHome.file.value  && housePerson.file.value && otherDoc.file.value)
 )
 
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
@@ -98,7 +99,7 @@ defineExpose({
   <div class="space-y-4">
 
     <!-- ════════════════════════════════════════════════════════
-         Section 13: หลักฐานการเยี่ยมบ้าน
+         Section 11: หลักฐานการเยี่ยมบ้าน
          ════════════════════════════════════════════════════════ -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -204,18 +205,18 @@ defineExpose({
     </div>
 
     <!-- ════════════════════════════════════════════════════════
-         Section 14: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
+         Section 12: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
          ════════════════════════════════════════════════════════ -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">12</span>
         </div>
-        <p class="text-[14px] font-bold text-[#1A56DB]">เอกสารแนบเพิ่มเติม <span class="font-normal text-[#1A56DB]/70">(ไม่บังคับ)</span></p>
+        <p class="text-[14px] font-bold text-[#1A56DB]">เอกสารแนบเพิ่มเติม</p>
       </div>
       <div class="p-4 space-y-3">
 
-        <!-- 14.1 header -->
+        <!-- 12.1 header -->
         <div>
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">12.1</span>
@@ -227,6 +228,7 @@ defineExpose({
         <!-- ทะเบียนบ้าน (รายการบ้าน) -->
         <PhotoUploadCard
           upload-id="house-home"
+          required
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
           subtitle="หน้าทะเบียนบ้าน"
           icon="document"
@@ -242,6 +244,7 @@ defineExpose({
         <!-- ทะเบียนบ้าน (รายการบุคคล) -->
         <PhotoUploadCard
           upload-id="house-person"
+          required
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
           subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
           icon="document"
@@ -257,6 +260,7 @@ defineExpose({
         <!-- รูปอื่น ๆ -->
         <PhotoUploadCard
           upload-id="other-doc"
+          required
           title="รูปอื่น ๆ"
           subtitle="เอกสารแนบเพิ่มเติม"
           icon="document"
