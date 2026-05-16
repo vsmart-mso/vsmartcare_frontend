@@ -36,11 +36,14 @@ export function useThaiAddress() {
   const provinceList    = computed(() => provinces.value)
   const districtList    = computed(() => districts.value)
   const subdistrictList = computed(() =>
-    subDistricts.value.map(sd => ({
-      name:     sd.name,
-      zip:      sd.sub_districts_postcode[0]?.postcode.name ?? '',
-      bridgeId: sd.sub_districts_postcode[0]?.id ?? null,
-    }))
+    subDistricts.value
+      .map(sd => ({
+        name:     sd.name,
+        zip:      sd.sub_districts_postcode[0]?.postcode.name ?? '',
+        bridgeId: sd.sub_districts_postcode[0]?.id ?? null,
+      }))
+      // กรองตำบลที่ไม่มีรหัสไปรษณีย์ออก (record เก่าที่ถูกย้ายอำเภอ เช่น "บึงสามัคคี*")
+      .filter(s => s.bridgeId !== null)
   )
 
   // ─── Cascade watchers (ใช้เมื่อผู้ใช้เลือกเอง) ──────────────────────────────

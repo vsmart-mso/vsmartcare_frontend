@@ -5,10 +5,12 @@ import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 import type { CaseDisplayRead, StatusLogItem } from '@/api/welfare'
+import { useApplicationStore } from '@/stores/application'
 
 const route  = useRoute()
 const router = useRouter()
 const auth   = useAuthStore()
+const app    = useApplicationStore()
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 const isLoading  = ref(true)
@@ -42,10 +44,12 @@ const TIMELINE_STEPS = [
   { id: 3, label: 'อยู่ระหว่างการเบิก' },
   { id: 4, label: 'เบิกจ่ายสำเร็จ' },
 ]
-const REJECTED_STATUS_ID = 5
+const REJECTED_STATUS_ID  = 5
+const EDIT_DATA_STATUS_ID = 8
 
 const currentStatusId = computed(() => caseData.value?.current_status?.id ?? 0)
-const isRejected = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
+const isRejected  = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
+const isEditData  = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
 
 // ─── ข้อมูลแสดงบนหน้า ──────────────────────────────────────────────────────────
 const caseNumber = computed(() =>
@@ -120,10 +124,27 @@ onMounted(async () => {
 // ─── Timeline helpers ──────────────────────────────────────────────────────────
 function stepState(stepId: number): 'done' | 'active' | 'pending' {
   const cur = currentStatusId.value
-  if (isRejected.value) return 'pending'
+  // สถานะพิเศษที่ไม่อยู่ใน progress 1–4 → ทุก step เป็น pending
+  if (isRejected.value || isEditData.value) return 'pending'
   if (stepId < cur)  return 'done'
   if (stepId === cur) return 'active'
   return 'pending'
+}
+
+// ─── Edit Mode ─────────────────────────────────────────────────────────────────
+const editLoading = ref(false)
+
+async function handleEdit(step: number) {
+  if (!caseData.value || editLoading.value) return
+  editLoading.value = true
+  try {
+    app.clearAll()
+    const fullData = await welfareApi.getCase(caseData.value.applicant_id)
+    app.populateFromCase(fullData)
+    router.push({ name: 'submit-request', query: { step: String(step) } })
+  } finally {
+    editLoading.value = false
+  }
 }
 
 // ─── History collapse ──────────────────────────────────────────────────────────
@@ -247,7 +268,10 @@ function scrollTimeline(dir: 'left' | 'right') {
               class="flex-1 overflow-x-auto px-1"
               style="scrollbar-width: none; -ms-overflow-style: none;"
             >
-              <div class="flex items-start gap-0 min-w-max py-1">
+              <div
+                class="flex py-1"
+                :class="(isRejected || isEditData) ? 'w-full justify-center' : 'items-start gap-0 min-w-max'"
+              >
 
                 <!-- ถ้า rejected แสดง step พิเศษ -->
                 <template v-if="isRejected">
@@ -257,8 +281,22 @@ function scrollTimeline(dir: 'left' | 'right') {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                       </svg>
                     </div>
-                    <p class="text-[10px] text-center mt-1.5 leading-tight max-w-[80px] text-red-600 font-semibold">
+                    <p class="text-[10px] text-center leading-tight max-w-[80px] text-red-600 font-semibold" style="margin-top: 10px">
                       คุณสมบัติไม่ตรงตามหลักเกณฑ์
+                    </p>
+                  </div>
+                </template>
+
+                <!-- ถ้า แก้ไขข้อมูล (status 8) แสดง step พิเศษ -->
+                <template v-else-if="isEditData">
+                  <div class="flex flex-col items-center w-[88px]">
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-500 shadow-md shadow-amber-200">
+                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+                      </svg>
+                    </div>
+                    <p class="text-[10px] text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
+                      แก้ไขข้อมูล
                     </p>
                   </div>
                 </template>
@@ -284,7 +322,8 @@ function scrollTimeline(dir: 'left' | 'right') {
                         <span v-else>{{ step.id }}</span>
                       </div>
                       <p
-                        class="text-[10px] text-center mt-1.5 leading-tight max-w-[64px]"
+                        class="text-[10px] text-center leading-tight max-w-[64px]"
+                        style="margin-top: 10px"
                         :class="{
                           'text-green-600 font-semibold': stepState(step.id) === 'done',
                           'text-amber-600 font-semibold': stepState(step.id) === 'active',
@@ -318,6 +357,114 @@ function scrollTimeline(dir: 'left' | 'right') {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </button>
+          </div>
+        </div>
+
+        <!-- ── ตรวจสอบข้อมูลและยืนยัน (แสดงเฉพาะเมื่อสถานะ = แก้ไขข้อมูล) ── -->
+        <div v-if="isEditData" class="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+
+          <!-- Header การ์ด -->
+          <div class="flex items-center gap-3 bg-amber-50 px-4 py-3 border-b border-amber-100">
+            <div class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[14px] font-bold text-amber-700">กรุณาแก้ไขข้อมูล</p>
+              <p class="text-[11px] text-amber-600 mt-0.5">เลือกหัวข้อที่ต้องการแก้ไขด้านล่าง</p>
+            </div>
+          </div>
+
+          <div class="p-4 space-y-2">
+
+            <!-- คำเตือน -->
+            <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              </svg>
+              <div>
+                <p class="text-[13px] font-semibold text-amber-700">โปรดตรวจสอบและแก้ไขข้อมูล</p>
+                <p class="text-[12px] text-amber-600 mt-0.5">เจ้าหน้าที่ขอให้แก้ไขข้อมูลก่อนดำเนินการต่อ</p>
+              </div>
+            </div>
+
+            <!-- Step 1: ข้อมูลส่วนตัว -->
+            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
+              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[13px] font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
+                <p class="text-[12px] text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
+              </div>
+              <button
+                type="button"
+                :disabled="editLoading"
+                @click="handleEdit(1)"
+                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+            </div>
+
+            <!-- Step 2: เศรษฐกิจ -->
+            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
+              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[13px] font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
+                <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
+              </div>
+              <button
+                type="button"
+                :disabled="editLoading"
+                @click="handleEdit(2)"
+                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+            </div>
+
+            <!-- Step 3: ปัญหา -->
+            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
+              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[13px] font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
+                <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
+              </div>
+              <button
+                type="button"
+                :disabled="editLoading"
+                @click="handleEdit(3)"
+                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+            </div>
+
+            <!-- Step 4: เอกสาร -->
+            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
+              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-[13px] font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
+                <p class="text-[12px] text-slate-500 mt-0.5">หลักฐานและเอกสารแนบ</p>
+              </div>
+              <button
+                type="button"
+                :disabled="editLoading"
+                @click="handleEdit(4)"
+                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+            </div>
+
           </div>
         </div>
 
@@ -357,14 +504,21 @@ function scrollTimeline(dir: 'left' | 'right') {
               <!-- แสดงจาก status logs จริง -->
               <template v-if="statusLogs.length > 0">
                 <div
-                  v-for="log in statusLogs"
+                  v-for="(log, index) in statusLogs"
                   :key="log.id"
-                  class="px-4 py-4 flex items-start gap-3 border-b border-slate-50 last:border-0"
+                  class="px-4 pt-4 flex items-start gap-3 last:pb-4"
                 >
-                  <div class="flex flex-col items-center flex-shrink-0">
+                  <!-- คอลัมน์ซ้าย: จุด + เส้นเชื่อมแนวตั้ง -->
+                  <div class="flex flex-col items-center self-stretch flex-shrink-0">
                     <span
-                      class="w-2.5 h-2.5 rounded-full mt-1"
+                      class="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
                       :style="{ backgroundColor: log.current_status.color }"
+                    ></span>
+                    <!-- เส้นเชื่อมลงด้านล่าง แสดงทุกรายการยกเว้นรายการสุดท้าย -->
+                    <span
+                      v-if="index < statusLogs.length - 1"
+                      class="w-0.5 flex-1 mt-1.5 rounded-full"
+                      :style="{ backgroundColor: log.current_status.color + '55' }"
                     ></span>
                   </div>
                   <div class="flex-1 min-w-0">

@@ -7,7 +7,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
 
 // import โลโก้จาก src/assets/ — Vite จะ optimize ไฟล์ให้อัตโนมัติ
-import logoMSDHS from '@/assets/logo-msdhs.png'
+import logoMSDHS    from '@/assets/logo-msdhs.png'
+import logoThaID    from '@/assets/logo-thaid.png'
+import logoThangrath from '@/assets/logo-thangrath.png'
 
 // useRouter() ดึง router instance มาใช้สำหรับเปลี่ยนหน้า
 const router = useRouter()
@@ -65,7 +67,7 @@ function handleTangRath() {
       <!-- ═══════════════════════════════════════════════
            ส่วนที่ 1: Brand Header
            - มี gradient background สีชมพูอ่อน ทำให้เห็นชัดว่านี่คือ "header"
-           - โลโก้ขนาดใหญ่ + ชื่อระบบ "พม. Care" เด่นกว่า heading ด้านล่าง
+           - โลโก้ขนาดใหญ่ + ชื่อระบบ "พม. CARE" เด่นกว่า heading ด้านล่าง
            ═══════════════════════════════════════════════ -->
       <div class="flex flex-col items-center px-5 pt-10 pb-8">
         <!-- โลโก้: กรอบวงกลมสีขาว shadow สำหรับใส่รูป -->
@@ -82,13 +84,13 @@ function handleTangRath() {
         </div>
 
         <!--
-          ชื่อระบบ "พม. Care"
+          ชื่อระบบ "พม. CARE"
           text-[28px] = ตั้งใจให้ใหญ่กว่า heading (22px) เพื่อให้ hierarchy ถูกต้อง:
-          "พม. Care" (ชื่อแอป) > "เลือกช่องทาง..." (คำสั่งหน้านั้น)
+          "พม. CARE" (ชื่อแอป) > "เลือกช่องทาง..." (คำสั่งหน้านั้น)
         -->
         <p class="text-[28px] font-bold tracking-wide leading-none mb-2">
           <span class="text-[#BE185D]">พม.</span>
-          <span class="text-slate-800"> Care</span>
+          <span class="text-slate-800"> CARE</span>
         </p>
 
         <!-- คำอธิบาย: เล็กและเงียบกว่า ทำหน้าที่เสริม ไม่ดึงสายตา -->
@@ -103,7 +105,7 @@ function handleTangRath() {
         <!-- ส่วนที่ 2: Title -->
         <div class="text-center mb-7">
           <!--
-            h1 ขนาด 22px — ตั้งใจให้เล็กกว่า "พม. Care" (28px)
+            h1 ขนาด 22px — ตั้งใจให้เล็กกว่า "พม. CARE" (28px)
             เพื่อให้ visual hierarchy ชัดเจน: Brand > Page title > Content
           -->
           <h1 class="text-[20px] font-bold text-slate-900 leading-snug mb-2">
@@ -129,11 +131,9 @@ function handleTangRath() {
             class="group w-full flex items-center gap-4 bg-white rounded-2xl border-2 border-blue-200 p-4 text-left shadow-sm transition-all duration-150 hover:border-blue-400 hover:shadow-md active:scale-[0.98] active:bg-blue-50 disabled:opacity-60 disabled:pointer-events-none"
             aria-label="เข้าสู่ระบบด้วย ThaID"
           >
-            <!-- Badge โลโก้ ThaID -->
-            <div
-              class="w-12 h-12 rounded-xl bg-[#1A56DB] flex items-center justify-center flex-shrink-0 shadow-sm"
-            >
-              <span class="text-white text-[11px] font-bold tracking-tight select-none">ThaID</span>
+            <!-- โลโก้ ThaID -->
+            <div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+              <img :src="logoThaID" alt="ThaID" class="w-full h-full object-contain" />
             </div>
 
             <!-- ข้อความ -->
@@ -180,13 +180,9 @@ function handleTangRath() {
             class="group w-full flex items-center gap-4 bg-white rounded-2xl border-2 border-green-200 p-4 text-left shadow-sm transition-all duration-150 hover:border-green-400 hover:shadow-md active:scale-[0.98] active:bg-green-50"
             aria-label="เข้าสู่ระบบด้วย ทางรัฐ"
           >
-            <!-- Badge โลโก้ ทางรัฐ -->
-            <div
-              class="w-12 h-12 rounded-xl bg-[#166534] flex items-center justify-center flex-shrink-0 shadow-sm"
-            >
-              <span class="text-white text-[11px] font-bold leading-tight text-center select-none">
-                ทางรัฐ
-              </span>
+            <!-- โลโก้ ทางรัฐ -->
+            <div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
+              <img :src="logoThangrath" alt="ทางรัฐ" class="w-full h-full object-contain" />
             </div>
 
             <!-- ข้อความ -->

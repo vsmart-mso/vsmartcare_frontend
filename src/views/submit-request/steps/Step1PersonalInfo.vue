@@ -7,6 +7,7 @@ import { useApplicationStore } from '@/stores/application'
 import { formatThaiDate } from '@/utils/formatDate'
 import { lookupsApi } from '@/api/lookups'
 import GpsMapPicker from '@/components/GpsMapPicker.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore()
@@ -239,6 +240,18 @@ function handleRentInput(e: Event) {
 function handleRentFocus() {
   touched.rentPerMonth = true
 }
+
+// ─── Options สำหรับ SearchableSelect ──────────────────────────────────────────
+// แปลงข้อมูลจาก API → { value, label } เพื่อใช้กับ SearchableSelect
+const provinceOptions    = computed(() =>
+  addr.provinceList.value.map(p => ({ value: p.name, label: p.name }))
+)
+const districtOptions    = computed(() =>
+  addr.districtList.value.map(d => ({ value: d.name, label: d.name }))
+)
+const subdistrictOptions = computed(() =>
+  addr.subdistrictList.value.map(s => ({ value: s.name, label: s.name }))
+)
 
 // ─── isReady: ฟอร์มพร้อมส่งหรือยัง ───────────────────────────────────────────
 const isReady = computed(() => {
@@ -508,7 +521,7 @@ defineExpose({
               @input="handleHouseNoInput"
               @blur="touched.houseNo = true"
               type="text"
-              inputmode="numeric"
+              inputmode="text"
               class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
               :class="errors.houseNo ? 'border-red-300' : 'border-slate-200'"
             />
@@ -586,23 +599,14 @@ defineExpose({
             <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
               จังหวัด <span class="text-red-500">*</span>
             </label>
-            <div class="relative">
-              <select
-                v-model="addr.province.value"
-                @change="touched.province = true"
-                @blur="touched.province = true"
-                class="w-full appearance-none border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
-                :class="errors.province ? 'border-red-300' : 'border-slate-200'"
-              >
-                <option value="">— เลือกจังหวัด —</option>
-                <option v-for="p in addr.provinceList.value" :key="p.id" :value="p.name">{{ p.name }}</option>
-              </select>
-              <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              v-model="addr.province.value"
+              :options="provinceOptions"
+              placeholder="— เลือกจังหวัด —"
+              :has-error="!!errors.province"
+              @change="touched.province = true"
+              @blur="touched.province = true"
+            />
             <p v-if="errors.province" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.province }}</p>
           </div>
 
@@ -611,24 +615,15 @@ defineExpose({
             <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
               อำเภอ/เขต <span class="text-red-500">*</span>
             </label>
-            <div class="relative">
-              <select
-                v-model="addr.district.value"
-                @change="touched.district = true"
-                @blur="touched.district = true"
-                :disabled="!addr.province.value"
-                class="w-full appearance-none border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:text-slate-400"
-                :class="errors.district ? 'border-red-300' : 'border-slate-200'"
-              >
-                <option value="">— เลือกอำเภอ/เขต —</option>
-                <option v-for="d in addr.districtList.value" :key="d.id" :value="d.name">{{ d.name }}</option>
-              </select>
-              <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              v-model="addr.district.value"
+              :options="districtOptions"
+              placeholder="— เลือกอำเภอ/เขต —"
+              :disabled="!addr.province.value"
+              :has-error="!!errors.district"
+              @change="touched.district = true"
+              @blur="touched.district = true"
+            />
             <p v-if="errors.district" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.district }}</p>
           </div>
 
@@ -637,24 +632,15 @@ defineExpose({
             <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
               ตำบล/แขวง <span class="text-red-500">*</span>
             </label>
-            <div class="relative">
-              <select
-                v-model="addr.subdistrict.value"
-                @change="touched.subdistrict = true"
-                @blur="touched.subdistrict = true"
-                :disabled="!addr.district.value"
-                class="w-full appearance-none border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:text-slate-400"
-                :class="errors.subdistrict ? 'border-red-300' : 'border-slate-200'"
-              >
-                <option value="">— เลือกตำบล/แขวง —</option>
-                <option v-for="s in addr.subdistrictList.value" :key="s.name" :value="s.name">{{ s.name }}</option>
-              </select>
-              <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              v-model="addr.subdistrict.value"
+              :options="subdistrictOptions"
+              placeholder="— เลือกตำบล/แขวง —"
+              :disabled="!addr.district.value"
+              :has-error="!!errors.subdistrict"
+              @change="touched.subdistrict = true"
+              @blur="touched.subdistrict = true"
+            />
             <p v-if="errors.subdistrict" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.subdistrict }}</p>
           </div>
 
@@ -673,9 +659,11 @@ defineExpose({
         </template>
 
         <!-- GPS — แผนที่แบบ interactive -->
+        <!-- addressHint ส่งชื่อตำบล/อำเภอ/จังหวัดที่เลือกไว้เพื่อให้แผนที่ pan ไปยังพื้นที่นั้นอัตโนมัติ -->
         <GpsMapPicker
           :lat="gpsLat"
           :lng="gpsLng"
+          :address-hint="[addr.subdistrict.value, addr.district.value, addr.province.value].filter(Boolean).join(' ')"
           @update:lat="gpsLat = $event"
           @update:lng="gpsLng = $event"
         />

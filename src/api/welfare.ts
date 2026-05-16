@@ -113,6 +113,7 @@ export interface CaseApplicantPayload {
 export interface CaseAddressPayload {
   sub_district_postcode_id: number
   address_type_id: number
+  alley?: string | null
   sub_lane?: string | null
   house_name?: string | null
   road?: string | null
@@ -183,11 +184,75 @@ export interface StatusLogItem {
   updated_at: string
 }
 
-export interface CaseDetail {
-  applicant: { id: number; [key: string]: unknown }
+// ─── Full Case Detail (ใช้สำหรับ Edit Mode — ดึงข้อมูลทั้งหมดมา populate ฟอร์ม) ─
+
+interface _GeoPostcode { name: string }
+interface _GeoProvince { name: string }
+interface _GeoDistrict { name: string; province: _GeoProvince }
+interface _GeoSubDistrict { name: string; district: _GeoDistrict }
+interface _GeoSubDistrictPostcode { sub_district: _GeoSubDistrict; postcode: _GeoPostcode }
+
+export interface FullAddressRead {
+  id: number
+  sub_district_postcode_id: number
+  address_type_id: number
+  alley: string | null
+  sub_lane: string | null
+  house_name: string | null
+  road: string | null
+  house_moo: string | null
+  house_number: string | null
+  latitude: string | null
+  longitude: string | null
+  sub_district_postcode: _GeoSubDistrictPostcode | null
+}
+
+export interface FullEconomicInfoRead {
+  id: number
+  housing_types_id: number | null
+  occupation: string | null
+  monthly_income: string | null
+  household_members: number | null
+  family_occupation: string | null
+  income_sources: Array<{ income_source_type_id: number; other_details: string | null }>
+}
+
+export interface FullApplicantRead {
+  id: number
+  persons_id: number
+  requester_relation_id: number
+  marital_status_id: number
+  mobile_phone: string | null
+  home_phone: string | null
+  fax_number: string | null
+  email_address: string | null
+  problem_details: string | null
+  bank_name_id: number | null
+  bank_account_no: string | null
+  age: number | null
+}
+
+export interface FullCaseDetail {
+  applicant: FullApplicantRead
+  addresses: FullAddressRead[]
+  dependency_loads: Array<{ dependency_type_id: number; dependency_other_text: string | null }>
+  economic_infos: FullEconomicInfoRead[]
+  welfare_request_types: Array<{ request_type_id: number }>
+  welfare_history: {
+    received_count: number | null
+    has_received_welfare: boolean
+    total_received_amount: string | null
+    history_details: Array<{ received_welfare_type_id: number; received_other: string | null }>
+  } | null
+  welfare_evidences: Array<{
+    id: number
+    attachment_type_id: number
+    file_name: string | null
+    file_other_type_name: string | null
+  }>
   welfare_request_status_logs: StatusLogItem[]
   latest_welfare_request_status: StatusLogItem | null
-  created_at: string
+  created_at: string | null
 }
 
 // ─── API functions ─────────────────────────────────────────────────────────────
@@ -225,7 +290,7 @@ export const welfareApi = {
 
   // ดึงข้อมูลคำร้องแบบละเอียด (รวม welfare_request_status_logs) ตาม applicant_id
   getCase(applicantId: number) {
-    return apiClient<CaseDetail>(`/v1/cases/${applicantId}`, { method: 'GET' })
+    return apiClient<FullCaseDetail>(`/v1/cases/${applicantId}`, { method: 'GET' })
   },
 
   // บันทึกคำร้องทั้งหมด (applicant + address + dependency + economic + request_types + welfare_history)
@@ -236,12 +301,75 @@ export const welfareApi = {
     })
   },
 
+  // แก้ไขข้อมูล case ที่มีอยู่แล้ว — ส่งเฉพาะ section ที่ต้องการแก้ (null = ไม่แตะ)
+  updateCase(applicantId: number, payload: Partial<CasePayload>) {
+    return apiClient<CaseCreateResponse>(`/v1/cases/${applicantId}`, {
+      method: 'PATCH',
+      body: payload,
+    })
+  },
+
+  // เพิ่ม log สถานะใหม่ — ใช้ endpoint ของ case_for_staff ที่มีอยู่แล้ว
+  addStatusLog(applicantId: number, currentStatusId: number) {
+    return apiClient<StatusLogItem>('/v1/case_for_staff/welfare-request-status', {
+      method: 'POST',
+      body: { applicant_id: applicantId, current_status_id: currentStatusId },
+    })
+  },
+
+  // แก้ไขชื่อเอกสาร "อื่นๆ" โดยไม่ต้อง re-upload ไฟล์ใหม่
+  // ใช้ใน Edit Mode เมื่อ user เปลี่ยนแค่ชื่อแต่ไม่ได้เปลี่ยนรูป
+  updateEvidenceName(applicantId: number, evidenceId: number, name: string) {
+    return apiClient(`/v1/cases/${applicantId}/evidences/${evidenceId}`, {
+      method: 'PATCH',
+      body: { file_other_type_name: name },
+    })
+  },
+
+  // ลบหลักฐาน (รูป) ออกจาก DB และ disk
+  // ใช้ก่อน uploadEvidence เมื่อ user เปลี่ยนรูปใน edit mode เพื่อไม่ให้มีรูปซ้ำซ้อน
+  async deleteEvidence(applicantId: number, evidenceId: number): Promise<void> {
+    const baseURL = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
+    const token   = sessionStorage.getItem('auth_token')
+    const bffKey  = import.meta.env.VITE_BFF_API_KEY as string | undefined
+    const headers: Record<string, string> = {}
+    if (token)  headers['Authorization'] = `Bearer ${token}`
+    if (bffKey) headers['X-API-Key']     = bffKey
+    const res = await fetch(`${baseURL}/v1/cases/${applicantId}/evidences/${evidenceId}`, { method: 'DELETE', headers })
+    if (!res.ok) {
+      const err = new Error(`${res.status} ${res.statusText}`) as Error & { data: unknown }
+      err.data = await res.json().catch(() => ({}))
+      throw err
+    }
+  },
+
   // อัปโหลดไฟล์หลักฐานทีละไฟล์หลังจากบันทึกคำร้องสำเร็จ
   // ใช้ _postMultipart แทน apiClient เพื่อให้ browser ตั้ง Content-Type (multipart/form-data) เอง
-  uploadEvidence(applicantId: number, attachmentTypeId: number, file: File) {
+  uploadEvidence(applicantId: number, attachmentTypeId: number, file: File, otherTypeName?: string) {
     const form = new FormData()
     form.append('attachment_type_id', String(attachmentTypeId))
     form.append('file', file)
+    // backend บังคับให้ส่ง file_other_type_name เมื่อ attachment_type_id = 99 (อื่นๆ)
+    if (otherTypeName) form.append('file_other_type_name', otherTypeName)
     return _postMultipart<{ evidence: unknown }>(`/v1/cases/${applicantId}/evidences`, form)
+  },
+
+  // ดาวน์โหลดรูปหลักฐานจาก server แล้วแปลงเป็น blob URL สำหรับแสดงใน <img>
+  // ใช้ใน Edit Mode เพื่อ preview รูปเดิมที่ยังไม่ได้เปลี่ยน
+  async fetchEvidenceAsObjectUrl(applicantId: number, evidenceId: number): Promise<string> {
+    const base = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
+    const token  = sessionStorage.getItem('auth_token')
+    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
+    const headers: Record<string, string> = {}
+    if (token)  headers['Authorization'] = `Bearer ${token}`
+    if (bffKey) headers['X-API-Key']     = bffKey
+    try {
+      const res = await fetch(`${base}/v1/cases/${applicantId}/evidences/${evidenceId}/file`, { headers })
+      if (!res.ok) return ''
+      const blob = await res.blob()
+      return URL.createObjectURL(blob)
+    } catch {
+      return ''
+    }
   },
 }
