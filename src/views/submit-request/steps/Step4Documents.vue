@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, ref } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import PhotoUploadCard from '../components/PhotoUploadCard.vue'
 import { useApplicationStore } from '@/stores/application'
+import { welfareApi } from '@/api/welfare'
 
 const emit = defineEmits<{
   'update:ready': [boolean]
@@ -19,30 +20,66 @@ const problem  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.80
 const family   = useImageUpload({ maxWidth: 1200, maxHeight: 900,  quality: 0.80 })
 
 // ─── Section 14: เอกสารแนบเพิ่มเติม (ไม่บังคับ) ────────────────────────────
-const houseHome   = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const housePerson = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const otherDoc    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const otherDocName = ref('') // ชื่อประเภทเอกสาร "อื่นๆ" — backend บังคับส่งเมื่ออัปโหลด
 
-// นับรูปทั้งหมดที่อัปโหลดแล้ว (สำหรับแสดงใน section 15)
+// ─── Edit mode: loading flag ขณะ fetch รูปจาก server ──────────────────────────
+const fetchingImages = ref(false)
+
+// ตรวจสอบว่า slot มีรูปอยู่ (local file หรือ server blob URL ใน store)
+function hasImg(uploader: ReturnType<typeof useImageUpload>, key: string): boolean {
+  return !!uploader.file.value || !!app.existingImageUrls[key]
+}
+
+// ล้างรูปทั้ง local file และ server image ของ slot นั้น
+function clrImg(uploader: ReturnType<typeof useImageUpload>, key: string) {
+  uploader.clear()
+  app.clearExistingImage(key)
+}
+
+// computed preview URLs — ใช้ local preview ก่อน ถ้าไม่มีใช้ blob URL จาก server
+const previewExterior    = computed(() => exterior.previewUrl.value    || app.existingImageUrls['exterior']     || '')
+const previewInterior    = computed(() => interior.previewUrl.value    || app.existingImageUrls['interior']     || '')
+const previewPerson      = computed(() => person.previewUrl.value      || app.existingImageUrls['person']       || '')
+const previewProblem     = computed(() => problem.previewUrl.value     || app.existingImageUrls['problem']      || '')
+const previewFamily      = computed(() => family.previewUrl.value      || app.existingImageUrls['family']       || '')
+const previewHouseHome   = computed(() => houseHome.previewUrl.value   || app.existingImageUrls['house_home']   || '')
+const previewHousePerson = computed(() => housePerson.previewUrl.value || app.existingImageUrls['house_person'] || '')
+const previewOtherDoc    = computed(() => otherDoc.previewUrl.value    || app.existingImageUrls['other_doc']    || '')
+
+// นับรูปทั้งหมดที่อัปโหลดแล้ว (นับทั้ง local file และ server image)
 const totalUploaded = computed(() =>
-  [exterior, interior, person, problem, family, houseHome, housePerson, otherDoc]
-    .filter((u) => u.file.value).length,
+  [
+    { u: exterior,    k: 'exterior'     },
+    { u: interior,    k: 'interior'     },
+    { u: person,      k: 'person'       },
+    { u: problem,     k: 'problem'      },
+    { u: family,      k: 'family'       },
+    { u: houseHome,   k: 'house_home'   },
+    { u: housePerson, k: 'house_person' },
+    { u: otherDoc,    k: 'other_doc'    },
+  ].filter(({ u, k }) => u.file.value || app.existingImageUrls[k]).length,
 )
 
-// ─── Validation: ต้องอัปโหลดครบ 5 รูปบังคับ ─────────────────────────────────
+// ─── Validation ────────────────────────────────────────────────────────────────
+const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
 const isReady = computed(() =>
-  !!(exterior.file.value   && interior.file.value  &&
-     person.file.value     && problem.file.value   && family.file.value &&
-     houseHome.file.value  && housePerson.file.value && otherDoc.file.value)
+  hasImg(exterior,    'exterior')     && hasImg(interior,    'interior')     &&
+  hasImg(person,      'person')       && hasImg(problem,     'problem')      &&
+  hasImg(family,      'family')       && hasImg(houseHome,   'house_home')   &&
+  hasImg(housePerson, 'house_person') && hasImg(otherDoc,    'other_doc')    &&
+  !otherDocNameRequired.value
 )
 
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
 
 // ─── Sync ทุกไฟล์เข้า store (welfare_evidences) ──────────────────────────────
 // ใช้ key คงที่เป็น docType เดียวกับ id เพื่อให้ addDocument() แทนที่แทนซ้ำ
-function syncFile(id: string, docType: string, file: File | null) {
+function syncFile(id: string, docType: string, file: File | null, otherTypeName?: string) {
   if (file) {
-    app.addDocument({ id, docType, fileName: file.name, fileSizeBytes: file.size, mimeType: file.type }, file)
+    app.addDocument({ id, docType, fileName: file.name, fileSizeBytes: file.size, mimeType: file.type, otherTypeName }, file)
   } else {
     app.removeDocument(id)
   }
@@ -54,11 +91,22 @@ watch(() => problem.file.value,     (f) => syncFile('problem',      'problem',  
 watch(() => family.file.value,      (f) => syncFile('family',       'family',       f ?? null))
 watch(() => houseHome.file.value,   (f) => syncFile('house_home',   'house_home',   f ?? null))
 watch(() => housePerson.file.value, (f) => syncFile('house_person', 'house_person', f ?? null))
-watch(() => otherDoc.file.value,    (f) => syncFile('other_doc',    'other_doc',    f ?? null))
+watch(() => otherDoc.file.value,    (f) => syncFile('other_doc',    'other_doc',    f ?? null, otherDocName.value))
+// เมื่อชื่อเปลี่ยน ให้ persist ลง store เสมอ (ไม่ว่าจะมีไฟล์หรือไม่)
+// ใช้ existingOtherTypeName เป็น temp storage เพื่อให้ชื่อรอดเมื่อ component unmount
+watch(otherDocName, (name) => {
+  app.existingOtherTypeName = name
+  const f = otherDoc.file.value
+  if (!f) return
+  app.addDocument(
+    { id: 'other_doc', docType: 'other_doc', fileName: f.name, fileSizeBytes: f.size, mimeType: f.type, otherTypeName: name },
+    f
+  )
+})
 
 // เมื่อ component mount ใหม่ (เช่น ผู้ใช้กลับมา Step4) ให้ restore ไฟล์จาก store
 // File object ยังอยู่ใน app.files (Map ใน Pinia) แต่ preview ใน useImageUpload หายไปแล้ว
-onMounted(() => {
+onMounted(async () => {
   const slots: Array<{ id: string; uploader: ReturnType<typeof useImageUpload> }> = [
     { id: 'exterior',     uploader: exterior     },
     { id: 'interior',     uploader: interior     },
@@ -69,9 +117,32 @@ onMounted(() => {
     { id: 'house_person', uploader: housePerson  },
     { id: 'other_doc',    uploader: otherDoc     },
   ]
+
+  // 1. restore local files จาก store (กรณี user กลับมา Step4 โดยไม่ออกจากหน้า)
   for (const { id, uploader } of slots) {
     const stored = app.getFile(id)
     if (stored) uploader.restore(stored)
+  }
+
+  // 2. restore ชื่อเอกสาร "อื่นๆ" — existingOtherTypeName เก็บค่าล่าสุดเสมอ
+  //    (watch อัปเดตทุกครั้งที่ user พิมพ์ ทั้ง create และ edit mode)
+  if (app.existingOtherTypeName) otherDocName.value = app.existingOtherTypeName
+
+  // 3. Edit mode: lazy-fetch รูปเดิมจาก server (fetch เฉพาะ slot ที่ยังไม่มีรูป)
+  if (app.editMode && app.editApplicantId) {
+
+    fetchingImages.value = true
+    try {
+      await Promise.all(slots.map(async ({ id }) => {
+        if (app.existingImageUrls[id]) return       // มี cache แล้ว
+        const evidenceId = app.existingEvidenceIds[id]
+        if (!evidenceId) return                      // ไม่มีรูปเดิม
+        const url = await welfareApi.fetchEvidenceAsObjectUrl(app.editApplicantId!, evidenceId)
+        if (url) app.setExistingImage(id, url)
+      }))
+    } finally {
+      fetchingImages.value = false
+    }
   }
 })
 
@@ -128,13 +199,13 @@ defineExpose({
           subtitle="ถ่ายภาพจากด้านหน้าบ้าน"
           icon="house"
           required
-          :preview-url="exterior.previewUrl.value"
+          :preview-url="previewExterior"
           :file-name="exterior.file.value?.name"
           :file-size="exterior.file.value?.size"
-          :is-loading="exterior.isLoading.value"
+          :is-loading="exterior.isLoading.value || fetchingImages"
           :error="exterior.error.value"
           @file-select="exterior.handleFileSelect"
-          @clear="exterior.clear()"
+          @clear="clrImg(exterior, 'exterior')"
         />
 
         <!-- รูปสภาพบ้านภายใน -->
@@ -144,13 +215,13 @@ defineExpose({
           subtitle="ภาพภายในบ้าน"
           icon="house"
           required
-          :preview-url="interior.previewUrl.value"
+          :preview-url="previewInterior"
           :file-name="interior.file.value?.name"
           :file-size="interior.file.value?.size"
-          :is-loading="interior.isLoading.value"
+          :is-loading="interior.isLoading.value || fetchingImages"
           :error="interior.error.value"
           @file-select="interior.handleFileSelect"
-          @clear="interior.clear()"
+          @clear="clrImg(interior, 'interior')"
         />
 
         <!-- รูปผู้ประสบปัญหา -->
@@ -160,13 +231,13 @@ defineExpose({
           subtitle="ภาพผู้ขอรับความช่วยเหลือ"
           icon="person"
           required
-          :preview-url="person.previewUrl.value"
+          :preview-url="previewPerson"
           :file-name="person.file.value?.name"
           :file-size="person.file.value?.size"
-          :is-loading="person.isLoading.value"
+          :is-loading="person.isLoading.value || fetchingImages"
           :error="person.error.value"
           @file-select="person.handleFileSelect"
-          @clear="person.clear()"
+          @clear="clrImg(person, 'person')"
         />
 
         <!-- รูปสภาพปัญหา -->
@@ -176,13 +247,13 @@ defineExpose({
           subtitle="ภาพประกอบปัญหา"
           icon="warning"
           required
-          :preview-url="problem.previewUrl.value"
+          :preview-url="previewProblem"
           :file-name="problem.file.value?.name"
           :file-size="problem.file.value?.size"
-          :is-loading="problem.isLoading.value"
+          :is-loading="problem.isLoading.value || fetchingImages"
           :error="problem.error.value"
           @file-select="problem.handleFileSelect"
-          @clear="problem.clear()"
+          @clear="clrImg(problem, 'problem')"
         />
 
         <!-- รูปสมาชิกในครอบครัว -->
@@ -192,13 +263,13 @@ defineExpose({
           subtitle="ภาพรวมสมาชิกในครอบครัว"
           icon="people"
           required
-          :preview-url="family.previewUrl.value"
+          :preview-url="previewFamily"
           :file-name="family.file.value?.name"
           :file-size="family.file.value?.size"
-          :is-loading="family.isLoading.value"
+          :is-loading="family.isLoading.value || fetchingImages"
           :error="family.error.value"
           @file-select="family.handleFileSelect"
-          @clear="family.clear()"
+          @clear="clrImg(family, 'family')"
         />
 
       </div>
@@ -232,13 +303,13 @@ defineExpose({
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
           subtitle="หน้าทะเบียนบ้าน"
           icon="document"
-          :preview-url="houseHome.previewUrl.value"
+          :preview-url="previewHouseHome"
           :file-name="houseHome.file.value?.name"
           :file-size="houseHome.file.value?.size"
-          :is-loading="houseHome.isLoading.value"
+          :is-loading="houseHome.isLoading.value || fetchingImages"
           :error="houseHome.error.value"
           @file-select="houseHome.handleFileSelect"
-          @clear="houseHome.clear()"
+          @clear="clrImg(houseHome, 'house_home')"
         />
 
         <!-- ทะเบียนบ้าน (รายการบุคคล) -->
@@ -248,13 +319,13 @@ defineExpose({
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
           subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
           icon="document"
-          :preview-url="housePerson.previewUrl.value"
+          :preview-url="previewHousePerson"
           :file-name="housePerson.file.value?.name"
           :file-size="housePerson.file.value?.size"
-          :is-loading="housePerson.isLoading.value"
+          :is-loading="housePerson.isLoading.value || fetchingImages"
           :error="housePerson.error.value"
           @file-select="housePerson.handleFileSelect"
-          @clear="housePerson.clear()"
+          @clear="clrImg(housePerson, 'house_person')"
         />
 
         <!-- รูปอื่น ๆ -->
@@ -264,14 +335,30 @@ defineExpose({
           title="รูปอื่น ๆ"
           subtitle="เอกสารแนบเพิ่มเติม"
           icon="document"
-          :preview-url="otherDoc.previewUrl.value"
+          :preview-url="previewOtherDoc"
           :file-name="otherDoc.file.value?.name"
           :file-size="otherDoc.file.value?.size"
-          :is-loading="otherDoc.isLoading.value"
+          :is-loading="otherDoc.isLoading.value || fetchingImages"
           :error="otherDoc.error.value"
           @file-select="otherDoc.handleFileSelect"
-          @clear="otherDoc.clear()"
-        />
+          @clear="clrImg(otherDoc, 'other_doc')"
+        >
+          <!-- input ชื่อเอกสาร อยู่ตรงกลางระหว่าง header กับปุ่มอัปโหลด -->
+          <input
+            v-model="otherDocName"
+            type="text"
+            placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
+            :class="[
+              'w-full border rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+              otherDocNameRequired
+                ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+            ]"
+          />
+          <p v-if="otherDocNameRequired" class="text-[11px] text-red-500 mt-1">
+            กรุณาระบุชื่อเอกสาร
+          </p>
+        </PhotoUploadCard>
 
       </div>
     </div>

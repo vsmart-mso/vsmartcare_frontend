@@ -67,6 +67,11 @@ function formatBytes(bytes: number): string {
       </div>
     </div>
 
+    <!-- slot สำหรับใส่ content เพิ่มเติมระหว่าง header กับปุ่ม เช่น input ชื่อเอกสาร -->
+    <div v-if="$slots.default" class="px-3 pb-2">
+      <slot />
+    </div>
+
     <!-- กำลัง compress -->
     <div v-if="isLoading" class="px-3 pb-3 flex items-center gap-2 text-[13px] text-[#1A56DB]">
       <svg class="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -85,7 +90,7 @@ function formatBytes(bytes: number): string {
       />
       <div class="flex items-center justify-between">
         <div class="flex flex-col min-w-0 max-w-[75%]">
-          <span class="text-[12px] text-slate-500 truncate">{{ fileName }}</span>
+          <span class="text-[12px] text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
           <span v-if="fileSize" class="text-[11px] text-slate-400">{{ formatBytes(fileSize) }}</span>
         </div>
         <button

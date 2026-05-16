@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { CasePayload } from '@/api/welfare'
+import type { CasePayload, FullCaseDetail } from '@/api/welfare'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
@@ -93,24 +93,29 @@ export interface Step3Data {
 
 // Metadata ของเอกสาร (JSON-serializable — เก็บลง sessionStorage ได้)
 export interface DocumentMeta {
-  id: string            // UUID หรือ key คงที่ เช่น 'exterior', 'bank_book'
-  docType: string       // ประเภทเอกสาร เช่น 'id_card', 'household_registration'
-  fileName: string      // ชื่อไฟล์ เช่น 'บัตรประชาชน.jpg'
-  fileSizeBytes: number // ขนาดไฟล์ (bytes)
-  mimeType: string      // เช่น 'image/jpeg', 'application/pdf'
+  id: string             // UUID หรือ key คงที่ เช่น 'exterior', 'bank_book'
+  docType: string        // ประเภทเอกสาร เช่น 'id_card', 'household_registration'
+  fileName: string       // ชื่อไฟล์ เช่น 'บัตรประชาชน.jpg'
+  fileSizeBytes: number  // ขนาดไฟล์ (bytes)
+  mimeType: string       // เช่น 'image/jpeg', 'application/pdf'
+  otherTypeName?: string // ชื่อประเภทเอกสาร (ใช้เฉพาะ docType = 'other_doc')
 }
 
 // ─── ส่วนที่ serialize ลง sessionStorage ─────────────────────────────────────
-// ทุก field ต้องเป็น JSON-serializable (ห้ามมี File object)
+// ทุก field ต้องเป็น JSON-serializable (ห้ามมี File object หรือ Blob URL)
 interface SerializableDraft {
-  pdpa:            PdpaConsent | null
-  checkSelf:       CheckSelfData | null
-  selectedService: string | null
-  step1:           Step1Data | null
-  step2:           Step2Data | null
-  step3:           Step3Data | null
-  documentsMeta:   DocumentMeta[]
-  savedAt:         string // ISO timestamp
+  pdpa:                  PdpaConsent | null
+  checkSelf:             CheckSelfData | null
+  selectedService:       string | null
+  step1:                 Step1Data | null
+  step2:                 Step2Data | null
+  step3:                 Step3Data | null
+  documentsMeta:         DocumentMeta[]
+  editMode:              boolean
+  editApplicantId:       number | null
+  existingEvidenceIds:   Record<string, number>
+  existingOtherTypeName: string
+  savedAt:               string // ISO timestamp
 }
 
 // ─── Helper: อ่าน draft จาก sessionStorage ───────────────────────────────────
@@ -134,19 +139,22 @@ function saveDraftToStorage(draft: SerializableDraft): void {
 }
 
 // ─── Attachment type ID map: docType → attachment_types.id ───────────────────
-// ใช้ตอนอัปโหลดไฟล์หลักฐานเพื่อระบุประเภทไฟล์ใน DB
-// IDs ตรงกับ seed ใน 0002_seed_master_data.py
 export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
-  bank_book:    1, // รูปหน้าสมุดบัญชีธนาคาร
-  exterior:     2, // รูปสภาพบ้านภายนอก
-  interior:     3, // รูปสภาพบ้านภายใน
-  person:       4, // รูปผู้ประสบปัญหา
-  problem:      5, // รูปสภาพปัญหา
-  house_home:   6, // รูปทะเบียนบ้าน (รายการบ้าน)
-  house_person: 7, // รูปทะเบียนบ้าน (รายการบุคคล)
-  family:       8, // รูปสมาชิกครอบครัว — ใช้ id 8 (อื่น ๆ) เพราะยังไม่มี type เฉพาะ
-  other_doc:    8, // รูปอื่น ๆ
+  bank_book:    1,
+  exterior:     2,
+  interior:     3,
+  person:       4,
+  problem:      5,
+  house_home:   6,
+  house_person: 7,
+  family:       8,
+  other_doc:    99,
 }
+
+// ─── Reverse map: attachment_types.id → docType (ใช้ใน Edit Mode) ────────────
+export const ATTACHMENT_ID_TO_DOCTYPE: Record<number, string> = Object.fromEntries(
+  Object.entries(ATTACHMENT_TYPE_MAP).map(([k, v]) => [v, k])
+)
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useApplicationStore = defineStore('application', () => {
@@ -166,23 +174,38 @@ export const useApplicationStore = defineStore('application', () => {
   const documentsMeta   = ref<DocumentMeta[]>(saved?.documentsMeta ?? [])
 
   // files — File objects จริงๆ อยู่ใน memory เท่านั้น ไม่ serialize
-  // Map<id, File> ใช้ id จาก DocumentMeta เป็น key
   const files           = ref<Map<string, File>>(new Map())
+
+  // ── Edit Mode ─────────────────────────────────────────────────────────────
+  // persist ลง sessionStorage ได้ (ยกเว้น existingImageUrls ที่เป็น Blob URL)
+  const editMode              = ref<boolean>(saved?.editMode ?? false)
+  const editApplicantId       = ref<number | null>(saved?.editApplicantId ?? null)
+  // docType → evidence.id จาก server (สำหรับ lazy-load รูปใน Step3/Step4)
+  const existingEvidenceIds   = ref<Record<string, number>>(saved?.existingEvidenceIds ?? {})
+  // docType → blob URL (memory เท่านั้น — re-fetch เมื่อ Step mount ใหม่หลัง refresh)
+  const existingImageUrls     = ref<Record<string, string>>({})
+  // ชื่อเอกสาร other_doc (persist ได้)
+  const existingOtherTypeName = ref<string>(saved?.existingOtherTypeName ?? '')
 
   // ── Auto-save ลง sessionStorage ──────────────────────────────────────────
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
   watch(
-    [pdpa, checkSelf, selectedService, step1, step2, step3, documentsMeta],
+    [pdpa, checkSelf, selectedService, step1, step2, step3, documentsMeta,
+     editMode, editApplicantId, existingEvidenceIds, existingOtherTypeName],
     () => {
       saveDraftToStorage({
-        pdpa:            pdpa.value,
-        checkSelf:       checkSelf.value,
-        selectedService: selectedService.value,
-        step1:           step1.value,
-        step2:           step2.value,
-        step3:           step3.value,
-        documentsMeta:   documentsMeta.value,
-        savedAt:         new Date().toISOString(),
+        pdpa:                  pdpa.value,
+        checkSelf:             checkSelf.value,
+        selectedService:       selectedService.value,
+        step1:                 step1.value,
+        step2:                 step2.value,
+        step3:                 step3.value,
+        documentsMeta:         documentsMeta.value,
+        editMode:              editMode.value,
+        editApplicantId:       editApplicantId.value,
+        existingEvidenceIds:   existingEvidenceIds.value,
+        existingOtherTypeName: existingOtherTypeName.value,
+        savedAt:               new Date().toISOString(),
       })
     },
     { deep: true },
@@ -279,6 +302,7 @@ export const useApplicationStore = defineStore('application', () => {
           house_number:  s1.address.houseNo      || null,
           house_moo:     s1.address.mooNum       || null,
           house_name:    s1.address.villageName  || null,
+          alley:         s1.address.alley        || null,
           sub_lane:      s1.address.soi          || null,
           road:          s1.address.road         || null,
           latitude:      s1.address.gpsLat       || null,
@@ -356,8 +380,110 @@ export const useApplicationStore = defineStore('application', () => {
     }
   }
 
+  // ─── Edit Mode Actions ────────────────────────────────────────────────────
+
+  // ดึงข้อมูล case เดิมมา populate ฟอร์ม step1/2/3 และเก็บ evidence IDs สำหรับ lazy-load รูปใน Step4
+  function populateFromCase(caseData: FullCaseDetail) {
+    const a    = caseData.applicant
+    const addr = caseData.addresses[0] ?? null
+    const eco  = caseData.economic_infos[0] ?? null
+    const wh   = caseData.welfare_history
+
+    editMode.value        = true
+    editApplicantId.value = a.id
+
+    // ── Step 1 ──────────────────────────────────────────────────────────────
+    const geo = addr?.sub_district_postcode
+    step1.value = {
+      relationship: 'ตนเอง',
+      address: {
+        houseNo:               addr?.house_number ?? '',
+        mooNum:                addr?.house_moo    ?? '',
+        villageName:           addr?.house_name   ?? '',
+        alley:                 addr?.alley         ?? '',
+        soi:                   addr?.sub_lane      ?? '',
+        road:                  addr?.road         ?? '',
+        subdistrict:           geo?.sub_district?.name                         ?? '',
+        district:              geo?.sub_district?.district?.name               ?? '',
+        province:              geo?.sub_district?.district?.province?.name     ?? '',
+        postalCode:            geo?.postcode?.name                             ?? '',
+        subDistrictPostcodeId: addr?.sub_district_postcode_id ?? null,
+        gpsLat:                addr?.latitude  ?? '',
+        gpsLng:                addr?.longitude ?? '',
+      },
+      contact: {
+        phone:  a.home_phone    ?? '',
+        fax:    a.fax_number    ?? '',
+        mobile: a.mobile_phone  ?? '',
+        email:  a.email_address ?? '',
+      },
+      maritalStatus: String(a.marital_status_id ?? ''),
+      housingType:   String(eco?.housing_types_id ?? ''),
+      rentPerMonth:  '',
+      familyCount:   String(eco?.household_members ?? ''),
+    }
+
+    // ── checkSelf (occupation สำหรับ Step2) ─────────────────────────────────
+    checkSelf.value = {
+      occupation:   eco?.occupation ?? '',
+      annualIncome: Number(eco?.monthly_income ?? 0) * 12,
+      dob:          '',
+      eligible:     true,
+      checkedAt:    new Date().toISOString(),
+    }
+
+    // ── Step 2 ──────────────────────────────────────────────────────────────
+    step2.value = {
+      familyOccupation:      eco?.family_occupation ?? '',
+      familyOccupationOther: '',
+      monthlyIncome:         eco?.monthly_income    ?? '',
+      incomeSources:         (eco?.income_sources ?? []).map(s => String(s.income_source_type_id)),
+      incomeSourceOther:     (eco?.income_sources ?? []).find(s => s.other_details)?.other_details ?? '',
+      caregiverRoles:        caseData.dependency_loads.map(d => String(d.dependency_type_id)),
+      caregiverOther:        caseData.dependency_loads.find(d => d.dependency_other_text)?.dependency_other_text ?? '',
+      govAidHistory:         wh?.has_received_welfare ? 'received' : 'none',
+      timesThisYear:         String(wh?.received_count ?? ''),
+      totalAmount:           String(wh?.total_received_amount ?? ''),
+      aidTypes:              (wh?.history_details ?? []).map(d => String(d.received_welfare_type_id)),
+      aidTypeDetails:        Object.fromEntries(
+        (wh?.history_details ?? []).map(d => [String(d.received_welfare_type_id), d.received_other ?? ''])
+      ),
+    }
+
+    // ── Step 3 ──────────────────────────────────────────────────────────────
+    step3.value = {
+      problemDescription: a.problem_details ?? '',
+      aidTypes:           caseData.welfare_request_types.map(rt => String(rt.request_type_id)),
+      bankNameId:         String(a.bank_name_id ?? ''),
+      bankAccount:        a.bank_account_no ?? '',
+    }
+
+    // ── Evidence IDs สำหรับ lazy-load รูปใน Step4 ───────────────────────────
+    existingEvidenceIds.value = {}
+    existingOtherTypeName.value = ''
+    for (const ev of caseData.welfare_evidences) {
+      const docType = ATTACHMENT_ID_TO_DOCTYPE[ev.attachment_type_id]
+      if (docType) {
+        existingEvidenceIds.value = { ...existingEvidenceIds.value, [docType]: ev.id }
+        if (docType === 'other_doc' && ev.file_other_type_name) {
+          existingOtherTypeName.value = ev.file_other_type_name
+        }
+      }
+    }
+  }
+
+  // เก็บ blob URL ที่ fetch มาแล้ว (reactive — ต้องสร้าง object ใหม่เพื่อ trigger)
+  function setExistingImage(docType: string, url: string) {
+    existingImageUrls.value = { ...existingImageUrls.value, [docType]: url }
+  }
+
+  // user กด "ลบ" รูปเดิม
+  function clearExistingImage(docType: string) {
+    const { [docType]: _, ...rest } = existingImageUrls.value
+    existingImageUrls.value = rest
+  }
+
   // ล้างข้อมูลทั้งหมด — เรียกหลัง submit สำเร็จ
-  // เพื่อไม่ให้ข้อมูลส่วนบุคคลค้างอยู่ใน memory/storage
   function clearAll() {
     pdpa.value            = null
     checkSelf.value       = null
@@ -367,11 +493,19 @@ export const useApplicationStore = defineStore('application', () => {
     step3.value           = null
     documentsMeta.value   = []
     files.value           = new Map()
+    // ล้าง edit mode
+    editMode.value        = false
+    editApplicantId.value = null
+    existingEvidenceIds.value   = {}
+    // revoke blob URLs เพื่อ free memory
+    Object.values(existingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
+    existingImageUrls.value     = {}
+    existingOtherTypeName.value = ''
     sessionStorage.removeItem(DRAFT_KEY)
   }
 
   return {
-    // state (read-only จาก component)
+    // state
     pdpa,
     checkSelf,
     selectedService,
@@ -379,6 +513,11 @@ export const useApplicationStore = defineStore('application', () => {
     step2,
     step3,
     documentsMeta,
+    editMode,
+    editApplicantId,
+    existingEvidenceIds,
+    existingImageUrls,
+    existingOtherTypeName,
     // actions
     setPdpa,
     setCheckSelf,
@@ -390,6 +529,9 @@ export const useApplicationStore = defineStore('application', () => {
     removeDocument,
     getFile,
     buildApiPayload,
+    populateFromCase,
+    setExistingImage,
+    clearExistingImage,
     clearAll,
   }
 })

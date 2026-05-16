@@ -32,6 +32,8 @@ const canProceed = computed(() =>
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
 function handleReject() {
+  // ล้างข้อมูล session ทั้งหมด แล้วกลับไปหน้า login
+  authStore.clearAuth()
   router.push({ name: 'login' })
 }
 

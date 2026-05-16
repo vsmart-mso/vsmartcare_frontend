@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Step1PersonalInfo from './steps/Step1PersonalInfo.vue'
 import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
@@ -13,10 +13,20 @@ import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 
 const router = useRouter()
+const route  = useRoute()
 const app    = useApplicationStore()
 const auth   = useAuthStore()
 
 const currentStep  = ref(1)
+
+// ถ้ามี ?step=X ใน URL ให้เริ่มที่ step นั้น (ใช้เมื่อกลับมาแก้ไขจาก case-tracking)
+onMounted(() => {
+  const s = Number(route.query.step)
+  if (s >= 1 && s <= steps.length) {
+    currentStep.value = s
+    stepReady.value = true
+  }
+})
 const stepReady    = ref(false)
 const isSubmitting = ref(false)
 const submitError  = ref('')
@@ -40,7 +50,9 @@ const stepRef = ref<StepExpose | null>(null)
 
 function handleBack() {
   if (currentStep.value > 1) currentStep.value--
-  else router.back()
+  else if (app.editMode && app.editApplicantId) {
+    router.push({ name: 'case-tracking', query: { applicantId: String(app.editApplicantId) } })
+  } else router.back()
 }
 
 function handleNext() {
@@ -97,6 +109,41 @@ async function handleSubmit() {
   submitError.value  = ''
 
   try {
+    // ── Edit Mode (PATCH) ─────────────────────────────────────────────────────
+    if (app.editMode && app.editApplicantId) {
+      const { initial_current_status_id: _unused, ...updatePayload } = payload
+      await welfareApi.updateCase(app.editApplicantId, updatePayload)
+
+      // เพิ่ม log สถานะ "รอรับเรื่อง" (id=1) ผ่าน endpoint ที่มีอยู่แล้ว
+      await welfareApi.addStatusLog(app.editApplicantId, 1)
+
+      // อัปโหลดเฉพาะไฟล์ใหม่ที่ผู้ใช้เลือก (slots ที่ไม่มี File = ยังใช้รูปเดิมจาก server)
+      for (const meta of app.documentsMeta) {
+        const file = app.getFile(meta.id)
+        if (!file) continue
+        // ลบ evidence เดิมก่อน (ถ้ามี) เพื่อไม่ให้มีรูปซ้ำซ้อนใน DB และ disk
+        const oldEvidenceId = app.existingEvidenceIds[meta.docType]
+        if (oldEvidenceId) {
+          await welfareApi.deleteEvidence(app.editApplicantId, oldEvidenceId)
+        }
+        const attachmentTypeId = ATTACHMENT_TYPE_MAP[meta.docType] ?? 8
+        await welfareApi.uploadEvidence(app.editApplicantId, attachmentTypeId, file, meta.otherTypeName)
+      }
+
+      // กรณีแก้แค่ชื่อเอกสาร "อื่นๆ" แต่ไม่ได้เปลี่ยนรูป → PATCH ชื่อโดยไม่ต้อง re-upload
+      const otherDocHasNewFile = app.documentsMeta.some(m => m.id === 'other_doc')
+      const otherDocEvidenceId = app.existingEvidenceIds['other_doc']
+      if (!otherDocHasNewFile && otherDocEvidenceId && app.existingOtherTypeName) {
+        await welfareApi.updateEvidenceName(app.editApplicantId, otherDocEvidenceId, app.existingOtherTypeName)
+      }
+
+      const editedId = app.editApplicantId
+      app.clearAll()
+      router.push({ name: 'case-tracking', query: { applicantId: String(editedId) } })
+      return
+    }
+
+    // ── Create Mode (POST) ────────────────────────────────────────────────────
     // 1. บันทึกคำร้องและตารางย่อยทั้งหมดในครั้งเดียว
     const result      = await welfareApi.createCase(payload)
     const applicantId = result.applicant.id as number
@@ -117,13 +164,13 @@ async function handleSubmit() {
       const file = app.getFile(meta.id)
       if (!file) continue
       const attachmentTypeId = ATTACHMENT_TYPE_MAP[meta.docType] ?? 8
-      await welfareApi.uploadEvidence(applicantId, attachmentTypeId, file)
+      await welfareApi.uploadEvidence(applicantId, attachmentTypeId, file, meta.otherTypeName)
     }
 
-    // 3. ล้างข้อมูล draft ออกจาก memory และ sessionStorage
+    // 4. ล้างข้อมูล draft ออกจาก memory และ sessionStorage
     app.clearAll()
 
-    // 4. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
+    // 5. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
     router.push({ name: 'submit-success', query: { caseId: String(applicantId) } })
 
   } catch (err: unknown) {
@@ -263,9 +310,9 @@ async function handleSubmit() {
         </div>
 
         <div class="flex gap-3">
-          <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1) -->
+          <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1 ยกเว้นโหมดแก้ไข) -->
           <button
-            v-if="currentStep > 1"
+            v-if="currentStep > 1 || app.editMode"
             @click="handleBack"
             :disabled="isSubmitting"
             class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"
@@ -309,7 +356,7 @@ async function handleSubmit() {
             <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            {{ isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันและส่งคำขอ' }}
+            {{ isSubmitting ? 'กำลังบันทึก...' : app.editMode ? 'บันทึก' : 'ยืนยันและส่งคำขอ' }}
           </button>
         </div>
       </div>

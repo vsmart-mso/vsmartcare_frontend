@@ -86,8 +86,7 @@ async function resolveHomeRoute(personId: number): Promise<string> {
   if (!personId) return 'pdpa'
   try {
     const cases = await welfareApi.getCasesDisplay(personId)
-    const activeCase = cases.find(c => [1, 2, 3].includes(c.current_status?.id ?? -1))
-    if (activeCase) return 'case-tracking'
+    if (cases.length > 0) return 'case-tracking'
 
     const latestPassed = await welfareApi.getLatestPassedScreening(personId)
     if (latestPassed) return 'submit-request'

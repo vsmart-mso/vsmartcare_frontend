@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
+import { welfareApi } from '@/api/welfare'
 
 const app = useApplicationStore()
 
@@ -12,10 +13,6 @@ const problemDescription = ref('')
 // ─── 10.1 ประเภทความช่วยเหลือ ────────────────────────────────────────────────
 const aidTypes = ref<string[]>([])
 const aidTypeOptions = ref<{ value: string; label: string }[]>([])
-// แสดงเฉพาะ "ช่วยเหลือเป็นเงิน" — ตัวเลือกอื่นไม่เกี่ยวข้องกับระบบนี้
-const filteredAidTypeOptions = computed(() =>
-  aidTypeOptions.value.filter(o => o.label.includes('เงิน'))
-)
 
 function toggleAidType(value: string) {
   const idx = aidTypes.value.indexOf(value)
@@ -59,6 +56,10 @@ watch(bankNameId, () => {
 // ─── รูปหน้าสมุดบัญชีธนาคาร ──────────────────────────────────────────────────
 // compress ที่ frontend ก่อน upload: max 1200×1600px, WebP quality 82%
 const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
+const fetchingBankBook = ref(false)
+
+// computed preview — ใช้ local preview ก่อน ถ้าไม่มีใช้ blob URL จาก server (edit mode)
+const previewBankBook = computed(() => bankBook.previewUrl.value || app.existingImageUrls['bank_book'] || '')
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 const isReady = computed(() => {
@@ -66,7 +67,7 @@ const isReady = computed(() => {
   if (aidTypes.value.length === 0) return false
   if (!bankNameId.value) return false
   if (!bankAccount.value.trim()) return false
-  if (!bankBook.file.value) return false
+  if (!bankBook.file.value && !app.existingImageUrls['bank_book']) return false
   return true
 })
 
@@ -106,9 +107,27 @@ onMounted(async () => {
     await nextTick()                  // รอให้ watcher ที่ถูก schedule ไว้ยิงก่อน
     isRestoring.value = false         // คืนสถานะปกติให้ watcher ทำงานเมื่อ user เปลี่ยนธนาคาร
   }
+
   // restore สมุดบัญชีจาก store (File object ยังอยู่ใน app.files แม้ component จะ unmount ไปแล้ว)
   const storedBankBook = app.getFile('bank_book')
-  if (storedBankBook) bankBook.restore(storedBankBook)
+  if (storedBankBook) {
+    bankBook.restore(storedBankBook)
+    return  // มี local file แล้ว — ไม่ต้อง fetch จาก server
+  }
+
+  // Edit mode: lazy-fetch รูปสมุดบัญชีจาก server (fetch เฉพาะเมื่อยังไม่มี cache)
+  if (app.editMode && app.editApplicantId && !app.existingImageUrls['bank_book']) {
+    const evidenceId = app.existingEvidenceIds['bank_book']
+    if (evidenceId) {
+      fetchingBankBook.value = true
+      try {
+        const url = await welfareApi.fetchEvidenceAsObjectUrl(app.editApplicantId, evidenceId)
+        if (url) app.setExistingImage('bank_book', url)
+      } finally {
+        fetchingBankBook.value = false
+      }
+    }
+  }
 })
 
 defineExpose({
@@ -178,7 +197,7 @@ defineExpose({
 
           <div class="space-y-2">
             <label
-              v-for="opt in filteredAidTypeOptions"
+              v-for="opt in aidTypeOptions"
               :key="opt.value"
               class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
               :class="aidTypes.includes(opt.value) ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
@@ -263,16 +282,16 @@ defineExpose({
               {{ bankBook.error.value }}
             </p>
 
-            <!-- แสดงพรีวิวเมื่ออัปโหลดแล้ว -->
-            <div v-if="bankBook.previewUrl.value" class="border border-slate-200 rounded-xl overflow-hidden">
+            <!-- แสดงพรีวิวเมื่ออัปโหลดแล้ว (local file หรือ server image) -->
+            <div v-if="previewBankBook" class="border border-slate-200 rounded-xl overflow-hidden">
               <div class="relative">
                 <img
-                  :src="bankBook.previewUrl.value"
+                  :src="previewBankBook"
                   alt="รูปสมุดบัญชี"
                   class="w-full object-contain max-h-48 bg-slate-50"
                 />
-                <!-- loading overlay ขณะ compress -->
-                <div v-if="bankBook.isLoading.value" class="absolute inset-0 bg-white/70 flex items-center justify-center">
+                <!-- loading overlay ขณะ compress หรือ fetch จาก server -->
+                <div v-if="bankBook.isLoading.value || fetchingBankBook" class="absolute inset-0 bg-white/70 flex items-center justify-center">
                   <svg class="w-6 h-6 text-[#1A56DB] animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
@@ -281,7 +300,7 @@ defineExpose({
               </div>
               <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
                 <div class="flex flex-col min-w-0 max-w-[60%]">
-                  <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name }}</span>
+                  <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
                   <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
                     {{ bankBook.file.value.size < 1024 * 1024
                       ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
@@ -290,7 +309,7 @@ defineExpose({
                 </div>
                 <button
                   type="button"
-                  @click="bankBook.clear()"
+                  @click="bankBook.clear(); app.clearExistingImage('bank_book')"
                   class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
                 >
                   ลบและถ่ายใหม่
@@ -302,19 +321,19 @@ defineExpose({
             <div
               v-else
               class="border-2 border-dashed rounded-xl p-4 transition-colors"
-              :class="bankBook.isLoading.value ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
+              :class="(bankBook.isLoading.value || fetchingBankBook) ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
             >
               <div class="flex items-center gap-2 mb-4">
-                <!-- ไอคอน upload / spinner ขณะ compress -->
-                <svg v-if="!bankBook.isLoading.value" class="w-5 h-5 text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <!-- ไอคอน upload / spinner ขณะ compress หรือ fetch -->
+                <svg v-if="!(bankBook.isLoading.value || fetchingBankBook)" class="w-5 h-5 text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5-5 5 5M12 6v12" />
                 </svg>
                 <svg v-else class="w-5 h-5 text-[#1A56DB] flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                 </svg>
-                <p class="text-[13px] font-medium leading-snug transition-colors" :class="bankBook.isLoading.value ? 'text-[#1A56DB]' : 'text-slate-600'">
-                  {{ bankBook.isLoading.value ? 'กำลังประมวลผลรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
+                <p class="text-[13px] font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingBankBook) ? 'text-[#1A56DB]' : 'text-slate-600'">
+                  {{ (bankBook.isLoading.value || fetchingBankBook) ? 'กำลังโหลดรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
                 </p>
               </div>
 
