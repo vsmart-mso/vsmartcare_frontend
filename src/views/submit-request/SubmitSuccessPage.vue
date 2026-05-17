@@ -84,7 +84,7 @@ function goToTracking() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h2 class="text-[22px] font-bold text-green-600">ยื่นคำขอเรียบร้อยแล้ว</h2>
+        <h2 class="text-[22px] font-bold text-green-600">ส่งคำขอเรียบร้อยแล้ว</h2>
       </div>
 
       <!-- ── Card: หมายเลขคำขอ + วันที่ + สถานะ ── -->

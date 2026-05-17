@@ -94,8 +94,16 @@ onMounted(async () => {
     lookupsApi.fetchRequestTypes().catch(() => []),
     lookupsApi.fetchBankNames().catch(() => []),
   ])
-  aidTypeOptions.value = requestTypeData.map(d => ({ value: String(d.id), label: d.name }))
+  // กรองเฉพาะ "ช่วยเหลือเป็นเงิน" เพื่อให้แสดงแค่ตัวเลือกนี้
+  aidTypeOptions.value = requestTypeData
+    .map(d => ({ value: String(d.id), label: d.name }))
+    .filter(opt => opt.label.includes('ช่วยเหลือเป็นเงิน'))
   bankOptions.value    = bankNameData.map(d => ({ value: String(d.id), label: d.name }))
+
+  // auto-select อัตโนมัติ เพราะมีตัวเลือกเดียว (เฉพาะกรณีที่ยังไม่มีข้อมูลใน store)
+  if (aidTypeOptions.value.length > 0 && !app.step3) {
+    aidTypes.value = [aidTypeOptions.value[0].value]
+  }
 
   const s = app.step3
   if (s) {

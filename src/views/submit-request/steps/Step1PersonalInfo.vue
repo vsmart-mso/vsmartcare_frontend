@@ -183,11 +183,12 @@ const errors = computed(() => ({
     touched.mobile && !isValidMobile(mobile.value)
       ? 'เบอร์มือถือต้อง 10 หลัก ขึ้นต้นด้วย 06x / 08x / 09x เช่น 0812345678'
       : '',
-  // email เป็น optional — error เฉพาะเมื่อกรอกแล้วผิดรูปแบบ
   email:
-    touched.email && email.value.trim() && !isValidEmail(email.value)
-      ? 'รูปแบบอีเมลไม่ถูกต้อง'
-      : '',
+    touched.email && !email.value.trim()
+      ? 'กรุณากรอกอีเมล'
+      : touched.email && !isValidEmail(email.value)
+        ? 'รูปแบบอีเมลไม่ถูกต้อง'
+        : '',
   maritalStatus:
     touched.maritalStatus && !maritalStatus.value
       ? 'กรุณาเลือกสถานภาพสมรส'
@@ -261,6 +262,7 @@ const isReady = computed(() => {
     addr.district.value     !== '' &&
     addr.subdistrict.value  !== '' &&
     isValidMobile(mobile.value)    &&
+    isValidEmail(email.value)      &&
     maritalStatus.value     !== '' &&
     housingType.value       !== '' &&
     familyCount.value       !== ''
@@ -733,9 +735,11 @@ defineExpose({
           <p v-if="errors.mobile" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.mobile }}</p>
         </div>
 
-        <!-- อีเมล — optional, validate format if filled -->
+        <!-- อีเมล — required, validate format -->
         <div>
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">อีเมล</label>
+          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
+            อีเมล <span class="text-red-500">*</span>
+          </label>
           <input
             v-model="email"
             type="email"

@@ -210,6 +210,7 @@ export interface FullAddressRead {
 export interface FullEconomicInfoRead {
   id: number
   housing_types_id: number | null
+  housing_types_rent: string | null  // Decimal จาก backend ส่งมาเป็น string
   occupation: string | null
   monthly_income: string | null
   household_members: number | null
