@@ -66,11 +66,9 @@ const totalUploaded = computed(() =>
 // ─── Validation ────────────────────────────────────────────────────────────────
 const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
 const isReady = computed(() =>
-  hasImg(exterior,    'exterior')     && hasImg(interior,    'interior')     &&
-  hasImg(person,      'person')       && hasImg(problem,     'problem')      &&
-  hasImg(family,      'family')       && hasImg(houseHome,   'house_home')   &&
-  hasImg(housePerson, 'house_person') && hasImg(otherDoc,    'other_doc')    &&
-  !otherDocNameRequired.value
+  hasImg(exterior, 'exterior') && hasImg(interior, 'interior') &&
+  hasImg(person,   'person')   && hasImg(problem,  'problem')  &&
+  hasImg(family,   'family')   && !otherDocNameRequired.value
 )
 
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
@@ -299,7 +297,6 @@ defineExpose({
         <!-- ทะเบียนบ้าน (รายการบ้าน) -->
         <PhotoUploadCard
           upload-id="house-home"
-          required
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
           subtitle="หน้าทะเบียนบ้าน"
           icon="document"
@@ -315,7 +312,6 @@ defineExpose({
         <!-- ทะเบียนบ้าน (รายการบุคคล) -->
         <PhotoUploadCard
           upload-id="house-person"
-          required
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
           subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
           icon="document"
@@ -331,7 +327,6 @@ defineExpose({
         <!-- รูปอื่น ๆ -->
         <PhotoUploadCard
           upload-id="other-doc"
-          required
           title="รูปอื่น ๆ"
           subtitle="เอกสารแนบเพิ่มเติม"
           icon="document"

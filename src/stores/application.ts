@@ -419,7 +419,8 @@ export const useApplicationStore = defineStore('application', () => {
       },
       maritalStatus: String(a.marital_status_id ?? ''),
       housingType:   String(eco?.housing_types_id ?? ''),
-      rentPerMonth:  '',
+      // แปลง Decimal string จาก backend เป็น integer string (ตัดทศนิยมทิ้ง)
+      rentPerMonth:  eco?.housing_types_rent ? String(Math.round(Number(eco.housing_types_rent))) : '',
       familyCount:   String(eco?.household_members ?? ''),
     }
 
