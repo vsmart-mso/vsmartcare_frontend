@@ -2,6 +2,8 @@
 // Component นี้ reuse ได้ทุก step ที่ต้องอัปโหลดรูป
 // ใช้ <label for> แทน JS .click() เพื่อให้ capture="environment" ทำงานได้บน iOS
 
+import FieldAlert from '@/components/ui/FieldAlert.vue'
+
 defineProps<{
   uploadId: string      // prefix ไม่ซ้ำกัน เช่น 'exterior', 'person' — ใช้สร้าง input id
   title: string
@@ -13,6 +15,7 @@ defineProps<{
   fileSize?: number     // bytes — แสดงขนาดหลัง compress
   isLoading?: boolean
   error?: string
+  alertReason?: string  // comment จากเจ้าหน้าที่ — แสดง FieldAlert ข้าง title
 }>()
 
 defineEmits<{
@@ -60,8 +63,9 @@ function formatBytes(bytes: number): string {
 
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-[13px] font-semibold text-slate-800 leading-snug">
-          {{ title }}<span v-if="required" class="text-red-500"> *</span>
+        <p class="text-[13px] font-semibold text-slate-800 leading-snug flex items-center gap-1">
+          <span>{{ title }}<span v-if="required" class="text-red-500"> *</span></span>
+          <FieldAlert v-if="alertReason" :reason="alertReason" />
         </p>
         <p v-if="subtitle" class="text-[12px] text-slate-500 mt-0.5">{{ subtitle }}</p>
       </div>

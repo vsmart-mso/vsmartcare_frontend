@@ -12,6 +12,12 @@ const emit = defineEmits<{
 
 const app = useApplicationStore()
 
+const commentMap = computed(() => {
+  const m = new Map<string, string>()
+  for (const c of app.reviewComments) m.set(c.name, c.reason)
+  return m
+})
+
 // ─── Section 13: รูปภาพหลักฐานการเยี่ยมบ้าน (บังคับทั้ง 5 รูป) ──────────────
 const exterior = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.80 })
 const interior = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.80 })
@@ -202,6 +208,7 @@ defineExpose({
           :file-size="exterior.file.value?.size"
           :is-loading="exterior.isLoading.value || fetchingImages"
           :error="exterior.error.value"
+          :alert-reason="commentMap.get('evidence_house_exterior')"
           @file-select="exterior.handleFileSelect"
           @clear="clrImg(exterior, 'exterior')"
         />
@@ -218,6 +225,7 @@ defineExpose({
           :file-size="interior.file.value?.size"
           :is-loading="interior.isLoading.value || fetchingImages"
           :error="interior.error.value"
+          :alert-reason="commentMap.get('evidence_house_interior')"
           @file-select="interior.handleFileSelect"
           @clear="clrImg(interior, 'interior')"
         />
@@ -234,6 +242,7 @@ defineExpose({
           :file-size="person.file.value?.size"
           :is-loading="person.isLoading.value || fetchingImages"
           :error="person.error.value"
+          :alert-reason="commentMap.get('evidence_person_photo')"
           @file-select="person.handleFileSelect"
           @clear="clrImg(person, 'person')"
         />
@@ -250,6 +259,7 @@ defineExpose({
           :file-size="problem.file.value?.size"
           :is-loading="problem.isLoading.value || fetchingImages"
           :error="problem.error.value"
+          :alert-reason="commentMap.get('evidence_problem_photo')"
           @file-select="problem.handleFileSelect"
           @clear="clrImg(problem, 'problem')"
         />
@@ -266,6 +276,7 @@ defineExpose({
           :file-size="family.file.value?.size"
           :is-loading="family.isLoading.value || fetchingImages"
           :error="family.error.value"
+          :alert-reason="commentMap.get('evidence_family_photo')"
           @file-select="family.handleFileSelect"
           @clear="clrImg(family, 'family')"
         />
@@ -305,6 +316,7 @@ defineExpose({
           :file-size="houseHome.file.value?.size"
           :is-loading="houseHome.isLoading.value || fetchingImages"
           :error="houseHome.error.value"
+          :alert-reason="commentMap.get('doc_house_registration_house')"
           @file-select="houseHome.handleFileSelect"
           @clear="clrImg(houseHome, 'house_home')"
         />
@@ -320,6 +332,7 @@ defineExpose({
           :file-size="housePerson.file.value?.size"
           :is-loading="housePerson.isLoading.value || fetchingImages"
           :error="housePerson.error.value"
+          :alert-reason="commentMap.get('doc_house_registration_person')"
           @file-select="housePerson.handleFileSelect"
           @clear="clrImg(housePerson, 'house_person')"
         />
@@ -335,6 +348,7 @@ defineExpose({
           :file-size="otherDoc.file.value?.size"
           :is-loading="otherDoc.isLoading.value || fetchingImages"
           :error="otherDoc.error.value"
+          :alert-reason="commentMap.get('doc_other')"
           @file-select="otherDoc.handleFileSelect"
           @clear="clrImg(otherDoc, 'other_doc')"
         >

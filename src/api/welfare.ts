@@ -256,6 +256,16 @@ export interface FullCaseDetail {
   created_at: string | null
 }
 
+// ─── Review Comments (welfare-edit-request) ────────────────────────────────────
+
+export interface ReviewComment {
+  review_field_id: number
+  name: string    // machine key เช่น "current_address_house_no"
+  label: string   // ป้ายกำกับภาษาไทย เช่น "บ้านเลขที่"
+  step: number    // 1–4
+  reason: string  // เหตุผลที่ต้องแก้ไข
+}
+
 // ─── API functions ─────────────────────────────────────────────────────────────
 
 export const welfareApi = {
@@ -315,6 +325,14 @@ export const welfareApi = {
     return apiClient<StatusLogItem>('/v1/case_for_staff/welfare-request-status', {
       method: 'POST',
       body: { applicant_id: applicantId, current_status_id: currentStatusId },
+    })
+  },
+
+  // ดึง review comments ล่าสุดของ applicant (เมื่อสถานะ=8 ส่งกลับแก้ไข)
+  getEditRequestComments(applicantId: number) {
+    return apiClient<ReviewComment[]>('/v1/case_for_staff/welfare-edit-request', {
+      method: 'GET',
+      query: { applicant_id: applicantId },
     })
   },
 

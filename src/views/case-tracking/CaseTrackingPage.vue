@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
-import type { CaseDisplayRead, StatusLogItem } from '@/api/welfare'
+import type { CaseDisplayRead, StatusLogItem, ReviewComment } from '@/api/welfare'
 import { useApplicationStore } from '@/stores/application'
 
 const route  = useRoute()
@@ -50,6 +50,19 @@ const EDIT_DATA_STATUS_ID = 8
 const currentStatusId = computed(() => caseData.value?.current_status?.id ?? 0)
 const isRejected  = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData  = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
+
+const commentsByStep = computed<Record<number, ReviewComment[]>>(() => {
+  const groups: Record<number, ReviewComment[]> = { 1: [], 2: [], 3: [], 4: [] }
+  for (const c of app.reviewComments) {
+    if (c.name === 'remarks') continue
+    if (c.step >= 1 && c.step <= 4) groups[c.step].push(c)
+  }
+  return groups
+})
+
+const remarksComment = computed<ReviewComment | null>(() =>
+  app.reviewComments.find(c => c.name === 'remarks') ?? null
+)
 
 // ─── ข้อมูลแสดงบนหน้า ──────────────────────────────────────────────────────────
 const caseNumber = computed(() =>
@@ -113,6 +126,15 @@ onMounted(async () => {
       statusLogs.value = [...detail.welfare_request_status_logs].reverse()
     } catch {
       // ใช้ข้อมูลจาก display แทน
+    }
+
+    // 3. ถ้าสถานะ=8 (แก้ไขข้อมูล) ดึง review comments จากเจ้าหน้าที่
+    if (caseData.value.current_status?.id === EDIT_DATA_STATUS_ID) {
+      try {
+        app.reviewComments = await welfareApi.getEditRequestComments(caseData.value.applicant_id)
+      } catch {
+        // comments ไม่ใช่ข้อมูลหลัก — ไม่ block การแสดงผล
+      }
     }
   } catch {
     loadError.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
@@ -390,79 +412,149 @@ function scrollTimeline(dir: 'left' | 'right') {
             </div>
 
             <!-- Step 1: ข้อมูลส่วนตัว -->
-            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
-              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
+            <div
+              class="border rounded-xl px-3 py-3"
+              :class="commentsByStep[1].length ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'"
+            >
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
+                  <p class="text-[12px] text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="editLoading"
+                  @click="handleEdit(1)"
+                  class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-[13px] font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
-                <p class="text-[12px] text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
-              </div>
-              <button
-                type="button"
-                :disabled="editLoading"
-                @click="handleEdit(1)"
-                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
-              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+              <ul v-if="commentsByStep[1].length" class="mt-2.5 space-y-1.5">
+                <li
+                  v-for="c in commentsByStep[1]"
+                  :key="c.review_field_id"
+                  class="text-[11px] text-amber-800 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                >
+                  <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
+                </li>
+              </ul>
             </div>
 
             <!-- Step 2: เศรษฐกิจ -->
-            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
-              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
-                </svg>
+            <div
+              class="border rounded-xl px-3 py-3"
+              :class="commentsByStep[2].length ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'"
+            >
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
+                  <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="editLoading"
+                  @click="handleEdit(2)"
+                  class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-[13px] font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
-                <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
-              </div>
-              <button
-                type="button"
-                :disabled="editLoading"
-                @click="handleEdit(2)"
-                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
-              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+              <ul v-if="commentsByStep[2].length" class="mt-2.5 space-y-1.5">
+                <li
+                  v-for="c in commentsByStep[2]"
+                  :key="c.review_field_id"
+                  class="text-[11px] text-amber-800 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                >
+                  <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
+                </li>
+              </ul>
             </div>
 
             <!-- Step 3: ปัญหา -->
-            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
-              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
+            <div
+              class="border rounded-xl px-3 py-3"
+              :class="commentsByStep[3].length ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'"
+            >
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
+                  <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="editLoading"
+                  @click="handleEdit(3)"
+                  class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-[13px] font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
-                <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
-              </div>
-              <button
-                type="button"
-                :disabled="editLoading"
-                @click="handleEdit(3)"
-                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
-              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
+              <ul v-if="commentsByStep[3].length" class="mt-2.5 space-y-1.5">
+                <li
+                  v-for="c in commentsByStep[3]"
+                  :key="c.review_field_id"
+                  class="text-[11px] text-amber-800 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                >
+                  <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
+                </li>
+              </ul>
             </div>
 
             <!-- Step 4: เอกสาร -->
-            <div class="flex items-start gap-3 border border-slate-200 rounded-xl px-3 py-3">
-              <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                </svg>
+            <div
+              class="border rounded-xl px-3 py-3"
+              :class="commentsByStep[4].length ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'"
+            >
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-4 h-4 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-[13px] font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
+                  <p class="text-[12px] text-slate-500 mt-0.5">หลักฐานและเอกสารแนบ</p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="editLoading"
+                  @click="handleEdit(4)"
+                  class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-[13px] font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
-                <p class="text-[12px] text-slate-500 mt-0.5">หลักฐานและเอกสารแนบ</p>
+              <ul v-if="commentsByStep[4].length" class="mt-2.5 space-y-1.5">
+                <li
+                  v-for="c in commentsByStep[4]"
+                  :key="c.review_field_id"
+                  class="text-[11px] text-amber-800 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                >
+                  <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- หมายเหตุเพิ่มเติมจากเจ้าหน้าที่ -->
+            <div
+              v-if="remarksComment"
+              class="flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5"
+            >
+              <svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+              </svg>
+              <div>
+                <p class="text-[12px] font-semibold text-slate-600">หมายเหตุเพิ่มเติมจากเจ้าหน้าที่</p>
+                <p class="text-[12px] text-slate-700 mt-0.5 whitespace-pre-wrap">{{ remarksComment.reason }}</p>
               </div>
-              <button
-                type="button"
-                :disabled="editLoading"
-                @click="handleEdit(4)"
-                class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
-              >{{ editLoading ? '...' : 'แก้ไข' }}</button>
             </div>
 
           </div>

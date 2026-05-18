@@ -249,7 +249,7 @@ async function handleProceed() {
         </div>
 
         <!-- เนื้อหาคำเตือน พร้อม highlighted text สีน้ำเงิน -->
-        <p class="text-[13px] text-slate-700 leading-relaxed mb-3">
+        <p class="text-[13px] text-slate-700 leading-relaxed mb-3 indent-5">
           ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอรับรองว่า จะให้หรือแจ้งข้อมูลและเอกสารที่<span class="text-[#1A56DB] font-medium">ถูกต้องตามความเป็นจริง</span>
           และรับทราบว่าการให้หรือแจ้งข้อมูลและเอกสารอันเป็นเท็จอาจต้อง<span class="text-[#1A56DB] font-medium">รับผิดตามกฎหมาย</span>ทั้ง<span class="text-[#1A56DB] font-medium">ทางแพ่งและทางอาญา</span>
         </p>

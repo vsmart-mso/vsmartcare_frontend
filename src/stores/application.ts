@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { CasePayload, FullCaseDetail } from '@/api/welfare'
+import type { CasePayload, FullCaseDetail, ReviewComment } from '@/api/welfare'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
@@ -175,6 +175,9 @@ export const useApplicationStore = defineStore('application', () => {
 
   // files — File objects จริงๆ อยู่ใน memory เท่านั้น ไม่ serialize
   const files           = ref<Map<string, File>>(new Map())
+
+  // review comments จากเจ้าหน้าที่ (status=8) — memory เท่านั้น ไม่ persist
+  const reviewComments = ref<ReviewComment[]>([])
 
   // ── Edit Mode ─────────────────────────────────────────────────────────────
   // persist ลง sessionStorage ได้ (ยกเว้น existingImageUrls ที่เป็น Blob URL)
@@ -519,6 +522,7 @@ export const useApplicationStore = defineStore('application', () => {
     existingEvidenceIds,
     existingImageUrls,
     existingOtherTypeName,
+    reviewComments,
     // actions
     setPdpa,
     setCheckSelf,

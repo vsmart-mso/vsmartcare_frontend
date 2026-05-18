@@ -4,8 +4,15 @@ import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
 import { welfareApi } from '@/api/welfare'
+import FieldAlert from '@/components/ui/FieldAlert.vue'
 
 const app = useApplicationStore()
+
+const commentMap = computed(() => {
+  const m = new Map<string, string>()
+  for (const c of app.reviewComments) m.set(c.name, c.reason)
+  return m
+})
 
 // ─── 9.1 รายละเอียดปัญหา ─────────────────────────────────────────────────────
 const problemDescription = ref('')
@@ -168,6 +175,7 @@ defineExpose({
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">9.1</span>
           <span class="text-[13px] font-medium text-slate-600">รายละเอียดปัญหา</span>
+          <FieldAlert v-if="commentMap.has('family_problems')" :reason="commentMap.get('family_problems')!" />
         </div>
 
         <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
@@ -200,6 +208,7 @@ defineExpose({
           <div class="flex items-center gap-2 mb-1.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.1</span>
             <span class="text-[13px] font-medium text-slate-600">ประเภทความช่วยเหลือ <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('requested_assistance_type')" :reason="commentMap.get('requested_assistance_type')!" />
           </div>
           <!-- <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ </p> -->
 
@@ -237,8 +246,9 @@ defineExpose({
 
           <!-- ธนาคาร -->
           <div class="mb-4">
-            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-              ธนาคาร <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
+              <span>ธนาคาร <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('bank_name')" :reason="commentMap.get('bank_name')!" />
             </label>
             <div class="relative">
               <select
@@ -261,8 +271,9 @@ defineExpose({
 
           <!-- เลขที่บัญชี -->
           <div class="mb-4">
-            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-              เลขที่บัญชี <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
+              <span>เลขที่บัญชี <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('bank_account_number')" :reason="commentMap.get('bank_account_number')!" />
             </label>
             <input
               :value="bankAccount"
@@ -281,8 +292,9 @@ defineExpose({
 
           <!-- รูปหน้าสมุดบัญชีธนาคาร -->
           <div>
-            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-              รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
+              <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
             </label>
 
             <!-- error message -->

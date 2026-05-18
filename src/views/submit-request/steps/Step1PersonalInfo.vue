@@ -8,6 +8,7 @@ import { formatThaiDate } from '@/utils/formatDate'
 import { lookupsApi } from '@/api/lookups'
 import GpsMapPicker from '@/components/GpsMapPicker.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
+import FieldAlert from '@/components/ui/FieldAlert.vue'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore()
@@ -312,6 +313,13 @@ onMounted(async () => {
   await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
 })
 
+// ─── Review comments map (name → reason) ──────────────────────────────────────
+const commentMap = computed(() => {
+  const m = new Map<string, string>()
+  for (const c of app.reviewComments) m.set(c.name, c.reason)
+  return m
+})
+
 // expose ให้ parent เรียก touchAll() ก่อน handleNext และ getData() เพื่อรวบรวมข้อมูล
 defineExpose({
   touchAll,
@@ -515,8 +523,9 @@ defineExpose({
         <!-- บ้านเลขที่ + หมู่ที่ -->
         <div class="flex gap-3 mb-3">
           <div class="flex-1">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-              บ้านเลขที่ <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>บ้านเลขที่ <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('current_address_house_no')" :reason="commentMap.get('current_address_house_no')!" />
             </label>
             <input
               :value="houseNo"
@@ -530,7 +539,10 @@ defineExpose({
             <p v-if="errors.houseNo" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.houseNo }}</p>
           </div>
           <div class="w-[33%]">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">หมู่ที่</label>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>หมู่ที่</span>
+              <FieldAlert v-if="commentMap.has('current_address_moo')" :reason="commentMap.get('current_address_moo')!" />
+            </label>
             <input
               :value="mooNum"
               @input="(e) => handleDigitsInput(e, v => mooNum = v)"
@@ -543,7 +555,10 @@ defineExpose({
 
         <!-- ชื่อหมู่บ้าน -->
         <div class="mb-3">
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">ชื่อหมู่บ้าน</label>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>ชื่อหมู่บ้าน</span>
+            <FieldAlert v-if="commentMap.has('current_address_village')" :reason="commentMap.get('current_address_village')!" />
+          </label>
           <input
             v-model="villageName"
             type="text"
@@ -554,7 +569,10 @@ defineExpose({
         <!-- ตรอก + ซอย -->
         <div class="flex gap-3 mb-3">
           <div class="flex-1">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">ตรอก</label>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>ตรอก</span>
+              <FieldAlert v-if="commentMap.has('current_address_alley')" :reason="commentMap.get('current_address_alley')!" />
+            </label>
             <input
               v-model="alley"
               type="text"
@@ -562,7 +580,10 @@ defineExpose({
             />
           </div>
           <div class="flex-1">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">ซอย</label>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>ซอย</span>
+              <FieldAlert v-if="commentMap.has('current_address_soi')" :reason="commentMap.get('current_address_soi')!" />
+            </label>
             <input
               v-model="soi"
               type="text"
@@ -573,7 +594,10 @@ defineExpose({
 
         <!-- ถนน -->
         <div class="mb-3">
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">ถนน</label>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>ถนน</span>
+            <FieldAlert v-if="commentMap.has('current_address_road')" :reason="commentMap.get('current_address_road')!" />
+          </label>
           <input
             v-model="road"
             type="text"
@@ -598,8 +622,9 @@ defineExpose({
         <template v-else>
           <!-- จังหวัด -->
           <div class="mb-3">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-              จังหวัด <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>จังหวัด <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('current_address_province')" :reason="commentMap.get('current_address_province')!" />
             </label>
             <SearchableSelect
               v-model="addr.province.value"
@@ -614,8 +639,9 @@ defineExpose({
 
           <!-- อำเภอ/เขต -->
           <div class="mb-3">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-              อำเภอ/เขต <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>อำเภอ/เขต <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('current_address_district')" :reason="commentMap.get('current_address_district')!" />
             </label>
             <SearchableSelect
               v-model="addr.district.value"
@@ -631,8 +657,9 @@ defineExpose({
 
           <!-- ตำบล/แขวง -->
           <div class="mb-3">
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-              ตำบล/แขวง <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>ตำบล/แขวง <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('current_address_subdistrict')" :reason="commentMap.get('current_address_subdistrict')!" />
             </label>
             <SearchableSelect
               v-model="addr.subdistrict.value"
@@ -661,7 +688,10 @@ defineExpose({
         </template>
 
         <!-- GPS — แผนที่แบบ interactive -->
-        <!-- addressHint ส่งชื่อตำบล/อำเภอ/จังหวัดที่เลือกไว้เพื่อให้แผนที่ pan ไปยังพื้นที่นั้นอัตโนมัติ -->
+        <div class="flex items-center gap-1 mb-2">
+          <span class="text-[12px] text-slate-600 font-medium">ตำแหน่ง GPS</span>
+          <FieldAlert v-if="commentMap.has('current_address_gps')" :reason="commentMap.get('current_address_gps')!" />
+        </div>
         <GpsMapPicker
           :lat="gpsLat"
           :lng="gpsLng"
@@ -680,7 +710,10 @@ defineExpose({
 
         <!-- โทรศัพท์ (บ้าน/ที่ทำงาน) — optional, 9 หลัก -->
         <div class="mb-3">
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">โทรศัพท์</label>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>โทรศัพท์</span>
+            <FieldAlert v-if="commentMap.has('contact_phone_home')" :reason="commentMap.get('contact_phone_home')!" />
+          </label>
           <input
             :value="phone"
             @input="(e) => handleDigitsInput(e, v => phone = v)"
@@ -699,7 +732,10 @@ defineExpose({
 
         <!-- โทรสาร — optional, 9 หลัก -->
         <div class="mb-3">
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">โทรสาร</label>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>โทรสาร</span>
+            <FieldAlert v-if="commentMap.has('contact_fax')" :reason="commentMap.get('contact_fax')!" />
+          </label>
           <input
             :value="fax"
             @input="(e) => handleDigitsInput(e, v => fax = v)"
@@ -717,8 +753,9 @@ defineExpose({
 
         <!-- โทรศัพท์มือถือ — required, validate format -->
         <div class="mb-3">
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-            โทรศัพท์มือถือ <span class="text-red-500">*</span>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>โทรศัพท์มือถือ <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('contact_mobile')" :reason="commentMap.get('contact_mobile')!" />
           </label>
           <input
             :value="mobile"
@@ -737,8 +774,9 @@ defineExpose({
 
         <!-- อีเมล — required, validate format -->
         <div>
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-            อีเมล <span class="text-red-500">*</span>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>อีเมล <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('contact_email')" :reason="commentMap.get('contact_email')!" />
           </label>
           <input
             v-model="email"
@@ -773,6 +811,7 @@ defineExpose({
           <span class="text-[13px] font-medium text-slate-600">
             สถานภาพสมรส <span class="text-red-500">*</span>
           </span>
+          <FieldAlert v-if="commentMap.has('marital_status')" :reason="commentMap.get('marital_status')!" />
         </div>
         <div class="space-y-2">
           <label
@@ -814,6 +853,7 @@ defineExpose({
           <span class="text-[13px] font-medium text-slate-600">
             ลักษณะที่อยู่อาศัย <span class="text-red-500">*</span>
           </span>
+          <FieldAlert v-if="commentMap.has('housing_type')" :reason="commentMap.get('housing_type')!" />
         </div>
         <div class="space-y-2">
           <label
@@ -851,8 +891,9 @@ defineExpose({
               <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">4.2</span>
               <span class="text-[13px] font-medium text-slate-600">ค่าเช่าต่อเดือน</span>
             </div>
-            <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-              ค่าเช่าต่อเดือน (บาท) <span class="text-red-500">*</span>
+            <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+              <span>ค่าเช่าต่อเดือน (บาท) <span class="text-red-500">*</span></span>
+              <FieldAlert v-if="commentMap.has('housing_rent')" :reason="commentMap.get('housing_rent')!" />
             </label>
             <div class="relative">
               <input
@@ -889,6 +930,7 @@ defineExpose({
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">5.1</span>
           <span class="text-[13px] font-medium text-slate-600">จำนวนสมาชิก</span>
+          <FieldAlert v-if="commentMap.has('family_members_count')" :reason="commentMap.get('family_members_count')!" />
         </div>
         <div class="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
           <svg class="w-4 h-4 text-blue-500 flex-shrink-0 mt-[1px]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -899,8 +941,9 @@ defineExpose({
           </p>
         </div>
         <div>
-          <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">
-            จำนวนสมาชิกในครอบครัว (คน) <span class="text-red-500">*</span>
+          <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
+            <span>จำนวนสมาชิกในครอบครัว (คน) <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('family_members_count')" :reason="commentMap.get('family_members_count')!" />
           </label>
           <div class="relative">
             <input
