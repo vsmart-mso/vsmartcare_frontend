@@ -196,6 +196,8 @@ export const useApplicationStore = defineStore('application', () => {
   const bankBookOcrResult = ref<OcrBankBookResponse | null>(null)
   // กำลัง OCR อยู่หรือไม่ (ใช้แสดง spinner ใน Step3)
   const bankBookOcrLoading = ref(false)
+  // OCR result ID จาก POST response — ใช้สำหรับ PATCH link หลัง submit
+  const bankBookOcrResultId = ref<number | null>(null)
 
   // ── Auto-save ลง sessionStorage ──────────────────────────────────────────
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
@@ -500,9 +502,11 @@ export const useApplicationStore = defineStore('application', () => {
   }
   function setBankBookOcrResult(result: OcrBankBookResponse | null) {
     bankBookOcrResult.value = result
+    bankBookOcrResultId.value = result?.id ?? null
   }
   function clearBankBookOcr() {
     bankBookOcrResult.value = null
+    bankBookOcrResultId.value = null
     bankBookOcrLoading.value = false
   }
 
@@ -544,6 +548,7 @@ export const useApplicationStore = defineStore('application', () => {
     existingOtherTypeName,
     bankBookOcrResult,
     bankBookOcrLoading,
+    bankBookOcrResultId,
     reviewComments,
     // actions
     setPdpa,

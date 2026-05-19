@@ -56,9 +56,6 @@ function buildTargetName(): string {
   return `${u.title} ${u.fname} ${u.lname}`
 }
 
-/** applicant_id สำหรับ OCR service (0 = ยังไม่มีใน DB — กรอกฟอร์มใหม่) */
-const ocrApplicantId = computed(() => app.editApplicantId ?? 0)
-
 /** เรียก OCR ใน background */
 async function runOcr(file: File) {
   const targetName = buildTargetName()
@@ -78,7 +75,7 @@ async function runOcr(file: File) {
   app.setBankBookOcrResult(null)
 
   try {
-    const result = await ocrBankBook(file, targetName, ocrApplicantId.value, controller.signal)
+    const result = await ocrBankBook(file, targetName, null, controller.signal)
     ocrResult.value = result
     app.setBankBookOcrResult(result)
 

@@ -14,7 +14,7 @@
  * ใช้เป็น children ของ Step3Problem.vue — แทรกใต้รูป preview สมุดบัญชี
  * OCR ทำงานอัตโนมัติเมื่อ file เปลี่ยน หรือเมื่อ targetName มีค่า
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { ocrBankBook, type OcrBankBookResponse } from '@/api/ocr'
 import { useApplicationStore } from '@/stores/application'
 
@@ -38,9 +38,6 @@ const ocrAbort   = ref<AbortController | null>(null)
 const ocrResult  = ref<OcrBankBookResponse | null>(null)
 const ocrLoading = ref(false)
 const ocrError   = ref('')
-
-/** applicant_id สำหรับ OCR service (0 = ยังไม่มีใน DB — กรอกฟอร์มใหม่) */
-const ocrApplicantId = computed(() => app.editApplicantId ?? 0)
 
 // ─── Restore ผล OCR จาก store เมื่อ component mount (เช่น ผู้ใช้กลับมาจาก Step4) ──
 onMounted(() => {
@@ -90,7 +87,7 @@ watch(
     app.setBankBookOcrLoading(true)
 
     try {
-      const result = await ocrBankBook(file, targetName, ocrApplicantId.value, controller.signal)
+      const result = await ocrBankBook(file, targetName, null, controller.signal)
       if (seq !== _seq) return // มี request ใหม่มาแล้ว
       ocrResult.value = result
       app.setBankBookOcrResult(result)

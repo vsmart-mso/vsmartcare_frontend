@@ -17,6 +17,7 @@ export interface BankInfo {
 }
 
 export interface OcrBankBookResponse {
+  id: number            // OCR result ID — ใช้สำหรับ PATCH link ทีหลัง
   markdown: string
   bank_info: BankInfo | null
   target_name_checked: string
@@ -66,19 +67,21 @@ const ocrApiKey = import.meta.env.VITE_OCR_API_KEY as string | undefined
  *
  * @param file         รูปสมุดบัญชี (JPEG / PNG / WebP)
  * @param targetName   ชื่อ-นามสกุลที่ต้องการเทียบ เช่น "นาย ภูริพัฒน ปัญญา"
- * @param applicantId  ID ของ applicant (0 = ยังไม่มีใน DB — กรอกฟอร์มครั้งแรก)
+ * @param applicantId  ID ของ applicant (null = ยังไม่มี — จะ link ทีหลังหลัง submit)
  * @param signal       AbortSignal สำหรับยกเลิกเมื่อผู้ใช้เปลี่ยนรูป
  */
 export async function ocrBankBook(
   file: File,
   targetName: string,
-  applicantId: number,
+  applicantId?: number | null,
   signal?: AbortSignal,
 ): Promise<OcrBankBookResponse> {
   const form = new FormData()
   form.append('file', file)
   form.append('target_name', targetName)
-  form.append('applicant_id', String(applicantId))
+  if (applicantId != null) {
+    form.append('applicant_id', String(applicantId))
+  }
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -135,4 +138,36 @@ export async function fetchOcrResults(
   }
 
   return data as OcrResultsListResponse
+}
+
+/**
+ * ผูกผล OCR กับ applicant_id หลัง submit — เรียกหลังจาก createCase สำเร็จ
+ */
+export async function linkOcrResult(
+  ocrResultId: number,
+  applicantId: number,
+): Promise<OcrResultRecord> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }
+  if (ocrApiKey) headers['Authorization'] = `Bearer ${ocrApiKey}`
+
+  const res = await fetch(`${ocrBaseUrl}/v1/ocr/results/${ocrResultId}/link`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ applicant_id: applicantId }),
+  })
+
+  const data = await res.json().catch(() => ({})) as OcrResultRecord & { detail?: string }
+
+  if (!res.ok) {
+    const err = new Error(
+      typeof data.detail === 'string' ? data.detail : `OCR link error ${res.status}`,
+    ) as Error & { status: number }
+    err.status = res.status
+    throw err
+  }
+
+  return data as OcrResultRecord
 }

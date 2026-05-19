@@ -11,6 +11,7 @@ import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
+import { linkOcrResult } from '@/api/ocr'
 
 const router = useRouter()
 const route  = useRoute()
@@ -134,7 +135,7 @@ async function handleSubmit() {
 
   // ── Guard: OCR ผลไม่ดี → ห้าม submit ──────────────────────────────────────
   if (ocrBlocksSubmit.value) {
-    submitError.value = 'กรุณากลับไป Step 3 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
+    submitError.value = 'กรุณากลับไป หัวข้อ "ปัญหา" และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
     return
   }
 
@@ -171,7 +172,14 @@ async function handleSubmit() {
       }
 
       const editedId = app.editApplicantId
+
+      // Link OCR result (ถ้ามีการอัปโหลดรูปสมุดบัญชีใหม่ใน edit mode)
+      const ocrId = app.bankBookOcrResultId
       app.clearAll()
+      if (ocrId != null) {
+        linkOcrResult(ocrId, editedId).catch(() => { /* silent */ })
+      }
+
       router.push({ name: 'case-tracking', query: { applicantId: String(editedId) } })
       return
     }
@@ -201,9 +209,16 @@ async function handleSubmit() {
     }
 
     // 4. ล้างข้อมูล draft ออกจาก memory และ sessionStorage
+    // ── Link OCR result กับ applicant_id ก่อนล้าง store ─────────────────────
+    const ocrId = app.bankBookOcrResultId
     app.clearAll()
 
-    // 5. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
+    // 5. ผูกผล OCR กับ applicant_id (ถ้ามี)
+    if (ocrId != null) {
+      await linkOcrResult(ocrId, applicantId).catch(() => { /* silent */ })
+    }
+
+    // 6. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
     router.push({ name: 'submit-success', query: { caseId: String(applicantId) } })
 
   } catch (err: unknown) {
