@@ -9,6 +9,18 @@ import { lookupsApi } from '@/api/lookups'
 import GpsMapPicker from '@/components/GpsMapPicker.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import StepFormSkeleton from '../components/StepFormSkeleton.vue'
+
+// ─── สถานะการโหลด ──────────────────────────────────────────────────────────────
+// isLoading = true ระหว่างรอ API (ตัวเลือกสมรส/ที่อยู่อาศัย + ข้อมูลที่อยู่)
+// ระหว่างนี้จะโชว์ skeleton แทนฟอร์มจริง และ parent จะปิดปุ่ม "ถัดไป"
+const isLoading = ref(true)
+
+// ─── filterFields prop ────────────────────────────────────────────────────────
+// ถ้าไม่ส่ง → แสดงทุก field (โหมดปกติ)
+// ถ้าส่ง → แสดงเฉพาะ field ที่อยู่ใน list (โหมด EditRequestPage)
+const props = defineProps<{ filterFields?: string[] }>()
+const show = (name: string): boolean => !props.filterFields || props.filterFields.includes(name)
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore()
@@ -147,8 +159,22 @@ const touched = reactive({
 
 // parent เรียกก่อน handleNext เพื่อ force-show error ทุก field ที่ยังไม่กรอก
 function touchAll() {
-  (Object.keys(touched) as (keyof typeof touched)[]).forEach(k => {
-    touched[k] = true
+  const fieldNameMap: Record<keyof typeof touched, string> = {
+    houseNo:       'current_address_house_no',
+    province:      'current_address_province',
+    district:      'current_address_district',
+    subdistrict:   'current_address_subdistrict',
+    phone:         'contact_phone_home',
+    fax:           'contact_fax',
+    mobile:        'contact_mobile',
+    email:         'contact_email',
+    maritalStatus: 'marital_status',
+    housingType:   'housing_type',
+    rentPerMonth:  'housing_rent',
+    familyCount:   'family_members_count',
+  }
+  ;(Object.keys(touched) as (keyof typeof touched)[]).forEach(k => {
+    if (show(fieldNameMap[k])) touched[k] = true
   })
 }
 
@@ -256,61 +282,73 @@ const subdistrictOptions = computed(() =>
 )
 
 // ─── isReady: ฟอร์มพร้อมส่งหรือยัง ───────────────────────────────────────────
+// field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() => {
   const base =
-    houseNo.value.trim()    !== '' &&
-    addr.province.value     !== '' &&
-    addr.district.value     !== '' &&
-    addr.subdistrict.value  !== '' &&
-    isValidMobile(mobile.value)    &&
-    isValidEmail(email.value)      &&
-    maritalStatus.value     !== '' &&
-    housingType.value       !== '' &&
-    familyCount.value       !== ''
-  if (isRentSelected.value) return base && rentPerMonth.value !== ''
+    (!show('current_address_house_no')    || houseNo.value.trim()   !== '') &&
+    (!show('current_address_province')    || addr.province.value    !== '') &&
+    (!show('current_address_district')    || addr.district.value    !== '') &&
+    (!show('current_address_subdistrict') || addr.subdistrict.value !== '') &&
+    (!show('contact_mobile')              || isValidMobile(mobile.value))   &&
+    (!show('contact_email')               || isValidEmail(email.value))     &&
+    (!show('marital_status')              || maritalStatus.value    !== '') &&
+    (!show('housing_type')                || housingType.value      !== '') &&
+    (!show('family_members_count')        || familyCount.value      !== '')
+  if (show('housing_rent') && isRentSelected.value) return base && rentPerMonth.value !== ''
   return base
 })
 
-// แจ้ง parent ทุกครั้งที่ความพร้อมเปลี่ยน
-const emit = defineEmits<{ 'update:ready': [boolean] }>()
+// แจ้ง parent ทุกครั้งที่ความพร้อมเปลี่ยน + แจ้งสถานะกำลังโหลด
+const emit = defineEmits<{
+  'update:ready': [boolean]
+  'update:loading': [boolean]
+}>()
 watch(isReady, val => emit('update:ready', val), { immediate: true })
+watch(isLoading, val => emit('update:loading', val), { immediate: true })
 
 // ─── Pre-fill จาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป ─────────────────
 onMounted(async () => {
-  // ดึง lookup options จาก API พร้อมกัน
-  const [maritalData, housingData] = await Promise.all([
-    lookupsApi.fetchMaritalStatusTypes().catch(() => []),
-    lookupsApi.fetchHousingTypes().catch(() => []),
-  ])
-  maritalOptions.value = maritalData.map(d => ({ value: String(d.id), label: d.name }))
-  housingOptions.value = housingData.map(d => ({ value: String(d.id), label: d.name }))
+  try {
+    // ดึง lookup options จาก API พร้อมกัน
+    const [maritalData, housingData] = await Promise.all([
+      lookupsApi.fetchMaritalStatusTypes().catch(() => []),
+      lookupsApi.fetchHousingTypes().catch(() => []),
+    ])
+    maritalOptions.value = maritalData.map(d => ({ value: String(d.id), label: d.name }))
+    housingOptions.value = housingData.map(d => ({ value: String(d.id), label: d.name }))
 
-  const s = app.step1
-  if (!s) return
-  houseNo.value     = s.address.houseNo
-  mooNum.value      = s.address.mooNum
-  villageName.value = s.address.villageName
-  alley.value       = s.address.alley
-  soi.value         = s.address.soi
-  road.value        = s.address.road
-  gpsLat.value      = s.address.gpsLat
-  gpsLng.value      = s.address.gpsLng
-  phone.value       = s.contact.phone
-  fax.value         = s.contact.fax
-  mobile.value      = s.contact.mobile
-  email.value       = s.contact.email
-  maritalStatus.value = s.maritalStatus
-  housingType.value   = s.housingType
-  if (s.rentPerMonth) {
-    rentPerMonth.value = s.rentPerMonth
-    const n = parseInt(s.rentPerMonth, 10)
-    displayRent.value = isNaN(n) ? s.rentPerMonth : n.toLocaleString('th-TH')
+    // เติมข้อมูลเดิมจาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป
+    const s = app.step1
+    if (s) {
+      houseNo.value     = s.address.houseNo
+      mooNum.value      = s.address.mooNum
+      villageName.value = s.address.villageName
+      alley.value       = s.address.alley
+      soi.value         = s.address.soi
+      road.value        = s.address.road
+      gpsLat.value      = s.address.gpsLat
+      gpsLng.value      = s.address.gpsLng
+      phone.value       = s.contact.phone
+      fax.value         = s.contact.fax
+      mobile.value      = s.contact.mobile
+      email.value       = s.contact.email
+      maritalStatus.value = s.maritalStatus
+      housingType.value   = s.housingType
+      if (s.rentPerMonth) {
+        rentPerMonth.value = s.rentPerMonth
+        const n = parseInt(s.rentPerMonth, 10)
+        displayRent.value = isNaN(n) ? s.rentPerMonth : n.toLocaleString('th-TH')
+      }
+      familyCount.value = s.familyCount
+
+      // ใช้ restore() จาก useThaiAddress ซึ่ง await API fetch แต่ละระดับจนเสร็จก่อนตั้งค่าถัดไป
+      // แก้ปัญหา nextTick() ไม่เพียงพอเพราะ API fetch เป็น async และใช้เวลานานกว่า 1 tick
+      await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
+    }
+  } finally {
+    // ปิด skeleton เสมอ — ไม่ว่าจะโหลดสำเร็จหรือเกิดข้อผิดพลาด ผู้ใช้ต้องได้เห็นฟอร์ม
+    isLoading.value = false
   }
-  familyCount.value = s.familyCount
-
-  // ใช้ restore() จาก useThaiAddress ซึ่ง await API fetch แต่ละระดับจนเสร็จก่อนตั้งค่าถัดไป
-  // แก้ปัญหา nextTick() ไม่เพียงพอเพราะ API fetch เป็น async และใช้เวลานานกว่า 1 tick
-  await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
 })
 
 // ─── Review comments map (name → reason) ──────────────────────────────────────
@@ -355,10 +393,13 @@ defineExpose({
 </script>
 
 <template>
-  <div class="space-y-4">
+  <!-- ระหว่างรอ API: โชว์โครงฟอร์มจำลอง (skeleton) — ผู้ใช้กดอะไรไม่ได้ -->
+  <StepFormSkeleton v-if="isLoading" :cards="3" :rows-per-card="4" />
 
-    <!-- Banner: ยืนยันตัวตนผ่าน ThaiD -->
-    <div class="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl p-4">
+  <div v-else class="space-y-4">
+
+    <!-- Banner: ยืนยันตัวตนผ่าน ThaiD (ซ่อนในโหมด edit-request เพราะไม่มี field ตัวตน) -->
+    <div v-if="!props.filterFields" class="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl p-4">
       <div class="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
         <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -376,9 +417,9 @@ defineExpose({
     </div>
 
     <!-- ════════════════════════════════════════════════════════
-         Section 1: ผู้ยื่นคำร้อง
+         Section 1: ผู้ยื่นคำร้อง (ข้อมูลจาก ThaiD — ซ่อนในโหมด edit-request)
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="!props.filterFields" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">1</span>
@@ -505,7 +546,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 2: ที่อยู่และข้อมูลติดต่อ
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['current_address_house_no','current_address_moo','current_address_village','current_address_alley','current_address_soi','current_address_road','current_address_province','current_address_district','current_address_subdistrict','current_address_gps','contact_phone_home','contact_fax','contact_mobile','contact_email'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">2</span>
@@ -515,14 +559,17 @@ defineExpose({
       <div class="p-4">
 
         <!-- 2.1 ที่อยู่ปัจจุบัน -->
-        <div class="flex items-center gap-2 mb-3">
+        <div
+          v-if="['current_address_house_no','current_address_moo','current_address_village','current_address_alley','current_address_soi','current_address_road','current_address_province','current_address_district','current_address_subdistrict','current_address_gps'].some(f => show(f))"
+          class="flex items-center gap-2 mb-3"
+        >
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">2.1</span>
           <span class="text-[13px] font-medium text-slate-600">ที่อยู่ปัจจุบัน</span>
         </div>
 
         <!-- บ้านเลขที่ + หมู่ที่ -->
-        <div class="flex gap-3 mb-3">
-          <div class="flex-1">
+        <div v-if="show('current_address_house_no') || show('current_address_moo')" class="flex gap-3 mb-3">
+          <div v-if="show('current_address_house_no')" class="flex-1">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>บ้านเลขที่ <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_house_no')" :reason="commentMap.get('current_address_house_no')!" />
@@ -538,7 +585,7 @@ defineExpose({
             />
             <p v-if="errors.houseNo" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.houseNo }}</p>
           </div>
-          <div class="w-[33%]">
+          <div v-if="show('current_address_moo')" class="w-[33%]">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>หมู่ที่</span>
               <FieldAlert v-if="commentMap.has('current_address_moo')" :reason="commentMap.get('current_address_moo')!" />
@@ -554,7 +601,7 @@ defineExpose({
         </div>
 
         <!-- ชื่อหมู่บ้าน -->
-        <div class="mb-3">
+        <div v-if="show('current_address_village')" class="mb-3">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>ชื่อหมู่บ้าน</span>
             <FieldAlert v-if="commentMap.has('current_address_village')" :reason="commentMap.get('current_address_village')!" />
@@ -567,8 +614,8 @@ defineExpose({
         </div>
 
         <!-- ตรอก + ซอย -->
-        <div class="flex gap-3 mb-3">
-          <div class="flex-1">
+        <div v-if="show('current_address_alley') || show('current_address_soi')" class="flex gap-3 mb-3">
+          <div v-if="show('current_address_alley')" class="flex-1">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>ตรอก</span>
               <FieldAlert v-if="commentMap.has('current_address_alley')" :reason="commentMap.get('current_address_alley')!" />
@@ -579,7 +626,7 @@ defineExpose({
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
-          <div class="flex-1">
+          <div v-if="show('current_address_soi')" class="flex-1">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>ซอย</span>
               <FieldAlert v-if="commentMap.has('current_address_soi')" :reason="commentMap.get('current_address_soi')!" />
@@ -593,7 +640,7 @@ defineExpose({
         </div>
 
         <!-- ถนน -->
-        <div class="mb-3">
+        <div v-if="show('current_address_road')" class="mb-3">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>ถนน</span>
             <FieldAlert v-if="commentMap.has('current_address_road')" :reason="commentMap.get('current_address_road')!" />
@@ -621,7 +668,7 @@ defineExpose({
         <!-- Dropdowns -->
         <template v-else>
           <!-- จังหวัด -->
-          <div class="mb-3">
+          <div v-if="show('current_address_province')" class="mb-3">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>จังหวัด <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_province')" :reason="commentMap.get('current_address_province')!" />
@@ -638,7 +685,7 @@ defineExpose({
           </div>
 
           <!-- อำเภอ/เขต -->
-          <div class="mb-3">
+          <div v-if="show('current_address_district')" class="mb-3">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>อำเภอ/เขต <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_district')" :reason="commentMap.get('current_address_district')!" />
@@ -656,7 +703,7 @@ defineExpose({
           </div>
 
           <!-- ตำบล/แขวง -->
-          <div class="mb-3">
+          <div v-if="show('current_address_subdistrict')" class="mb-3">
             <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
               <span>ตำบล/แขวง <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_subdistrict')" :reason="commentMap.get('current_address_subdistrict')!" />
@@ -673,8 +720,8 @@ defineExpose({
             <p v-if="errors.subdistrict" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.subdistrict }}</p>
           </div>
 
-          <!-- รหัสไปรษณีย์ — auto-fill จากตำบลที่เลือก (read-only) -->
-          <div class="mb-4">
+          <!-- รหัสไปรษณีย์ — auto-fill จากตำบลที่เลือก (read-only, แสดงเมื่อ cascade แสดง) -->
+          <div v-if="show('current_address_province') || show('current_address_district') || show('current_address_subdistrict')" class="mb-4">
             <label class="block text-[12px] text-slate-600 mb-1.5 font-medium">รหัสไปรษณีย์</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
               <span class="text-[14px]" :class="addr.zipcode.value ? 'text-slate-700' : 'text-slate-400'">
@@ -688,11 +735,12 @@ defineExpose({
         </template>
 
         <!-- GPS — แผนที่แบบ interactive -->
-        <div class="flex items-center gap-1 mb-2">
+        <div v-if="show('current_address_gps')" class="flex items-center gap-1 mb-2">
           <span class="text-[12px] text-slate-600 font-medium">ตำแหน่ง GPS</span>
           <FieldAlert v-if="commentMap.has('current_address_gps')" :reason="commentMap.get('current_address_gps')!" />
         </div>
         <GpsMapPicker
+          v-if="show('current_address_gps')"
           :lat="gpsLat"
           :lng="gpsLng"
           :address-hint="[addr.subdistrict.value, addr.district.value, addr.province.value].filter(Boolean).join(' ')"
@@ -700,16 +748,22 @@ defineExpose({
           @update:lng="gpsLng = $event"
         />
 
-        <div class="h-px bg-slate-100 my-4" />
+        <div
+          v-if="['contact_phone_home','contact_fax','contact_mobile','contact_email'].some(f => show(f))"
+          class="h-px bg-slate-100 my-4"
+        />
 
         <!-- 2.2 ข้อมูลติดต่อ -->
-        <div class="flex items-center gap-2 mb-3">
+        <div
+          v-if="['contact_phone_home','contact_fax','contact_mobile','contact_email'].some(f => show(f))"
+          class="flex items-center gap-2 mb-3"
+        >
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">2.2</span>
           <span class="text-[13px] font-medium text-slate-600">ข้อมูลติดต่อ</span>
         </div>
 
         <!-- โทรศัพท์ (บ้าน/ที่ทำงาน) — optional, 9 หลัก -->
-        <div class="mb-3">
+        <div v-if="show('contact_phone_home')" class="mb-3">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>โทรศัพท์</span>
             <FieldAlert v-if="commentMap.has('contact_phone_home')" :reason="commentMap.get('contact_phone_home')!" />
@@ -731,7 +785,7 @@ defineExpose({
         </div>
 
         <!-- โทรสาร — optional, 9 หลัก -->
-        <div class="mb-3">
+        <div v-if="show('contact_fax')" class="mb-3">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>โทรสาร</span>
             <FieldAlert v-if="commentMap.has('contact_fax')" :reason="commentMap.get('contact_fax')!" />
@@ -752,7 +806,7 @@ defineExpose({
         </div>
 
         <!-- โทรศัพท์มือถือ — required, validate format -->
-        <div class="mb-3">
+        <div v-if="show('contact_mobile')" class="mb-3">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>โทรศัพท์มือถือ <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('contact_mobile')" :reason="commentMap.get('contact_mobile')!" />
@@ -773,7 +827,7 @@ defineExpose({
         </div>
 
         <!-- อีเมล — required, validate format -->
-        <div>
+        <div v-if="show('contact_email')">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
             <span>อีเมล <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('contact_email')" :reason="commentMap.get('contact_email')!" />
@@ -798,7 +852,7 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 3: สถานภาพ
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="show('marital_status')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">3</span>
@@ -840,7 +894,7 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 4: สภาพที่อยู่อาศัย
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="show('housing_type') || show('housing_rent')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">4</span>
@@ -919,7 +973,7 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 5: สมาชิกในครอบครัว
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="show('family_members_count')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">5</span>

@@ -108,6 +108,7 @@ export interface CaseApplicantPayload {
   bank_name_id?: number | null
   bank_account_no?: string | null
   age?: number | null
+  reset_processing_state?: boolean
 }
 
 export interface CaseAddressPayload {
@@ -371,6 +372,27 @@ export const welfareApi = {
     // backend บังคับให้ส่ง file_other_type_name เมื่อ attachment_type_id = 99 (อื่นๆ)
     if (otherTypeName) form.append('file_other_type_name', otherTypeName)
     return _postMultipart<{ evidence: unknown }>(`/v1/cases/${applicantId}/evidences`, form)
+  },
+
+  // ─── Satisfaction Survey ─────────────────────────────────────────────────────
+
+  // บันทึกผลประเมินความพึงพอใจ
+  // survey_type: 'system_usage' (หลังยื่นฟอร์ม) | 'aid_received' (หลังเบิกจ่าย)
+  async submitSatisfaction(payload: {
+    applicant_id: number
+    survey_type: 'system_usage' | 'aid_received'
+    rating: number         // 1-5
+    comment?: string | null
+  }): Promise<{ id: number }> {
+    return apiClient<{ id: number }>('/v1/satisfaction', { method: 'POST', body: payload })
+  },
+
+  // ดึงผลประเมินทั้งหมดของ applicant — ใช้เช็กว่าเคยประเมินแล้วหรือยัง
+  async getSatisfactionSurveys(applicantId: number): Promise<{ id: number; survey_type: string; rating: number }[]> {
+    return apiClient<{ id: number; survey_type: string; rating: number }[]>(
+      `/v1/satisfaction?applicant_id=${applicantId}`,
+      { method: 'GET' },
+    )
   },
 
   // ดาวน์โหลดรูปหลักฐานจาก server แล้วแปลงเป็น blob URL สำหรับแสดงใน <img>

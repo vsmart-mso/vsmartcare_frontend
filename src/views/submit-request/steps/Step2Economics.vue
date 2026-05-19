@@ -3,8 +3,18 @@ import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
 const app = useApplicationStore()
+
+// ─── สถานะการโหลด ──────────────────────────────────────────────────────────────
+// isLoading = true ระหว่างรอ API ดึงตัวเลือก (แหล่งรายได้/การอุปการะ/สวัสดิการ)
+// ระหว่างนี้โชว์ skeleton แทนฟอร์มจริง และ parent จะปิดปุ่ม "ถัดไป"
+const isLoading = ref(true)
+
+// ─── filterFields prop ────────────────────────────────────────────────────────
+const props = defineProps<{ filterFields?: string[] }>()
+const show = (name: string): boolean => !props.filterFields || props.filterFields.includes(name)
 
 const commentMap = computed(() => {
   const m = new Map<string, string>()
@@ -112,55 +122,63 @@ const familyOccupationError = computed(() => {
 })
 
 // ─── Validation ───────────────────────────────────────────────────────────────
+// field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() => {
-  if (!familyOccupation.value.trim()) return false
-  if (!monthlyIncome.value) return false
-  if (incomeSources.value.length === 0) return false
-  // ถ้าเลือกตัวเลือก "อื่น ๆ" ต้องกรอกรายละเอียด
-  if (incomeOtherVal.value && incomeSources.value.includes(incomeOtherVal.value) && !incomeSourceOther.value.trim()) return false
-  if (caregiverOtherVal.value && caregiverRoles.value.includes(caregiverOtherVal.value) && !caregiverOther.value.trim()) return false
-  if (govAidHistory.value === 'received') {
-    if (!timesThisYear.value) return false
-    if (!totalAmount.value) return false
-    if (aidTypes.value.length === 0) return false
-    // ตัวเลือกที่ต้องระบุรายละเอียด — ต้องกรอกก่อนจึงจะ ready
+  if (show('family_occupation') && !familyOccupation.value.trim()) return false
+  if (show('family_income') && !monthlyIncome.value) return false
+  if (show('income_sources') && incomeSources.value.length === 0) return false
+  if (show('income_source_other') && incomeOtherVal.value && incomeSources.value.includes(incomeOtherVal.value) && !incomeSourceOther.value.trim()) return false
+  if (show('dependents_other') && caregiverOtherVal.value && caregiverRoles.value.includes(caregiverOtherVal.value) && !caregiverOther.value.trim()) return false
+  if (show('gov_aid_received') && govAidHistory.value === 'received') {
+    if (show('gov_aid_count') && !timesThisYear.value) return false
+    if (show('gov_aid_amount') && !totalAmount.value) return false
+    if (show('gov_aid_types') && aidTypes.value.length === 0) return false
     for (const id of aidTypeDetailIds.value) {
-      if (aidTypes.value.includes(id) && !(aidTypeDetails[id] ?? '').trim()) return false
+      if (show('gov_aid_type_detail') && aidTypes.value.includes(id) && !(aidTypeDetails[id] ?? '').trim()) return false
     }
   }
   return true
 })
 
-const emit = defineEmits<{ 'update:ready': [boolean] }>()
+const emit = defineEmits<{
+  'update:ready': [boolean]
+  'update:loading': [boolean]
+}>()
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
+watch(isLoading, (val) => emit('update:loading', val), { immediate: true })
 
 // ─── Pre-fill จาก store + ดึง lookup options จาก API ─────────────────────────
 onMounted(async () => {
-  // ดึง options ทั้งหมดพร้อมกัน — ถ้า API ล้มเหลวจะได้ [] และหน้าจอยังแสดงได้
-  const [incomeSrcData, dependencyData, receivedWelfareData] = await Promise.all([
-    lookupsApi.fetchIncomeSourceTypes().catch(() => []),
-    lookupsApi.fetchDependencyTypes().catch(() => []),
-    lookupsApi.fetchReceivedWelfareTypes().catch(() => []),
-  ])
-  incomeSourceOptions.value  = incomeSrcData.map(d => ({ value: String(d.id), label: d.name }))
-  caregiverRoleOptions.value = dependencyData.map(d => ({ value: String(d.id), label: d.name }))
-  aidTypeOptions.value       = receivedWelfareData.map(d => ({ value: String(d.id), label: d.name }))
+  try {
+    // ดึง options ทั้งหมดพร้อมกัน — ถ้า API ล้มเหลวจะได้ [] และหน้าจอยังแสดงได้
+    const [incomeSrcData, dependencyData, receivedWelfareData] = await Promise.all([
+      lookupsApi.fetchIncomeSourceTypes().catch(() => []),
+      lookupsApi.fetchDependencyTypes().catch(() => []),
+      lookupsApi.fetchReceivedWelfareTypes().catch(() => []),
+    ])
+    incomeSourceOptions.value  = incomeSrcData.map(d => ({ value: String(d.id), label: d.name }))
+    caregiverRoleOptions.value = dependencyData.map(d => ({ value: String(d.id), label: d.name }))
+    aidTypeOptions.value       = receivedWelfareData.map(d => ({ value: String(d.id), label: d.name }))
 
-  // Pre-fill จาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป
-  const s = app.step2
-  if (s) {
-    familyOccupation.value  = s.familyOccupation ?? ''
-    monthlyIncome.value     = s.monthlyIncome    ?? ''
-    incomeSources.value     = [...(s.incomeSources  ?? [])]
-    incomeSourceOther.value = s.incomeSourceOther ?? ''
-    caregiverRoles.value    = [...(s.caregiverRoles ?? [])]
-    caregiverOther.value    = s.caregiverOther   ?? ''
-    govAidHistory.value     = s.govAidHistory    ?? 'none'
-    timesThisYear.value     = s.timesThisYear    ?? ''
-    totalAmount.value       = s.totalAmount      ?? ''
-    aidTypes.value = [...(s.aidTypes ?? [])]
-    // restore รายละเอียดของแต่ละตัวเลือก
-    Object.assign(aidTypeDetails, s.aidTypeDetails ?? {})
+    // Pre-fill จาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป
+    const s = app.step2
+    if (s) {
+      familyOccupation.value  = s.familyOccupation ?? ''
+      monthlyIncome.value     = s.monthlyIncome    ?? ''
+      incomeSources.value     = [...(s.incomeSources  ?? [])]
+      incomeSourceOther.value = s.incomeSourceOther ?? ''
+      caregiverRoles.value    = [...(s.caregiverRoles ?? [])]
+      caregiverOther.value    = s.caregiverOther   ?? ''
+      govAidHistory.value     = s.govAidHistory    ?? 'none'
+      timesThisYear.value     = s.timesThisYear    ?? ''
+      totalAmount.value       = s.totalAmount      ?? ''
+      aidTypes.value = [...(s.aidTypes ?? [])]
+      // restore รายละเอียดของแต่ละตัวเลือก
+      Object.assign(aidTypeDetails, s.aidTypeDetails ?? {})
+    }
+  } finally {
+    // ปิด skeleton เสมอ — แม้ API ล้มเหลวก็ต้องให้ผู้ใช้เห็นฟอร์ม
+    isLoading.value = false
   }
 })
 
@@ -183,12 +201,18 @@ defineExpose({
 </script>
 
 <template>
-  <div class="space-y-4">
+  <!-- ระหว่างรอ API: โชว์โครงฟอร์มจำลอง (skeleton) — ผู้ใช้กดอะไรไม่ได้ -->
+  <StepFormSkeleton v-if="isLoading" :cards="3" :rows-per-card="3" />
+
+  <div v-else class="space-y-4">
 
     <!-- ════════════════════════════════════════════════════════
          Section 6: เศรษฐกิจครอบครัว
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['family_occupation','family_income','income_sources','income_source_other'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">6</span>
@@ -198,13 +222,16 @@ defineExpose({
       <div class="p-4">
 
         <!-- 6.1 อาชีพและรายได้ -->
-        <div class="flex items-center gap-2 mb-3">
+        <div
+          v-if="show('family_occupation') || show('family_income')"
+          class="flex items-center gap-2 mb-3"
+        >
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">6.1</span>
           <span class="text-[13px] font-medium text-slate-600">อาชีพและรายได้</span>
         </div>
 
         <!-- อาชีพหลักของครอบครัว -->
-        <div class="mb-4">
+        <div v-if="show('family_occupation')" class="mb-4">
           <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
             <span>อาชีพหลักของครอบครัว <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('family_occupation')" :reason="commentMap.get('family_occupation')!" />
@@ -220,7 +247,7 @@ defineExpose({
           <p v-if="familyOccupationError" class="text-[12px] text-red-500 mt-1 px-1">{{ familyOccupationError }}</p>
         </div>
 
-        <div>
+        <div v-if="show('family_income')">
           <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
             <span>รายได้เฉลี่ยต่อเดือนของครอบครัว (บาท) <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('family_income')" :reason="commentMap.get('family_income')!" />
@@ -238,17 +265,20 @@ defineExpose({
           </div>
         </div>
 
-        <div class="h-px bg-slate-100 my-4" />
+        <div v-if="show('income_sources') || show('income_source_other')" class="h-px bg-slate-100 my-4" />
 
         <!-- 6.2 ที่มาของรายได้ -->
-        <div class="flex items-center gap-2 mb-1.5">
+        <div
+          v-if="show('income_sources') || show('income_source_other')"
+          class="flex items-center gap-2 mb-1.5"
+        >
           <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">6.2</span>
           <span class="text-[13px] font-medium text-slate-600">ที่มาของรายได้</span>
           <FieldAlert v-if="commentMap.has('income_sources')" :reason="commentMap.get('income_sources')!" />
         </div>
-        <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
+        <p v-if="show('income_sources') || show('income_source_other')" class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
 
-        <div class="space-y-2">
+        <div v-if="show('income_sources')" class="space-y-2">
           <label
             v-for="opt in incomeSourceOptions"
             :key="opt.value"
@@ -298,7 +328,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 7: การอุปการะ
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="show('dependents') || show('dependents_other')"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">7</span>
@@ -315,7 +348,7 @@ defineExpose({
         </div>
         <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ</p>
 
-        <div class="space-y-2">
+        <div v-if="show('dependents')" class="space-y-2">
           <label
             v-for="opt in caregiverRoleOptions"
             :key="opt.value"
@@ -365,7 +398,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 8: การได้รับความช่วยเหลือจากรัฐ/ราชการ
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['gov_aid_received','gov_aid_count','gov_aid_amount','gov_aid_types','gov_aid_type_detail'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">8</span>

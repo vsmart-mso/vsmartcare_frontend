@@ -8,9 +8,14 @@ import { welfareApi } from '@/api/welfare'
 const emit = defineEmits<{
   'update:ready': [boolean]
   'navigate-to-step': [number]
+  'update:loading': [boolean]
 }>()
 
 const app = useApplicationStore()
+
+// ─── filterFields prop ────────────────────────────────────────────────────────
+const props = defineProps<{ filterFields?: string[] }>()
+const show = (name: string): boolean => !props.filterFields || props.filterFields.includes(name)
 
 const commentMap = computed(() => {
   const m = new Map<string, string>()
@@ -71,13 +76,22 @@ const totalUploaded = computed(() =>
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
+// field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() =>
-  hasImg(exterior, 'exterior') && hasImg(interior, 'interior') &&
-  hasImg(person,   'person')   && hasImg(problem,  'problem')  &&
-  hasImg(family,   'family')   && !otherDocNameRequired.value
+  (!show('evidence_house_exterior') || hasImg(exterior, 'exterior')) &&
+  (!show('evidence_house_interior') || hasImg(interior, 'interior')) &&
+  (!show('evidence_person_photo')   || hasImg(person,   'person'))   &&
+  (!show('evidence_problem_photo')  || hasImg(problem,  'problem'))  &&
+  (!show('evidence_family_photo')   || hasImg(family,   'family'))   &&
+  !otherDocNameRequired.value
 )
 
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
+
+// ─── แจ้ง parent ขณะโหลดรูปเดิมจาก server (โหมดแก้ไข) ────────────────────────
+// Step นี้ไม่มีตัวเลือกจาก API จึงไม่ต้องโชว์ skeleton เต็มหน้า — การ์ดรูปแต่ละใบ
+// มี spinner ของตัวเองอยู่แล้ว แค่บอก parent ให้ปิดปุ่ม "ถัดไป" ระหว่างโหลด
+watch(fetchingImages, (val) => emit('update:loading', val), { immediate: true })
 
 // ─── Sync ทุกไฟล์เข้า store (welfare_evidences) ──────────────────────────────
 // ใช้ key คงที่เป็น docType เดียวกับ id เพื่อให้ addDocument() แทนที่แทนซ้ำ
@@ -111,15 +125,16 @@ watch(otherDocName, (name) => {
 // เมื่อ component mount ใหม่ (เช่น ผู้ใช้กลับมา Step4) ให้ restore ไฟล์จาก store
 // File object ยังอยู่ใน app.files (Map ใน Pinia) แต่ preview ใน useImageUpload หายไปแล้ว
 onMounted(async () => {
-  const slots: Array<{ id: string; uploader: ReturnType<typeof useImageUpload> }> = [
-    { id: 'exterior',     uploader: exterior     },
-    { id: 'interior',     uploader: interior     },
-    { id: 'person',       uploader: person       },
-    { id: 'problem',      uploader: problem      },
-    { id: 'family',       uploader: family       },
-    { id: 'house_home',   uploader: houseHome    },
-    { id: 'house_person', uploader: housePerson  },
-    { id: 'other_doc',    uploader: otherDoc     },
+  // field = ชื่อ reviewComment ของ slot นั้น — ใช้ guard การ fetch รูปในโหมด edit-request
+  const slots: Array<{ id: string; field: string; uploader: ReturnType<typeof useImageUpload> }> = [
+    { id: 'exterior',     field: 'evidence_house_exterior',       uploader: exterior     },
+    { id: 'interior',     field: 'evidence_house_interior',       uploader: interior     },
+    { id: 'person',       field: 'evidence_person_photo',         uploader: person       },
+    { id: 'problem',      field: 'evidence_problem_photo',        uploader: problem      },
+    { id: 'family',       field: 'evidence_family_photo',         uploader: family       },
+    { id: 'house_home',   field: 'doc_house_registration_house',  uploader: houseHome    },
+    { id: 'house_person', field: 'doc_house_registration_person', uploader: housePerson  },
+    { id: 'other_doc',    field: 'doc_other',                     uploader: otherDoc     },
   ]
 
   // 1. restore local files จาก store (กรณี user กลับมา Step4 โดยไม่ออกจากหน้า)
@@ -133,11 +148,13 @@ onMounted(async () => {
   if (app.existingOtherTypeName) otherDocName.value = app.existingOtherTypeName
 
   // 3. Edit mode: lazy-fetch รูปเดิมจาก server (fetch เฉพาะ slot ที่ยังไม่มีรูป)
+  //    โหมด edit-request: ดึงเฉพาะ slot ที่ field ถูกแสดง — เลี่ยงโหลดรูปที่ไม่ใช้
   if (app.editMode && app.editApplicantId) {
 
     fetchingImages.value = true
     try {
-      await Promise.all(slots.map(async ({ id }) => {
+      await Promise.all(slots.map(async ({ id, field }) => {
+        if (!show(field)) return                     // slot ไม่ถูกแสดง — ไม่ต้องโหลด
         if (app.existingImageUrls[id]) return       // มี cache แล้ว
         const evidenceId = app.existingEvidenceIds[id]
         if (!evidenceId) return                      // ไม่มีรูปเดิม
@@ -176,7 +193,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 11: หลักฐานการเยี่ยมบ้าน
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['evidence_house_exterior','evidence_house_interior','evidence_person_photo','evidence_problem_photo','evidence_family_photo'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">11</span>
@@ -192,12 +212,13 @@ defineExpose({
             <span class="text-[13px] font-medium text-slate-600">รูปภาพประกอบ (จำเป็น)</span>
           </div>
           <p class="text-[12px] text-slate-500 ml-0.5">
-            ถ่ายภาพหรือเลือกจาก Gallery — รูปสำคัญสำหรับการพิจารณาช่วยเหลือ
+            ถ่ายภาพหรือเลือกจาก อัลบั้ม — รูปสำคัญสำหรับการพิจารณาช่วยเหลือ
           </p>
         </div>
 
         <!-- รูปสภาพบ้านภายนอก -->
         <PhotoUploadCard
+          v-if="show('evidence_house_exterior')"
           upload-id="exterior"
           title="รูปสภาพบ้านภายนอก"
           subtitle="ถ่ายภาพจากด้านหน้าบ้าน"
@@ -215,6 +236,7 @@ defineExpose({
 
         <!-- รูปสภาพบ้านภายใน -->
         <PhotoUploadCard
+          v-if="show('evidence_house_interior')"
           upload-id="interior"
           title="รูปสภาพบ้านภายใน"
           subtitle="ภาพภายในบ้าน"
@@ -232,6 +254,7 @@ defineExpose({
 
         <!-- รูปผู้ประสบปัญหา -->
         <PhotoUploadCard
+          v-if="show('evidence_person_photo')"
           upload-id="person"
           title="รูปผู้ประสบปัญหาฯ"
           subtitle="ภาพผู้ขอรับความช่วยเหลือ"
@@ -249,6 +272,7 @@ defineExpose({
 
         <!-- รูปสภาพปัญหา -->
         <PhotoUploadCard
+          v-if="show('evidence_problem_photo')"
           upload-id="problem"
           title="รูปสภาพปัญหาที่ต้องการให้ความช่วยเหลือ"
           subtitle="ภาพประกอบปัญหา"
@@ -266,6 +290,7 @@ defineExpose({
 
         <!-- รูปสมาชิกในครอบครัว -->
         <PhotoUploadCard
+          v-if="show('evidence_family_photo')"
           upload-id="family"
           title="รูปสมาชิกในครอบครัว"
           subtitle="ภาพรวมสมาชิกในครอบครัว"
@@ -287,7 +312,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 12: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">12</span>
@@ -307,6 +335,7 @@ defineExpose({
 
         <!-- ทะเบียนบ้าน (รายการบ้าน) -->
         <PhotoUploadCard
+          v-if="show('doc_house_registration_house')"
           upload-id="house-home"
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
           subtitle="หน้าทะเบียนบ้าน"
@@ -323,6 +352,7 @@ defineExpose({
 
         <!-- ทะเบียนบ้าน (รายการบุคคล) -->
         <PhotoUploadCard
+          v-if="show('doc_house_registration_person')"
           upload-id="house-person"
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
           subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
@@ -339,6 +369,7 @@ defineExpose({
 
         <!-- รูปอื่น ๆ -->
         <PhotoUploadCard
+          v-if="show('doc_other')"
           upload-id="other-doc"
           title="รูปอื่น ๆ"
           subtitle="เอกสารแนบเพิ่มเติม"
@@ -373,9 +404,9 @@ defineExpose({
     </div>
 
     <!-- ════════════════════════════════════════════════════════
-         Section 15: ตรวจสอบข้อมูลและยืนยัน
+         Section 15: ตรวจสอบข้อมูลและยืนยัน (ซ่อนในโหมด edit-request)
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="!props.filterFields" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">13</span>
