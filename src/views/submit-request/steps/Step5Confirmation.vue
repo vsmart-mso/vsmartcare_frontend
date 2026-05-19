@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 
-// checkbox ยืนยันความถูกต้อง
+// checkbox 1: ยืนยันความถูกต้องของข้อมูล (คำยืนยันก่อนส่งข้อมูล)
 const confirmed = ref(false)
+// checkbox 2: ยินยอมเปิดเผยข้อมูลส่วนบุคคล (PDPA)
+const consentedPdpa = ref(false)
 
-const isReady = computed(() => confirmed.value)
+// ต้องติ๊กทั้ง 2 อันจึงจะกด Submit ได้
+const isReady = computed(() => confirmed.value && consentedPdpa.value)
 
 const emit = defineEmits<{ 'update:ready': [boolean] }>()
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
 
 defineExpose({
-  getData: () => ({ confirmed: confirmed.value }),
+  getData: () => ({
+    confirmed: confirmed.value,
+    consentedPdpa: consentedPdpa.value,
+  }),
 })
 </script>
 
@@ -85,6 +91,62 @@ defineExpose({
           </div>
           <span class="text-[14px] text-slate-700 leading-snug">
             ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอยืนยันความถูกต้องของข้อมูลที่ส่งเข้าระบบโดยผู้บันทึกข้อมูลต้องกดยอมรับข้อตกลงก่อนดำเนินการบันทึกข้อมูลและส่งข้อมูลในระบบ
+          </span>
+        </label>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         Card: คำยินยอมเปิดเผยข้อมูลส่วนบุคคล (PDPA)
+         ══════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+      <!-- หัว: ไอคอน shield + label + title -->
+      <div class="flex gap-3 px-4 pt-4 pb-2">
+        <!-- วงกลม blue + ไอคอน shield -->
+        <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+          <svg class="w-5 h-5 text-[#1A56DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <div>
+          <!-- label เล็กสีน้ำเงิน -->
+          <p class="text-[11px] font-semibold text-[#1A56DB] uppercase tracking-wider mb-0.5">
+            การยินยอมเปิดเผยข้อมูล
+          </p>
+          <p class="text-[15px] font-bold text-slate-900">คำยินยอมเปิดเผยข้อมูลส่วนบุคคล</p>
+        </div>
+      </div>
+
+      <div class="px-4 pt-2 pb-4 space-y-3">
+
+        <!-- ย่อหน้าที่ 1 -->
+        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+          ข้าพเจ้ายินยอมให้<span class="text-[#1A56DB] font-semibold">เปิดเผยข้อมูลข่าวสารและข้อมูลส่วนบุคคล</span> เพื่อประโยชน์ในการ<span class="text-[#1A56DB] font-semibold">พัฒนาคุณภาพชีวิต</span> ของข้าพเจ้าและครอบครัว
+        </p>
+
+        <!-- ย่อหน้าที่ 2 -->
+        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+          ข้าพเจ้ารับรองว่า ข้อมูลและเอกสารข้างต้นถูกต้องตรงตามความเป็นจริงทุกประการหากข้อมูลและเอกสารข้างต้นไม่ถูกต้องครบตรงตามความเป็นจริง ข้าพเจ้าตกลงยินยอมให้ระงับสวัสดิการและประโยชน์อื่น
+        </p>
+
+        <!-- Checkbox ยินยอม PDPA -->
+        <label class="flex items-start gap-3 cursor-pointer select-none mt-4 mb-1">
+          <input type="checkbox" v-model="consentedPdpa" class="sr-only" />
+          <div
+            :class="[
+              'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-150',
+              consentedPdpa ? 'bg-[#1A56DB] border-[#1A56DB]' : 'bg-white border-slate-300'
+            ]"
+            aria-hidden="true"
+          >
+            <svg v-show="consentedPdpa" class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="1,5 4.5,9 11,1" />
+            </svg>
+          </div>
+          <span class="text-[14px] text-slate-700 leading-snug">
+            ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอยืนยันความถูกต้องของข้อมูลที่ส่งเข้าระบบ
           </span>
         </label>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Step1PersonalInfo from './steps/Step1PersonalInfo.vue'
 import Step2Economics   from './steps/Step2Economics.vue'
@@ -31,6 +31,14 @@ onMounted(() => {
 const stepReady    = ref(false)
 const isSubmitting = ref(false)
 const submitError  = ref('')
+
+// stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
+// ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
+// เพื่อกันไม่ให้ผู้ใช้กดดำเนินการต่อก่อนที่หน้าจอจะพร้อม
+const stepLoading = ref(false)
+
+// เมื่อสลับ step: รีเซ็ตสถานะโหลดก่อน — step ใหม่จะส่งค่าจริงกลับมาเองตอน mount
+watch(currentStep, () => { stepLoading.value = false })
 
 const steps = [
   { id: 1, label: 'ข้อมูลส่วนตัว' },
@@ -75,6 +83,8 @@ function handleBack() {
 }
 
 function handleNext() {
+  // กัน double-tap ระหว่าง step กำลังโหลด (ปุ่มถูก disable อยู่แล้ว — กันไว้อีกชั้น)
+  if (stepLoading.value) return
   if (!stepReady.value) {
     // แสดง error ทุก field ให้ผู้ใช้รู้ว่าต้องกรอกอะไรอีก
     stepRef.value?.touchAll?.()
@@ -219,7 +229,7 @@ async function handleSubmit() {
     }
 
     // 6. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
-    router.push({ name: 'submit-success', query: { caseId: String(applicantId) } })
+    router.replace({ name: 'submit-success', query: { caseId: String(applicantId) } })
 
   } catch (err: unknown) {
     // FastAPI 422 ส่ง detail เป็น array of {loc, msg, type}; 4xx อื่นส่งเป็น string
@@ -360,21 +370,25 @@ async function handleSubmit() {
         v-if="currentStep === 1"
         ref="stepRef"
         @update:ready="stepReady = $event"
+        @update:loading="stepLoading = $event"
       />
       <Step2Economics
         v-else-if="currentStep === 2"
         ref="stepRef"
         @update:ready="stepReady = $event"
+        @update:loading="stepLoading = $event"
       />
       <Step3Problem
         v-else-if="currentStep === 3"
         ref="stepRef"
         @update:ready="stepReady = $event"
+        @update:loading="stepLoading = $event"
       />
       <Step4Documents
         v-else-if="currentStep === 4"
         ref="stepRef"
         @update:ready="stepReady = $event"
+        @update:loading="stepLoading = $event"
         @navigate-to-step="handleNavigateTo"
       />
       <Step5Confirmation
@@ -413,7 +427,7 @@ async function handleSubmit() {
           <button
             v-if="currentStep > 1 || app.editMode"
             @click="handleBack"
-            :disabled="isSubmitting"
+            :disabled="isSubmitting || stepLoading"
             class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"
             aria-label="ย้อนกลับ"
           >
@@ -427,13 +441,19 @@ async function handleSubmit() {
           <button
             v-if="currentStep < 5"
             @click="handleNext"
+            :disabled="stepLoading"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
-            :class="stepReady
+            :class="stepReady && !stepLoading
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
-              : 'bg-slate-200 text-slate-400'"
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
           >
-            ถัดไป
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <!-- ขณะ step กำลังโหลด: โชว์ spinner + ข้อความ แทนคำว่า "ถัดไป" -->
+            <svg v-if="stepLoading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            {{ stepLoading ? 'กำลังโหลด...' : 'ถัดไป' }}
+            <svg v-if="!stepLoading" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </button>
@@ -441,9 +461,9 @@ async function handleSubmit() {
           <button
             v-else
             @click="handleSubmit"
-            :disabled="!stepReady || isSubmitting"
+            :disabled="!stepReady || isSubmitting || stepLoading"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
-            :class="stepReady && !isSubmitting
+            :class="stepReady && !isSubmitting && !stepLoading
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
           >

@@ -107,45 +107,26 @@ function formatBytes(bytes: number): string {
       </div>
     </div>
 
-    <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
-    <div v-else class="flex gap-2 px-3 pb-3">
+    <!-- ปุ่มเดียว — OS จะแสดง sheet ให้เลือกกล้องหรืออัลบัมเอง -->
+    <div v-else class="px-3 pb-3">
       <label
-        :for="`${uploadId}-cam`"
-        class="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 rounded-lg py-2 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] cursor-pointer select-none transition-all active:scale-[0.98]"
+        :for="`${uploadId}-pick`"
+        class="flex w-full items-center justify-center gap-1.5 border border-slate-200 rounded-lg py-2 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] cursor-pointer select-none transition-all active:scale-[0.98]"
       >
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        ถ่ายภาพ
-      </label>
-
-      <label
-        :for="`${uploadId}-gal`"
-        class="flex-1 flex items-center justify-center gap-1.5 border border-slate-200 rounded-lg py-2 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] cursor-pointer select-none transition-all active:scale-[0.98]"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        Gallery
+        กดเพื่อ เลือก/ถ่าย ภาพ
       </label>
     </div>
 
     <!-- error -->
     <p v-if="error" class="px-3 pb-3 text-[12px] text-red-500">{{ error }}</p>
 
-    <!-- input ซ่อน: กล้อง (capture="environment" → เปิดกล้องหลังโดยตรงบน iOS/Android) -->
+    <!-- input ซ่อน: ไม่มี capture → OS แสดง native sheet ให้เลือกกล้องหรืออัลบัมเอง -->
     <input
-      :id="`${uploadId}-cam`"
-      type="file"
-      accept="image/*"
-      capture="environment"
-      class="hidden"
-      @change="$emit('file-select', $event)"
-    />
-    <!-- input ซ่อน: gallery (ไม่มี capture → เปิด photo picker) -->
-    <input
-      :id="`${uploadId}-gal`"
+      :id="`${uploadId}-pick`"
       type="file"
       accept="image/*"
       class="hidden"
