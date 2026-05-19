@@ -5,10 +5,15 @@ import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useApplicationStore } from '@/stores/application'
 import { welfareApi } from '@/api/welfare'
+import Skeleton from '@/components/ui/Skeleton.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const app = useApplicationStore()
+
+// isChecking = true ระหว่างเช็คว่าผู้ใช้เคยผ่านสิทธิ์แล้วหรือยัง (ใน onMounted)
+// ถ้าเคยผ่าน → เด้งไปหน้ากรอกฟอร์มเลย; ระหว่างนี้โชว์ skeleton กันฟอร์มกระพริบ
+const isChecking = ref(true)
 
 // ─── Type Guard ────────────────────────────────────────────────────────────────
 function isThaiDUser(u: unknown): u is ThaiDUser {
@@ -24,7 +29,7 @@ const authUser = computed((): ThaiDUser | null => {
 onMounted(async () => {
   if (!authStore.isAuthenticated || !authUser.value) {
     router.replace({ name: 'login' })
-    return
+    return   // ค้าง skeleton ไว้จนกว่าจะ redirect เสร็จ — ไม่โชว์ฟอร์ม
   }
   // ถ้าผ่านการตรวจสอบสิทธิ์แล้ว → ไม่ต้องทำซ้ำ ไปหน้ากรอกฟอร์มโดยตรง
   const personId = authUser.value.person_id
@@ -33,12 +38,14 @@ onMounted(async () => {
       const passed = await welfareApi.getLatestPassedScreening(personId)
       if (passed) {
         router.replace({ name: 'submit-request' })
-        return
+        return   // กำลัง redirect — ค้าง skeleton ไว้ ไม่ต้องโชว์ฟอร์ม
       }
     } catch {
       // API ล้มเหลว → ปล่อยให้เข้าหน้าปกติ
     }
   }
+  // ไม่ต้อง redirect → ปิด skeleton แสดงฟอร์มตรวจสิทธิ์ให้ผู้ใช้กรอก
+  isChecking.value = false
 })
 
 // ─── State ─────────────────────────────────────────────────────────────────────
@@ -241,6 +248,25 @@ function handleBack() {
          ══════════════════════════════════════════════════════════ -->
     <main class="flex-1 flex flex-col mx-auto w-full max-w-md px-4 pt-[calc(3.5rem+1.25rem)] pb-32">
 
+      <!-- Loading guard: โครงหน้าจอจำลองระหว่างเช็คว่าเคยผ่านสิทธิ์แล้วหรือยัง -->
+      <div v-if="isChecking" class="space-y-4" role="status" aria-label="กำลังตรวจสอบ">
+        <Skeleton width="55%" height="0.95rem" />
+        <Skeleton width="100%" height="3.5rem" rounded="rounded-xl" />
+        <div
+          v-for="c in 2"
+          :key="c"
+          class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3"
+        >
+          <Skeleton width="35%" height="0.7rem" />
+          <Skeleton width="100%" height="3rem" rounded="rounded-xl" />
+          <Skeleton width="100%" height="3rem" rounded="rounded-xl" />
+        </div>
+        <span class="sr-only">กำลังตรวจสอบข้อมูล กรุณารอสักครู่...</span>
+      </div>
+
+      <!-- เนื้อหาจริง — แสดงเมื่อเช็คเสร็จและไม่ต้อง redirect -->
+      <template v-else>
+
       <!-- ทักทายผู้ใช้ -->
       <div class="mb-4">
         <p class="text-[15px] text-slate-700">
@@ -363,6 +389,8 @@ function handleBack() {
       <!-- Error: ข้อผิดพลาดจาก API -->
       <p v-if="submitError" class="text-[13px] text-red-500 text-center mb-4">{{ submitError }}</p>
 
+      </template>
+
     </main>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -375,7 +403,7 @@ function handleBack() {
       <div class="mx-auto w-full max-w-md px-4 pt-3 pb-1">
         <button
           @click="handleSubmit"
-          :disabled="!formReady || isSubmitting"
+          :disabled="!formReady || isSubmitting || isChecking"
           class="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
           :class="formReady && !isSubmitting
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'

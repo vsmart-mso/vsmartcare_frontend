@@ -453,7 +453,7 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
       <!-- Input Latitude + Longitude -->
       <div class="flex gap-3">
         <div class="flex-1">
-          <label class="block text-[12px] text-slate-500 mb-1.5">Latitude</label>
+          <label class="block text-[12px] text-slate-500 mb-1.5">ละติจูด</label>
           <input
             :value="pendingLat"
             @input="(e) => handleCoordInput(e, v => pendingLat = v)"
@@ -464,7 +464,7 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
           />
         </div>
         <div class="flex-1">
-          <label class="block text-[12px] text-slate-500 mb-1.5">Longitude</label>
+          <label class="block text-[12px] text-slate-500 mb-1.5">ลองจิจูด</label>
           <input
             :value="pendingLng"
             @input="(e) => handleCoordInput(e, v => pendingLng = v)"
@@ -484,14 +484,14 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
     >
       <div class="flex gap-4 mb-2">
         <div class="flex-1">
-          <p class="text-[11px] text-slate-500 mb-0.5">Latitude</p>
+          <p class="text-[11px] text-slate-500 mb-0.5">ละติจูด</p>
           <p class="text-[14px] font-semibold transition-colors duration-300"
             :class="isConfirmed ? 'text-green-700' : 'text-slate-700'">
             {{ pendingLat || '—' }}
           </p>
         </div>
         <div class="flex-1">
-          <p class="text-[11px] text-slate-500 mb-0.5">Longitude</p>
+          <p class="text-[11px] text-slate-500 mb-0.5">ลองจิจูด</p>
           <p class="text-[14px] font-semibold transition-colors duration-300"
             :class="isConfirmed ? 'text-green-700' : 'text-slate-700'">
             {{ pendingLng || '—' }}

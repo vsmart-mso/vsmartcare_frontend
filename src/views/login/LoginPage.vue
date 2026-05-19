@@ -242,9 +242,6 @@ function handleTangRath() {
       class="text-center py-4"
       style="padding-bottom: max(env(safe-area-inset-bottom), 16px)"
     >
-      <p class="text-[12px] text-slate-400">
-        © 2568 กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์
-      </p>
     </footer>
 
   </div>

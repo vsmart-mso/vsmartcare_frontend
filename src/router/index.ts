@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/edit-request',
+    name: 'edit-request',
+    component: () => import('@/views/edit-request/EditRequestPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     // catch-all: ถ้าพิมพ์ URL ที่ไม่มีในระบบ ให้พากลับหน้าแรกเสมอ
     // :pathMatch(.*)*  คือ regex ที่จับ path ทุกแบบ
     path: '/:pathMatch(.*)*',

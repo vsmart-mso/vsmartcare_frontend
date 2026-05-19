@@ -5,8 +5,18 @@ import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
 import { welfareApi } from '@/api/welfare'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
 const app = useApplicationStore()
+
+// ─── สถานะการโหลด ──────────────────────────────────────────────────────────────
+// isLoading = true ระหว่างรอ API ดึงตัวเลือก (ประเภทความช่วยเหลือ + รายชื่อธนาคาร)
+// ระหว่างนี้โชว์ skeleton แทนฟอร์มจริง และ parent จะปิดปุ่ม "ถัดไป"
+const isLoading = ref(true)
+
+// ─── filterFields prop ────────────────────────────────────────────────────────
+const props = defineProps<{ filterFields?: string[] }>()
+const show = (name: string): boolean => !props.filterFields || props.filterFields.includes(name)
 
 const commentMap = computed(() => {
   const m = new Map<string, string>()
@@ -69,17 +79,22 @@ const fetchingBankBook = ref(false)
 const previewBankBook = computed(() => bankBook.previewUrl.value || app.existingImageUrls['bank_book'] || '')
 
 // ─── Validation ───────────────────────────────────────────────────────────────
+// field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() => {
-  if (!problemDescription.value.trim()) return false
-  if (aidTypes.value.length === 0) return false
-  if (!bankNameId.value) return false
-  if (!bankAccount.value.trim()) return false
-  if (!bankBook.file.value && !app.existingImageUrls['bank_book']) return false
+  if (show('family_problems') && !problemDescription.value.trim()) return false
+  if (show('requested_assistance_type') && aidTypes.value.length === 0) return false
+  if (show('bank_name') && !bankNameId.value) return false
+  if (show('bank_account_number') && !bankAccount.value.trim()) return false
+  if (show('bank_book_photo') && !bankBook.file.value && !app.existingImageUrls['bank_book']) return false
   return true
 })
 
-const emit = defineEmits<{ 'update:ready': [boolean] }>()
+const emit = defineEmits<{
+  'update:ready': [boolean]
+  'update:loading': [boolean]
+}>()
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
+watch(isLoading, (val) => emit('update:loading', val), { immediate: true })
 
 // ─── Sync bankBook file → store (key คงที่ 'bank_book') ──────────────────────
 // watch แยกไว้เพื่อให้ store มีไฟล์อยู่เสมอ แม้ parent ยังไม่เรียก getData()
@@ -123,6 +138,10 @@ onMounted(async () => {
     isRestoring.value = false         // คืนสถานะปกติให้ watcher ทำงานเมื่อ user เปลี่ยนธนาคาร
   }
 
+  // โหลดตัวเลือก + เติมข้อมูลเดิมเสร็จแล้ว → ปิด skeleton แสดงฟอร์มจริง
+  // (การโหลดรูปสมุดบัญชีจาก server ด้านล่างมี spinner ของตัวเองอยู่แล้ว)
+  isLoading.value = false
+
   // restore สมุดบัญชีจาก store (File object ยังอยู่ใน app.files แม้ component จะ unmount ไปแล้ว)
   const storedBankBook = app.getFile('bank_book')
   if (storedBankBook) {
@@ -131,7 +150,8 @@ onMounted(async () => {
   }
 
   // Edit mode: lazy-fetch รูปสมุดบัญชีจาก server (fetch เฉพาะเมื่อยังไม่มี cache)
-  if (app.editMode && app.editApplicantId && !app.existingImageUrls['bank_book']) {
+  // โหมด edit-request: ดึงเฉพาะเมื่อ field bank_book_photo ถูกแสดง — เลี่ยงโหลดรูปที่ไม่ใช้
+  if (show('bank_book_photo') && app.editMode && app.editApplicantId && !app.existingImageUrls['bank_book']) {
     const evidenceId = app.existingEvidenceIds['bank_book']
     if (evidenceId) {
       fetchingBankBook.value = true
@@ -157,12 +177,15 @@ defineExpose({
 </script>
 
 <template>
-  <div class="space-y-4">
+  <!-- ระหว่างรอ API: โชว์โครงฟอร์มจำลอง (skeleton) — ผู้ใช้กดอะไรไม่ได้ -->
+  <StepFormSkeleton v-if="isLoading" :cards="2" :rows-per-card="3" />
+
+  <div v-else class="space-y-4">
 
     <!-- ════════════════════════════════════════════════════════
          Section 9: สภาพปัญหาความเดือดร้อนของครอบครัว
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="show('family_problems')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">9</span>
@@ -194,7 +217,10 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 10: ความช่วยเหลือที่ต้องการ
          ════════════════════════════════════════════════════════ -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div
+      v-if="['requested_assistance_type','bank_name','bank_account_number','bank_book_photo'].some(f => show(f))"
+      class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+    >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">10</span>
@@ -204,7 +230,7 @@ defineExpose({
       <div class="p-4 space-y-4">
 
         <!-- 10.1 ประเภทความช่วยเหลือ -->
-        <div>
+        <div v-if="show('requested_assistance_type')">
           <div class="flex items-center gap-2 mb-1.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.1</span>
             <span class="text-[13px] font-medium text-slate-600">ประเภทความช่วยเหลือ <span class="text-red-500">*</span></span>
@@ -235,17 +261,17 @@ defineExpose({
           </div>
         </div>
 
-        <div class="h-px bg-slate-100" />
+        <div v-if="show('requested_assistance_type') && ['bank_name','bank_account_number','bank_book_photo'].some(f => show(f))" class="h-px bg-slate-100" />
 
         <!-- 10.2 ข้อมูลบัญชีธนาคาร -->
-        <div>
+        <div v-if="['bank_name','bank_account_number','bank_book_photo'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-3">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.2</span>
             <span class="text-[13px] font-medium text-slate-600">ข้อมูลบัญชีธนาคาร</span>
           </div>
 
           <!-- ธนาคาร -->
-          <div class="mb-4">
+          <div v-if="show('bank_name')" class="mb-4">
             <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
               <span>ธนาคาร <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('bank_name')" :reason="commentMap.get('bank_name')!" />
@@ -270,7 +296,7 @@ defineExpose({
           </div>
 
           <!-- เลขที่บัญชี -->
-          <div class="mb-4">
+          <div v-if="show('bank_account_number')" class="mb-4">
             <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
               <span>เลขที่บัญชี <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('bank_account_number')" :reason="commentMap.get('bank_account_number')!" />
@@ -291,7 +317,7 @@ defineExpose({
           </div>
 
           <!-- รูปหน้าสมุดบัญชีธนาคาร -->
-          <div>
+          <div v-if="show('bank_book_photo')">
             <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
               <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
@@ -357,50 +383,21 @@ defineExpose({
                 </p>
               </div>
 
-              <div class="flex gap-3">
-                <!--
-                  ใช้ <label for> แทน JS .click() เพื่อให้ capture="environment"
-                  ทำงานได้บน iOS Safari ซึ่งจะ ignore capture เมื่อถูก trigger จาก script
-                  วิธีนี้คือมาตรฐาน W3C Media Capture spec ที่รองรับทั้ง iOS/Android
-                -->
-                <label
-                  for="camera-input"
-                  class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  ถ่ายภาพ
-                </label>
-
-                <label
-                  for="gallery-input"
-                  class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  เลือกจาก Gallery
-                </label>
-              </div>
+              <!-- ปุ่มเดียว — OS จะแสดง sheet ให้เลือกกล้องหรืออัลบัมเอง -->
+              <label
+                for="bank-book-input"
+                class="flex w-full items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                กดเพื่อ เลือก/ถ่าย ภาพ
+              </label>
             </div>
 
-            <!--
-              input ถ่ายภาพ: capture="environment" → เปิดกล้องหลังโดยตรงบน iOS/Android
-              ต้องใช้ id เพื่อให้ <label for> ทำงานได้
-            -->
             <input
-              id="camera-input"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              class="hidden"
-              @change="bankBook.handleFileSelect"
-            />
-            <!-- input gallery: ไม่มี capture → เปิด photo picker / file chooser -->
-            <input
-              id="gallery-input"
+              id="bank-book-input"
               type="file"
               accept="image/*"
               class="hidden"

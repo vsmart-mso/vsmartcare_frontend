@@ -3,23 +3,30 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 
 defineProps<{ reason: string }>()
 
-const open     = ref(false)
-const btnRef   = ref<HTMLButtonElement | null>(null)
-const popRef   = ref<HTMLDivElement | null>(null)
-const popStyle = ref<Record<string, string>>({})
+const open      = ref(false)
+const btnRef    = ref<HTMLButtonElement | null>(null)
+const popRef    = ref<HTMLDivElement | null>(null)
+const popStyle  = ref<Record<string, string>>({})
+const arrowStyle = ref<Record<string, string>>({})
 
 function calcPos() {
   if (!btnRef.value) return
-  const r   = btnRef.value.getBoundingClientRect()
-  const vw  = window.innerWidth
+  const r    = btnRef.value.getBoundingClientRect()
+  const vw   = window.innerWidth
   const popW = 240  // w-60
-  let left  = r.left
+  let left   = r.left
   if (left + popW > vw - 8) left = Math.max(8, vw - popW - 8)
+
   popStyle.value = {
     top:       `${r.top}px`,
     left:      `${left}px`,
     transform: 'translateY(calc(-100% - 8px))',
   }
+
+  // จัด arrow ให้ชี้ตรงกึ่งกลางปุ่มเสมอ ไม่ว่า popup จะถูกเลื่อนซ้ายเท่าไร
+  const btnCenterX  = r.left + r.width / 2
+  const arrowCenter = Math.max(12, Math.min(popW - 12, Math.round(btnCenterX - left)))
+  arrowStyle.value  = { left: `${arrowCenter - 6}px` }  // arrow element กว้าง 12px (w-3)
 }
 
 function toggle() {
@@ -77,7 +84,7 @@ onBeforeUnmount(() => {
         >
           <p class="text-[11px] font-semibold text-amber-700 mb-1">หมายเหตุจากเจ้าหน้าที่</p>
           <p class="text-[12px] text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{{ reason }}</p>
-          <div class="absolute -bottom-1.5 left-3 w-3 h-3 bg-amber-50 border-r border-b border-amber-300 rotate-45"></div>
+          <div :style="arrowStyle" class="absolute -bottom-1.5 w-3 h-3 bg-amber-50 border-r border-b border-amber-300 rotate-45"></div>
         </div>
       </Transition>
     </Teleport>
