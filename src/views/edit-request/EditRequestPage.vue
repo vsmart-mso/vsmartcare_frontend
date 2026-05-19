@@ -160,7 +160,10 @@ async function handleSave() {
       partialUpdate.dependency_loads = updatePayload.dependency_loads
       partialUpdate.welfare_history  = updatePayload.welfare_history
     }
-    if (showStep3.value) partialUpdate.request_type_ids = updatePayload.request_type_ids
+    if (showStep3.value) {
+      partialUpdate.request_type_ids  = updatePayload.request_type_ids
+      partialUpdate.request_other_text = updatePayload.request_other_text
+    }
 
     await welfareApi.updateCase(app.editApplicantId!, partialUpdate)
 

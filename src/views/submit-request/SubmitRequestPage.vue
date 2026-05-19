@@ -48,7 +48,7 @@ const steps = [
   { id: 5, label: 'ยืนยันข้อมูล' },
 ]
 
-// ─── Step 3 OCR Status (อ่านจาก store — sync โดย BankBookOcrSection) ──────────
+// ─── Step 4 OCR Status (อ่านจาก store — sync โดย BankBookOcrStatus ใน Step4) ─
 type Step3OcrState = 'loading' | 'ok' | 'review' | 'bad'
 
 const step3OcrState = computed<Step3OcrState>(() => {
@@ -63,8 +63,13 @@ const step3OcrState = computed<Step3OcrState>(() => {
   return 'ok'
 })
 
-/** OCR อยู่ในสถานะที่ยังไม่ควร submit (mismatch / blurry / no_text) */
-const ocrBlocksSubmit = computed(() => step3OcrState.value === 'bad')
+/** OCR อยู่ในสถานะที่ยังไม่ควร submit (กำลังโหลด หรือ mismatch / blurry / no_text) */
+const ocrBlocksSubmit = computed(() =>
+  step3OcrState.value === 'loading' || step3OcrState.value === 'bad'
+)
+
+/** ปุ่ม "ถัดไป" ใน Step 4 ต้องถูก disable เพิ่มเติมเมื่อ OCR สมุดบัญชีไม่ผ่าน */
+const nextBlocked = computed(() => currentStep.value === 4 && ocrBlocksSubmit.value)
 
 // stepRef ใช้ดึงข้อมูลผ่าน getData() เมื่อกด "ถัดไป"
 // ใช้ interface กลางแทนการผูกกับ component type เฉพาะ
@@ -91,8 +96,8 @@ function handleNext() {
     return
   }
 
-  // ── Guard: OCR ผลไม่ดี → ห้ามผ่าน step 3 ──────────────────────────────────
-  if (currentStep.value === 3 && ocrBlocksSubmit.value) {
+  // ── Guard: OCR ผลไม่ดี → ห้ามผ่าน step 4 (สมุดบัญชีย้ายมาที่นี่แล้ว) ────────
+  if (currentStep.value === 4 && ocrBlocksSubmit.value) {
     submitError.value = 'กรุณาอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้องก่อนดำเนินการต่อ'
     return
   }
@@ -139,13 +144,13 @@ async function handleSubmit() {
     return
   }
   if (payload.request_type_ids.length === 0) {
-    submitError.value = 'กรุณากลับไป Step 3 และเลือกประเภทความช่วยเหลือที่ต้องการอย่างน้อย 1 รายการ'
+    submitError.value = 'กรุณากลับไป Step 3 และระบุรายละเอียดการช่วยเหลือที่ต้องการ'
     return
   }
 
-  // ── Guard: OCR ผลไม่ดี → ห้าม submit ──────────────────────────────────────
+  // ── Guard: OCR ผลไม่ดี → ห้าม submit (สมุดบัญชีอยู่ Step4 แล้ว) ──────────────
   if (ocrBlocksSubmit.value) {
-    submitError.value = 'กรุณากลับไป หัวข้อ "ปัญหา" และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
+    submitError.value = 'กรุณากลับไป Step 4 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
     return
   }
 
@@ -279,8 +284,8 @@ async function handleSubmit() {
           <template v-for="(step, i) in steps" :key="step.id">
             <div class="flex flex-col items-center" style="min-width: 3rem">
 
-              <!-- ═══ Step 3: OCR-aware circle ═══ -->
-              <template v-if="step.id === 3">
+              <!-- ═══ Step 4: OCR-aware circle (bank book OCR อยู่ใน Step4) ═══ -->
+              <template v-if="step.id === 4">
                 <!-- OCR กำลังทำงาน → spinner -->
                 <div
                   v-if="step3OcrState === 'loading'"
@@ -441,19 +446,29 @@ async function handleSubmit() {
           <button
             v-if="currentStep < 5"
             @click="handleNext"
-            :disabled="stepLoading"
+            :disabled="stepLoading || nextBlocked"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
-            :class="stepReady && !stepLoading
+            :class="stepReady && !stepLoading && !nextBlocked
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
           >
-            <!-- ขณะ step กำลังโหลด: โชว์ spinner + ข้อความ แทนคำว่า "ถัดไป" -->
-            <svg v-if="stepLoading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <!-- spinner: ขณะ stepLoading หรือ OCR กำลังประมวลผล -->
+            <svg
+              v-if="stepLoading || (currentStep === 4 && step3OcrState === 'loading')"
+              class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"
+            >
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            {{ stepLoading ? 'กำลังโหลด...' : 'ถัดไป' }}
-            <svg v-if="!stepLoading" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            {{
+              stepLoading ? 'กำลังโหลด...'
+              : (currentStep === 4 && step3OcrState === 'loading') ? 'รอผล OCR...'
+              : 'ถัดไป'
+            }}
+            <svg
+              v-if="!stepLoading && !(currentStep === 4 && step3OcrState === 'loading')"
+              class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </button>

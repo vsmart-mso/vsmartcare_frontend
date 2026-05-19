@@ -519,25 +519,27 @@ defineExpose({
 
         <div class="h-px bg-slate-100 mb-4" />
 
-        <!-- 1.2 ความเกี่ยวข้อง — ล็อคเป็น "ตนเอง" -->
-        <div class="flex items-center gap-2 mb-3">
-          <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">1.2</span>
-          <span class="text-[13px] font-medium text-slate-600">ความเกี่ยวข้อง</span>
-        </div>
-        <div>
-          <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
-            ความสัมพันธ์กับผู้ประสบปัญหา
-          </label>
-          <!-- ล็อคเป็น "ตนเอง" เสมอ เนื่องจากผู้ใช้ยื่นด้วยตนเองผ่าน ThaiD -->
-          <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-4 py-3">
-            <span class="text-[14px] text-slate-700 font-medium">{{ RELATIONSHIP }}</span>
-            <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+        <!-- 1.2 ความเกี่ยวข้อง — ซ่อนจาก UI ตามที่ประชุมตกลง แต่ค่า RELATIONSHIP ยังทำงานอยู่ -->
+        <div class="hidden">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">1.2</span>
+            <span class="text-[13px] font-medium text-slate-600">ความเกี่ยวข้อง</span>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1.5 px-1">
-            ระบบล็อคค่านี้เนื่องจากท่านยืนยันตัวตนด้วย ThaiD ของตนเอง
-          </p>
+          <div>
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              ความสัมพันธ์กับผู้ประสบปัญหา
+            </label>
+            <!-- ล็อคเป็น "ตนเอง" เสมอ เนื่องจากผู้ใช้ยื่นด้วยตนเองผ่าน ThaiD -->
+            <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-4 py-3">
+              <span class="text-[14px] text-slate-700 font-medium">{{ RELATIONSHIP }}</span>
+              <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5 px-1">
+              ระบบล็อคค่านี้เนื่องจากท่านยืนยันตัวตนด้วย ThaiD ของตนเอง
+            </p>
+          </div>
         </div>
 
       </div>

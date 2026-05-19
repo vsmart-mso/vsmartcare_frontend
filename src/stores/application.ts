@@ -87,6 +87,7 @@ export interface Step2Data {
 export interface Step3Data {
   problemDescription: string  // applicants.problem_details
   aidTypes: string[]          // welfare_request_types.request_type_id (หลาย row)
+  aidOtherText: string        // welfare_request_types.request_other_text (เฉพาะ request_type_id=3)
   bankNameId: string          // applicants.bank_name_id (FK → bank_name.id)
   bankAccount: string         // applicants.bank_account_no
   // bankBookPhoto → ส่งแยกผ่าน files Map ใช้ key คงที่ 'bank_book'
@@ -249,6 +250,22 @@ export const useApplicationStore = defineStore('application', () => {
   function setStep2(data: Step2Data) { step2.value = data }
   function setStep3(data: Step3Data) { step3.value = data }
 
+  // อัปเดตเฉพาะข้อมูลบัญชี (เรียกจาก OCR auto-fill ใน Step4 — ตอนนั้น Step3 unmount แล้ว)
+  // ถ้ายังไม่มี step3 ใน store ให้สร้าง draft ขึ้นมาก่อน
+  function setBankInfo(bankNameId: string, bankAccount: string) {
+    if (step3.value) {
+      step3.value = { ...step3.value, bankNameId, bankAccount }
+    } else {
+      step3.value = {
+        problemDescription: '',
+        aidTypes:           [],
+        aidOtherText:       '',
+        bankNameId,
+        bankAccount,
+      }
+    }
+  }
+
   // เพิ่มเอกสาร — บันทึก metadata + File object แยกกัน
   function addDocument(meta: DocumentMeta, file: File) {
     // ถ้า id นี้มีอยู่แล้ว ให้แทนที่แทนการซ้ำ
@@ -387,6 +404,7 @@ export const useApplicationStore = defineStore('application', () => {
       economic_infos,
       // request_type_ids เก็บ id ของประเภทความช่วยเหลือที่ร้องขอ (Step3)
       request_type_ids: (s3?.aidTypes ?? []).map(idStr => Number(idStr)),
+      request_other_text: s3?.aidOtherText || null,
       welfare_history,
       initial_current_status_id: 1, // รับเรื่อง
     }
@@ -467,6 +485,7 @@ export const useApplicationStore = defineStore('application', () => {
     step3.value = {
       problemDescription: a.problem_details ?? '',
       aidTypes:           caseData.welfare_request_types.map(rt => String(rt.request_type_id)),
+      aidOtherText:       caseData.welfare_request_types.find(rt => rt.request_other_text)?.request_other_text ?? '',
       bankNameId:         String(a.bank_name_id ?? ''),
       bankAccount:        a.bank_account_no ?? '',
     }
@@ -557,6 +576,7 @@ export const useApplicationStore = defineStore('application', () => {
     setStep1,
     setStep2,
     setStep3,
+    setBankInfo,
     addDocument,
     removeDocument,
     getFile,

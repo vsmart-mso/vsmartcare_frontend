@@ -1,21 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
-import { useAuthStore } from '@/stores/auth'
-import type { ThaiDUser } from '@/types/auth'
 import { lookupsApi } from '@/api/lookups'
-import { welfareApi } from '@/api/welfare'
-import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
 import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
-const app  = useApplicationStore()
-const auth = useAuthStore()
+const app = useApplicationStore()
 
 // ─── สถานะการโหลด ──────────────────────────────────────────────────────────────
-// isLoading = true ระหว่างรอ API ดึงตัวเลือก (ประเภทความช่วยเหลือ + รายชื่อธนาคาร)
-// ระหว่างนี้โชว์ skeleton แทนฟอร์มจริง และ parent จะปิดปุ่ม "ถัดไป"
+// isLoading = true ระหว่างรอ API ดึงตัวเลือกประเภทความช่วยเหลือ
+// (รูปสมุดบัญชี + OCR ย้ายไป Step4 แล้ว — ดู Step4Documents.vue)
 const isLoading = ref(true)
 
 // ─── filterFields prop ────────────────────────────────────────────────────────
@@ -32,91 +26,42 @@ const commentMap = computed(() => {
 const problemDescription = ref('')
 
 // ─── 10.1 ประเภทความช่วยเหลือ ────────────────────────────────────────────────
-const aidTypes = ref<string[]>([])
+const aidTypes    = ref<string[]>([])
+const aidOtherText = ref('')  // รายละเอียดเพิ่มเติมเมื่อเลือก "ช่วยเหลือเรื่องอื่นๆ"
 const aidTypeOptions = ref<{ value: string; label: string }[]>([])
 
-function toggleAidType(value: string) {
-  const idx = aidTypes.value.indexOf(value)
-  if (idx === -1) aidTypes.value.push(value)
-  else aidTypes.value.splice(idx, 1)
-}
+// id ของตัวเลือก "ช่วยเหลือเรื่องอื่นๆ" (backend กำหนด id=3 คงที่)
+const OTHER_AID_TYPE_ID = '3'
+
+// ตรวจว่าปัจจุบันเลือก "อื่นๆ" อยู่ไหม — ใช้ควบคุมการแสดงช่องกรอกรายละเอียด
+const isOtherAidSelected = computed(() => aidTypes.value.includes(OTHER_AID_TYPE_ID))
+
+// ซ่อน checkbox UI แล้ว — เก็บไว้เผื่อเปิดใช้อีกครั้ง
+// function toggleAidType(value: string) {
+//   const idx = aidTypes.value.indexOf(value)
+//   if (idx === -1) aidTypes.value.push(value)
+//   else aidTypes.value.splice(idx, 1)
+// }
 
 // ─── 10.2 ข้อมูลบัญชีธนาคาร ─────────────────────────────────────────────────
-const bankNameId  = ref('')   // applicants.bank_name_id — เก็บเป็น string เพื่อ v-model select
-const bankOptions = ref<{ value: string; label: string }[]>([])
-const bankAccount = ref('')
+// ซ่อนช่องธนาคาร/เลขที่บัญชีจาก UI ตามมติประชุม 2026-05-19
+// คงตัวแปร bankNameId/bankAccount ไว้เพื่อให้ OCR ใน Step4 เขียนค่ากลับมาที่ store ได้
+// (Step4 เรียก app.setBankInfo() ตอน OCR auto-fill → Step3.onMounted restore กลับมา)
+const bankNameId  = ref('')   // applicants.bank_name_id
+const bankAccount = ref('')   // applicants.bank_account_no
 
-const bankAccountTouched = ref(false)
-
-// รับเฉพาะตัวเลขและขีด - และจำกัดความยาวรวมไม่เกิน 15 ตัว
-function handleBankAccountInput(e: Event) {
-  const el = e.target as HTMLInputElement
-  const filtered = el.value.replace(/[^0-9-]/g, '').slice(0, 15)
-  bankAccount.value = filtered
-  el.value = filtered
-}
-
-// error เฉพาะกรณีที่กรอกแล้วและช่องว่าง
-const bankAccountError = computed(() =>
-  bankAccountTouched.value && !bankAccount.value.trim()
-    ? 'กรุณากรอกเลขที่บัญชี'
-    : ''
-)
-
-// flag กันไม่ให้ watcher ยิง reset ระหว่าง onMounted กำลัง restore ข้อมูล
-const isRestoring = ref(false)
-
-// เมื่อเปลี่ยนธนาคาร ให้ reset ช่องเลขบัญชีและ touched ใหม่
-// แต่ข้ามช่วงที่ onMounted กำลัง pre-fill ข้อมูลจาก store
-watch(bankNameId, () => {
-  if (isRestoring.value) return
-  bankAccount.value = ''
-  bankAccountTouched.value = false
-})
-
-// ─── รูปหน้าสมุดบัญชีธนาคาร ──────────────────────────────────────────────────
-// compress ที่ frontend ก่อน upload: max 1200×1600px, WebP quality 82%
-const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
-const fetchingBankBook = ref(false)
-
-// ─── OCR helpers ─────────────────────────────────────────────────────────────
-// ref ไปยัง BankBookOcrStatus component (สำหรับเรียก reset เมื่อลบรูป)
-const ocrRef = ref<InstanceType<typeof BankBookOcrStatus> | null>(null)
-
-// target name สำหรับส่งให้ OCR เทียบ — สร้างจาก ThaiD user
-const ocrTargetName = computed(() => {
-  const u = auth.user as ThaiDUser | null
-  if (!u?.title || !u?.fname || !u?.lname) return ''
-  return `${u.title} ${u.fname} ${u.lname}`
-})
-
-// หยุด OCR ชั่วคราวระหว่าง compress หรือ fetch จาก server
-const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
-
-/** จัดการ auto-fill เมื่อ OCR match/review */
-function handleOcrAutoFill(payload: { bankNameId: string; accountNumber: string }) {
-  if (payload.bankNameId) {
-    isRestoring.value = true
-    bankNameId.value = payload.bankNameId
-    nextTick(() => { isRestoring.value = false })
-  }
-  if (payload.accountNumber) {
-    bankAccount.value = payload.accountNumber
-    bankAccountTouched.value = true
-  }
-}
-
-// computed preview — ใช้ local preview ก่อน ถ้าไม่มีใช้ blob URL จาก server (edit mode)
-const previewBankBook = computed(() => bankBook.previewUrl.value || app.existingImageUrls['bank_book'] || '')
+// ─── หมายเหตุ: รูปสมุดบัญชี + OCR + เลขที่บัญชี ──────────────────────────────
+// ย้ายไป Step4Documents.vue (ต่อจาก "รูปอื่น ๆ") แล้วตามมติประชุม 2026-05-19
+// — bankNameId/bankAccount ยังคงอยู่ใน Step3Data เพื่อให้ OCR ใน Step4
+//   เขียนค่ากลับมาที่ store ได้ (ผ่าน app.setBankInfo) และ Step3 ส่งต่อใน getData()
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 // field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() => {
   if (show('family_problems') && !problemDescription.value.trim()) return false
-  if (show('requested_assistance_type') && aidTypes.value.length === 0) return false
-  if (show('bank_name') && !bankNameId.value) return false
-  if (show('bank_account_number') && !bankAccount.value.trim()) return false
-  if (show('bank_book_photo') && !bankBook.file.value && !app.existingImageUrls['bank_book']) return false
+  if (show('requested_assistance_detail') && aidTypes.value.length === 0) return false
+  // ต้องกรอกรายละเอียดเมื่อเลือก "ช่วยเหลือเรื่องอื่นๆ"
+  if (show('requested_assistance_detail') && isOtherAidSelected.value && !aidOtherText.value.trim()) return false
   return true
 })
 
@@ -127,81 +72,34 @@ const emit = defineEmits<{
 watch(isReady, (val) => emit('update:ready', val), { immediate: true })
 watch(isLoading, (val) => emit('update:loading', val), { immediate: true })
 
-// ─── Sync bankBook file → store (key คงที่ 'bank_book') ──────────────────────
-// watch แยกไว้เพื่อให้ store มีไฟล์อยู่เสมอ แม้ parent ยังไม่เรียก getData()
-// OCR ถูกจัดการโดย BankBookOcrStatus component (watch file prop อัตโนมัติ)
-watch(() => bankBook.file.value, (file) => {
-  if (file) {
-    app.addDocument(
-      { id: 'bank_book', docType: 'bank_book', fileName: file.name, fileSizeBytes: file.size, mimeType: file.type },
-      file,
-    )
-  } else {
-    app.removeDocument('bank_book')
-  }
-})
-
 // ─── Pre-fill จาก store เมื่อ user ย้อนกลับ ─────────────────────────────────
 onMounted(async () => {
-  // ดึงประเภทความช่วยเหลือและรายชื่อธนาคารจาก API พร้อมกัน
-  const [requestTypeData, bankNameData] = await Promise.all([
-    lookupsApi.fetchRequestTypes().catch(() => []),
-    lookupsApi.fetchBankNames().catch(() => []),
-  ])
-  // กรองเฉพาะ "ช่วยเหลือเป็นเงิน" เพื่อให้แสดงแค่ตัวเลือกนี้
-  aidTypeOptions.value = requestTypeData
-    .map(d => ({ value: String(d.id), label: d.name }))
-    .filter(opt => opt.label.includes('ช่วยเหลือเป็นเงิน'))
-  bankOptions.value    = bankNameData.map(d => ({ value: String(d.id), label: d.name }))
-
-  // auto-select อัตโนมัติ เพราะมีตัวเลือกเดียว (เฉพาะกรณีที่ยังไม่มีข้อมูลใน store)
-  if (aidTypeOptions.value.length > 0 && !app.step3) {
-    aidTypes.value = [aidTypeOptions.value[0].value]
-  }
+  // ดึงประเภทความช่วยเหลือจาก API
+  const requestTypeData = await lookupsApi.fetchRequestTypes().catch(() => [])
+  aidTypeOptions.value  = requestTypeData.map(d => ({ value: String(d.id), label: d.name }))
 
   const s = app.step3
   if (s) {
-    isRestoring.value = true          // บอก watcher ให้ข้ามการ reset
     problemDescription.value = s.problemDescription
     aidTypes.value           = [...s.aidTypes]
+    aidOtherText.value       = s.aidOtherText ?? ''
     bankNameId.value         = s.bankNameId
     bankAccount.value        = s.bankAccount
-    await nextTick()                  // รอให้ watcher ที่ถูก schedule ไว้ยิงก่อน
-    isRestoring.value = false         // คืนสถานะปกติให้ watcher ทำงานเมื่อ user เปลี่ยนธนาคาร
+    await nextTick()
+  } else {
+    // ตั้งค่าเริ่มต้น: เลือก "ช่วยเหลือเรื่องอื่นๆ" อัตโนมัติ
+    aidTypes.value = [OTHER_AID_TYPE_ID]
   }
 
   // โหลดตัวเลือก + เติมข้อมูลเดิมเสร็จแล้ว → ปิด skeleton แสดงฟอร์มจริง
-  // (การโหลดรูปสมุดบัญชีจาก server ด้านล่างมี spinner ของตัวเองอยู่แล้ว)
   isLoading.value = false
-
-  // restore สมุดบัญชีจาก store (File object ยังอยู่ใน app.files แม้ component จะ unmount ไปแล้ว)
-  const storedBankBook = app.getFile('bank_book')
-  if (storedBankBook) {
-    bankBook.restore(storedBankBook)
-    // OCR จะเริ่มอัตโนมัติเมื่อ BankBookOcrStatus เห็น file prop เปลี่ยน
-    return  // มี local file แล้ว — ไม่ต้อง fetch จาก server
-  }
-
-  // Edit mode: lazy-fetch รูปสมุดบัญชีจาก server (fetch เฉพาะเมื่อยังไม่มี cache)
-  // โหมด edit-request: ดึงเฉพาะเมื่อ field bank_book_photo ถูกแสดง — เลี่ยงโหลดรูปที่ไม่ใช้
-  if (show('bank_book_photo') && app.editMode && app.editApplicantId && !app.existingImageUrls['bank_book']) {
-    const evidenceId = app.existingEvidenceIds['bank_book']
-    if (evidenceId) {
-      fetchingBankBook.value = true
-      try {
-        const url = await welfareApi.fetchEvidenceAsObjectUrl(app.editApplicantId, evidenceId)
-        if (url) app.setExistingImage('bank_book', url)
-      } finally {
-        fetchingBankBook.value = false
-      }
-    }
-  }
 })
 
 defineExpose({
   getData: () => ({
     problemDescription: problemDescription.value,
     aidTypes:           aidTypes.value,
+    aidOtherText:       isOtherAidSelected.value ? aidOtherText.value : '',
     bankNameId:         bankNameId.value,
     bankAccount:        bankAccount.value.replace(/-/g, ''),
     // bankBookPhoto ส่งผ่าน store (key 'bank_book') — ไม่ส่งผ่าน getData()
@@ -251,7 +149,7 @@ defineExpose({
          Section 10: ความช่วยเหลือที่ต้องการ
          ════════════════════════════════════════════════════════ -->
     <div
-      v-if="['requested_assistance_type','bank_name','bank_account_number','bank_book_photo'].some(f => show(f))"
+      v-if="show('requested_assistance_detail')"
       class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -262,14 +160,14 @@ defineExpose({
       </div>
       <div class="p-4 space-y-4">
 
-        <!-- 10.1 ประเภทความช่วยเหลือ -->
+        <!-- 10.1 ประเภทความช่วยเหลือ — ซ่อน checkbox จาก UI ตามที่ประชุมตกลง แต่ logic ยังทำงานอยู่ -->
+        <!--
         <div v-if="show('requested_assistance_type')">
           <div class="flex items-center gap-2 mb-1.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.1</span>
             <span class="text-[13px] font-medium text-slate-600">ประเภทความช่วยเหลือ <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('requested_assistance_type')" :reason="commentMap.get('requested_assistance_type')!" />
           </div>
-          <!-- <p class="text-[12px] text-slate-500 mb-3">เลือกได้หลายข้อ </p> -->
 
           <div class="space-y-2">
             <label
@@ -292,46 +190,65 @@ defineExpose({
               </span>
             </label>
           </div>
+
+          <div v-if="isOtherAidSelected" class="mt-3">
+            <label class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+              รายละเอียดการช่วยเหลืออื่นๆ <span class="text-red-500">*</span>
+            </label>
+            <textarea
+              v-model="aidOtherText"
+              rows="3"
+              placeholder="โปรดระบุรายละเอียดความช่วยเหลือที่ต้องการ..."
+              class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+              :class="!aidOtherText.trim() ? 'border-slate-200' : 'border-slate-300'"
+            />
+          </div>
+        </div>
+        -->
+
+        <!-- 10.1 รายละเอียดการช่วยเหลือที่ต้องการ — ใช้ field ใหม่ requested_assistance_detail -->
+        <div v-if="show('requested_assistance_detail')">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.1</span>
+            <span class="text-[13px] font-medium text-slate-600">รายละเอียดการช่วยเหลือที่ต้องการ <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('requested_assistance_detail')" :reason="commentMap.get('requested_assistance_detail')!" />
+          </div>
+          <textarea
+            v-model="aidOtherText"
+            rows="3"
+            placeholder="โปรดระบุรายละเอียดความช่วยเหลือที่ต้องการ..."
+            class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+          />
         </div>
 
+        <!-- 10.2 ข้อมูลบัญชีธนาคาร — ยกเลิกตามมติประชุม 2026-05-19
+             review_field bank_name / bank_account_number ถูก set is_active=false
+             ส่วนรูปสมุดบัญชี + OCR ย้ายไป Step4Documents.vue ต่อจาก "รูปอื่น ๆ"
+             เก็บโค้ดไว้เผื่อเปิดใช้งานกลับมาในอนาคต
+        -->
+        <!--
         <div v-if="show('requested_assistance_type') && ['bank_name','bank_account_number','bank_book_photo'].some(f => show(f))" class="h-px bg-slate-100" />
 
-        <!-- 10.2 ข้อมูลบัญชีธนาคาร -->
         <div v-if="['bank_name','bank_account_number','bank_book_photo'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-3">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">10.2</span>
             <span class="text-[13px] font-medium text-slate-600">ข้อมูลบัญชีธนาคาร</span>
           </div>
 
-          <!-- ธนาคาร -->
           <div v-if="show('bank_name')" class="mb-4">
             <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
-              <span>ธนาคาร <span class="text-red-500">*</span></span>
+              <span>ธนาคาร</span>
               <FieldAlert v-if="commentMap.has('bank_name')" :reason="commentMap.get('bank_name')!" />
             </label>
-            <div class="relative">
-              <select
-                v-model="bankNameId"
-                class="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
-                :class="bankNameId ? 'border-slate-300' : 'border-slate-200'"
-              >
-                <option value="" disabled>— กรุณาเลือกธนาคาร —</option>
-                <option v-for="opt in bankOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-              <div class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+            <select v-model="bankNameId" class="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900">
+              <option value="" disabled>— กรุณาเลือกธนาคาร —</option>
+              <option v-for="opt in bankOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
           </div>
 
-          <!-- เลขที่บัญชี -->
           <div v-if="show('bank_account_number')" class="mb-4">
             <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
-              <span>เลขที่บัญชี <span class="text-red-500">*</span></span>
+              <span>เลขที่บัญชี</span>
               <FieldAlert v-if="commentMap.has('bank_account_number')" :reason="commentMap.get('bank_account_number')!" />
             </label>
             <input
@@ -341,113 +258,12 @@ defineExpose({
               type="text"
               inputmode="numeric"
               placeholder="เช่น 123-4-56789-0"
-              class="w-full border rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
-              :class="bankAccountError
-                ? 'border-red-300 focus:ring-red-200'
-                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
+              class="w-full border rounded-xl px-4 py-3 text-[14px]"
             />
             <p v-if="bankAccountError" class="text-[11px] text-red-500 mt-1 px-1">{{ bankAccountError }}</p>
           </div>
-
-          <!-- รูปหน้าสมุดบัญชีธนาคาร -->
-          <div v-if="show('bank_book_photo')">
-            <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
-              <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
-              <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
-            </label>
-
-            <!-- error message -->
-            <p v-if="bankBook.error.value" class="mb-2 text-[12px] text-red-500">
-              {{ bankBook.error.value }}
-            </p>
-
-            <!-- แสดงพรีวิวเมื่ออัปโหลดแล้ว (local file หรือ server image) -->
-            <div v-if="previewBankBook" class="border border-slate-200 rounded-xl overflow-hidden">
-              <div class="relative">
-                <img
-                  :src="previewBankBook"
-                  alt="รูปสมุดบัญชี"
-                  class="w-full object-contain max-h-48 bg-slate-50"
-                />
-                <!-- loading overlay ขณะ compress หรือ fetch จาก server -->
-                <div v-if="bankBook.isLoading.value || fetchingBankBook" class="absolute inset-0 bg-white/70 flex items-center justify-center">
-                  <svg class="w-6 h-6 text-[#1A56DB] animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                  </svg>
-                </div>
-              </div>
-              <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
-                <div class="flex flex-col min-w-0 max-w-[60%]">
-                  <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
-                  <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
-                    {{ bankBook.file.value.size < 1024 * 1024
-                      ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
-                      : `${(bankBook.file.value.size / (1024 * 1024)).toFixed(2)} MB` }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="bankBook.clear(); app.clearExistingImage('bank_book'); ocrRef?.reset()"
-                  class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
-                >
-                  ลบและถ่ายใหม่
-                </button>
-              </div>
-            </div>
-
-            <!-- OCR Status component — จัดการ OCR ใน background + แสดงผล -->
-            <BankBookOcrStatus
-              ref="ocrRef"
-              :file="bankBook.file.value"
-              :target-name="ocrTargetName"
-              :bank-options="bankOptions"
-              :disabled="ocrDisabled"
-              @auto-fill="handleOcrAutoFill"
-            />
-
-            <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
-            <div
-              v-if="!previewBankBook"
-              class="border-2 border-dashed rounded-xl p-4 transition-colors"
-              :class="(bankBook.isLoading.value || fetchingBankBook) ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
-            >
-              <div class="flex items-center gap-2 mb-4">
-                <!-- ไอคอน upload / spinner ขณะ compress หรือ fetch -->
-                <svg v-if="!(bankBook.isLoading.value || fetchingBankBook)" class="w-5 h-5 text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5-5 5 5M12 6v12" />
-                </svg>
-                <svg v-else class="w-5 h-5 text-[#1A56DB] flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>
-                <p class="text-[13px] font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingBankBook) ? 'text-[#1A56DB]' : 'text-slate-600'">
-                  {{ (bankBook.isLoading.value || fetchingBankBook) ? 'กำลังโหลดรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
-                </p>
-              </div>
-
-              <!-- ปุ่มเดียว — OS จะแสดง sheet ให้เลือกกล้องหรืออัลบัมเอง -->
-              <label
-                for="bank-book-input"
-                class="flex w-full items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
-              >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                กดเพื่อ เลือก/ถ่าย ภาพ
-              </label>
-            </div>
-
-            <input
-              id="bank-book-input"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="bankBook.handleFileSelect"
-            />
-          </div>
         </div>
+        -->
 
       </div>
     </div>

@@ -2,7 +2,12 @@
 import { computed, watch, onMounted, ref } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import PhotoUploadCard from '../components/PhotoUploadCard.vue'
+import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
+import FieldAlert from '@/components/ui/FieldAlert.vue'
 import { useApplicationStore } from '@/stores/application'
+import { useAuthStore } from '@/stores/auth'
+import type { ThaiDUser } from '@/types/auth'
+import { lookupsApi } from '@/api/lookups'
 import { welfareApi } from '@/api/welfare'
 
 const emit = defineEmits<{
@@ -11,7 +16,8 @@ const emit = defineEmits<{
   'update:loading': [boolean]
 }>()
 
-const app = useApplicationStore()
+const app  = useApplicationStore()
+const auth = useAuthStore()
 
 // ─── filterFields prop ────────────────────────────────────────────────────────
 const props = defineProps<{ filterFields?: string[] }>()
@@ -35,6 +41,38 @@ const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 
 const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const otherDocName = ref('') // ชื่อประเภทเอกสาร "อื่นๆ" — backend บังคับส่งเมื่ออัปโหลด
+
+// ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายมาจาก Step3 ตามมติประชุม 2026-05-19) ─────────
+// compress: max 1200×1600px, WebP quality 82% — เหมือนเดิมตอนอยู่ Step3
+const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
+const fetchingBankBook = ref(false)
+
+// bankOptions ดึงจาก lookups API — ส่งให้ BankBookOcrStatus ใช้ map ชื่อ→id
+const bankOptions = ref<{ value: string; label: string }[]>([])
+
+// ─── OCR helpers ────────────────────────────────────────────────────────────
+const ocrRef = ref<InstanceType<typeof BankBookOcrStatus> | null>(null)
+
+// target name สำหรับให้ OCR เทียบกับชื่อในสมุดบัญชี
+const ocrTargetName = computed(() => {
+  const u = auth.user as ThaiDUser | null
+  if (!u?.title || !u?.fname || !u?.lname) return ''
+  return `${u.title} ${u.fname} ${u.lname}`
+})
+
+// หยุด OCR ชั่วคราวระหว่าง compress หรือ fetch จาก server
+const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
+
+// OCR auto-fill: เขียนค่าลง store โดยตรง (Step3 unmount แล้ว — ใช้ setBankInfo)
+function handleOcrAutoFill(payload: { bankNameId: string; accountNumber: string }) {
+  app.setBankInfo(
+    payload.bankNameId   || app.step3?.bankNameId  || '',
+    payload.accountNumber || app.step3?.bankAccount || '',
+  )
+}
+
+// computed preview — ใช้ local preview ก่อน ถ้าไม่มีใช้ blob URL จาก server (edit mode)
+const previewBankBook = computed(() => bankBook.previewUrl.value || app.existingImageUrls['bank_book'] || '')
 
 // ─── Edit mode: loading flag ขณะ fetch รูปจาก server ──────────────────────────
 const fetchingImages = ref(false)
@@ -71,18 +109,21 @@ const totalUploaded = computed(() =>
     { u: houseHome,   k: 'house_home'   },
     { u: housePerson, k: 'house_person' },
     { u: otherDoc,    k: 'other_doc'    },
+    { u: bankBook,    k: 'bank_book'    },
   ].filter(({ u, k }) => u.file.value || app.existingImageUrls[k]).length,
 )
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
 // field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
+// bank_book_photo เป็น required ตามมติประชุม 2026-05-19 (ย้ายจาก Step3 มา Step4)
 const isReady = computed(() =>
   (!show('evidence_house_exterior') || hasImg(exterior, 'exterior')) &&
   (!show('evidence_house_interior') || hasImg(interior, 'interior')) &&
   (!show('evidence_person_photo')   || hasImg(person,   'person'))   &&
   (!show('evidence_problem_photo')  || hasImg(problem,  'problem'))  &&
   (!show('evidence_family_photo')   || hasImg(family,   'family'))   &&
+  (!show('bank_book_photo')         || hasImg(bankBook, 'bank_book')) &&
   !otherDocNameRequired.value
 )
 
@@ -110,6 +151,7 @@ watch(() => family.file.value,      (f) => syncFile('family',       'family',   
 watch(() => houseHome.file.value,   (f) => syncFile('house_home',   'house_home',   f ?? null))
 watch(() => housePerson.file.value, (f) => syncFile('house_person', 'house_person', f ?? null))
 watch(() => otherDoc.file.value,    (f) => syncFile('other_doc',    'other_doc',    f ?? null, otherDocName.value))
+watch(() => bankBook.file.value,    (f) => syncFile('bank_book',    'bank_book',    f ?? null))
 // เมื่อชื่อเปลี่ยน ให้ persist ลง store เสมอ (ไม่ว่าจะมีไฟล์หรือไม่)
 // ใช้ existingOtherTypeName เป็น temp storage เพื่อให้ชื่อรอดเมื่อ component unmount
 watch(otherDocName, (name) => {
@@ -135,6 +177,7 @@ onMounted(async () => {
     { id: 'house_home',   field: 'doc_house_registration_house',  uploader: houseHome    },
     { id: 'house_person', field: 'doc_house_registration_person', uploader: housePerson  },
     { id: 'other_doc',    field: 'doc_other',                     uploader: otherDoc     },
+    { id: 'bank_book',    field: 'bank_book_photo',               uploader: bankBook     },
   ]
 
   // 1. restore local files จาก store (กรณี user กลับมา Step4 โดยไม่ออกจากหน้า)
@@ -147,7 +190,11 @@ onMounted(async () => {
   //    (watch อัปเดตทุกครั้งที่ user พิมพ์ ทั้ง create และ edit mode)
   if (app.existingOtherTypeName) otherDocName.value = app.existingOtherTypeName
 
-  // 3. Edit mode: lazy-fetch รูปเดิมจาก server (fetch เฉพาะ slot ที่ยังไม่มีรูป)
+  // 3. ดึงรายชื่อธนาคารจาก API (ใช้ใน OCR auto-fill ของสมุดบัญชี)
+  const bankNameData = await lookupsApi.fetchBankNames().catch(() => [])
+  bankOptions.value  = bankNameData.map(d => ({ value: String(d.id), label: d.name }))
+
+  // 4. Edit mode: lazy-fetch รูปเดิมจาก server (fetch เฉพาะ slot ที่ยังไม่มีรูป)
   //    โหมด edit-request: ดึงเฉพาะ slot ที่ field ถูกแสดง — เลี่ยงโหลดรูปที่ไม่ใช้
   if (app.editMode && app.editApplicantId) {
 
@@ -399,6 +446,103 @@ defineExpose({
             กรุณาระบุชื่อเอกสาร
           </p>
         </PhotoUploadCard>
+
+        <!-- ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายจาก Step3 มา) — บังคับ + มี OCR ───────── -->
+        <div v-if="show('bank_book_photo')">
+          <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
+            <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
+            <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
+          </label>
+
+          <!-- error message -->
+          <p v-if="bankBook.error.value" class="mb-2 text-[12px] text-red-500">
+            {{ bankBook.error.value }}
+          </p>
+
+          <!-- พรีวิวเมื่ออัปโหลดแล้ว (local file หรือ server image) -->
+          <div v-if="previewBankBook" class="border border-slate-200 rounded-xl overflow-hidden">
+            <div class="relative">
+              <img
+                :src="previewBankBook"
+                alt="รูปสมุดบัญชี"
+                class="w-full object-contain max-h-48 bg-slate-50"
+              />
+              <!-- loading overlay ขณะ compress หรือ fetch จาก server -->
+              <div v-if="bankBook.isLoading.value || fetchingBankBook" class="absolute inset-0 bg-white/70 flex items-center justify-center">
+                <svg class="w-6 h-6 text-[#1A56DB] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+              </div>
+            </div>
+            <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+              <div class="flex flex-col min-w-0 max-w-[60%]">
+                <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
+                <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
+                  {{ bankBook.file.value.size < 1024 * 1024
+                    ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
+                    : `${(bankBook.file.value.size / (1024 * 1024)).toFixed(2)} MB` }}
+                </span>
+              </div>
+              <button
+                type="button"
+                @click="bankBook.clear(); app.clearExistingImage('bank_book'); ocrRef?.reset()"
+                class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
+              >
+                ลบและถ่ายใหม่
+              </button>
+            </div>
+          </div>
+
+          <!-- OCR Status component — จัดการ OCR ใน background + แสดงผลเทียบชื่อ -->
+          <BankBookOcrStatus
+            ref="ocrRef"
+            :file="bankBook.file.value"
+            :target-name="ocrTargetName"
+            :bank-options="bankOptions"
+            :disabled="ocrDisabled"
+            @auto-fill="handleOcrAutoFill"
+          />
+
+          <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
+          <div
+            v-if="!previewBankBook"
+            class="border-2 border-dashed rounded-xl p-4 transition-colors"
+            :class="(bankBook.isLoading.value || fetchingBankBook) ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
+          >
+            <div class="flex items-center gap-2 mb-4">
+              <svg v-if="!(bankBook.isLoading.value || fetchingBankBook)" class="w-5 h-5 text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5-5 5 5M12 6v12" />
+              </svg>
+              <svg v-else class="w-5 h-5 text-[#1A56DB] flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              <p class="text-[13px] font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingBankBook) ? 'text-[#1A56DB]' : 'text-slate-600'">
+                {{ (bankBook.isLoading.value || fetchingBankBook) ? 'กำลังโหลดรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
+              </p>
+            </div>
+
+            <label
+              for="bank-book-input"
+              class="flex w-full items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              กดเพื่อ เลือก/ถ่าย ภาพ
+            </label>
+          </div>
+
+          <input
+            id="bank-book-input"
+            type="file"
+            accept="image/*"
+            class="hidden"
+            @change="bankBook.handleFileSelect"
+          />
+        </div>
 
       </div>
     </div>

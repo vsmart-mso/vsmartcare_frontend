@@ -162,6 +162,7 @@ export interface CasePayload {
   dependency_loads: CaseDependencyLoadPayload[]
   economic_infos: CaseEconomicInfoPayload[]
   request_type_ids: number[]
+  request_other_text?: string | null
   welfare_history?: CaseWelfareHistoryPayload | null
   initial_current_status_id: number
 }
@@ -239,7 +240,7 @@ export interface FullCaseDetail {
   addresses: FullAddressRead[]
   dependency_loads: Array<{ dependency_type_id: number; dependency_other_text: string | null }>
   economic_infos: FullEconomicInfoRead[]
-  welfare_request_types: Array<{ request_type_id: number }>
+  welfare_request_types: Array<{ request_type_id: number; request_other_text: string | null }>
   welfare_history: {
     received_count: number | null
     has_received_welfare: boolean
