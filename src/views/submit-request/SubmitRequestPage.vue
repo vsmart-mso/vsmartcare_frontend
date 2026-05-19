@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Step1PersonalInfo from './steps/Step1PersonalInfo.vue'
 import Step2Economics   from './steps/Step2Economics.vue'
@@ -39,6 +39,24 @@ const steps = [
   { id: 5, label: 'ยืนยันข้อมูล' },
 ]
 
+// ─── Step 3 OCR Status (อ่านจาก store — sync โดย BankBookOcrSection) ──────────
+type Step3OcrState = 'loading' | 'ok' | 'review' | 'bad'
+
+const step3OcrState = computed<Step3OcrState>(() => {
+  if (app.bankBookOcrLoading) return 'loading'
+  const r = app.bankBookOcrResult
+  if (!r) return 'ok' // ยังไม่มีผล หรือล้างแล้ว — แสดงปกติ
+  const s = r.bank_info?.match_status
+  if (s === 'match') return 'ok'
+  if (s === 'review') return 'review'
+  // mismatch, blurry, no_text หรือ error → bad
+  if (s === 'mismatch' || s === 'blurry' || s === 'no_text') return 'bad'
+  return 'ok'
+})
+
+/** OCR อยู่ในสถานะที่ยังไม่ควร submit (mismatch / blurry / no_text) */
+const ocrBlocksSubmit = computed(() => step3OcrState.value === 'bad')
+
 // stepRef ใช้ดึงข้อมูลผ่าน getData() เมื่อกด "ถัดไป"
 // ใช้ interface กลางแทนการผูกกับ component type เฉพาะ
 interface StepExpose {
@@ -61,6 +79,15 @@ function handleNext() {
     stepRef.value?.touchAll?.()
     return
   }
+
+  // ── Guard: OCR ผลไม่ดี → ห้ามผ่าน step 3 ──────────────────────────────────
+  if (currentStep.value === 3 && ocrBlocksSubmit.value) {
+    submitError.value = 'กรุณาอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้องก่อนดำเนินการต่อ'
+    return
+  }
+
+  submitError.value = ''
+
   const data = stepRef.value?.getData()
   if (data) {
     // บันทึกข้อมูลแต่ละ step ลง store — ใช้ type cast เพราะ StepExpose.getData คืน Record
@@ -102,6 +129,12 @@ async function handleSubmit() {
   }
   if (payload.request_type_ids.length === 0) {
     submitError.value = 'กรุณากลับไป Step 3 และเลือกประเภทความช่วยเหลือที่ต้องการอย่างน้อย 1 รายการ'
+    return
+  }
+
+  // ── Guard: OCR ผลไม่ดี → ห้าม submit ──────────────────────────────────────
+  if (ocrBlocksSubmit.value) {
+    submitError.value = 'กรุณากลับไป Step 3 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
     return
   }
 
@@ -220,7 +253,57 @@ async function handleSubmit() {
         <div class="flex items-start justify-between">
           <template v-for="(step, i) in steps" :key="step.id">
             <div class="flex flex-col items-center" style="min-width: 3rem">
+
+              <!-- ═══ Step 3: OCR-aware circle ═══ -->
+              <template v-if="step.id === 3">
+                <!-- OCR กำลังทำงาน → spinner -->
+                <div
+                  v-if="step3OcrState === 'loading'"
+                  class="w-7 h-7 rounded-full flex items-center justify-center bg-[#1A56DB] text-white"
+                >
+                  <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                </div>
+                <!-- OCR ผลไม่ดี → ❌ -->
+                <div
+                  v-else-if="step3OcrState === 'bad'"
+                  class="w-7 h-7 rounded-full flex items-center justify-center bg-red-500 text-white"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <!-- OCR review → ⚠ (สีเหลือง) — step ยังผ่านได้ -->
+                <div
+                  v-else-if="step3OcrState === 'review' && step.id <= currentStep"
+                  class="w-7 h-7 rounded-full flex items-center justify-center bg-amber-500 text-white"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                </div>
+                <!-- ปกติ (OCR ok หรือยังไม่มีผล) -->
+                <div
+                  v-else
+                  class="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors"
+                  :class="step.id === currentStep
+                    ? 'bg-[#1A56DB] text-white'
+                    : step.id < currentStep
+                      ? 'bg-[#1A56DB] text-white'
+                      : 'bg-slate-200 text-slate-400'"
+                >
+                  <svg v-if="step.id < currentStep" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span v-else>{{ step.id }}</span>
+                </div>
+              </template>
+
+              <!-- ═══ Step อื่นๆ: ปกติ ═══ -->
               <div
+                v-else
                 class="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors"
                 :class="step.id === currentStep
                   ? 'bg-[#1A56DB] text-white'
@@ -234,6 +317,7 @@ async function handleSubmit() {
                 </svg>
                 <span v-else>{{ step.id }}</span>
               </div>
+
               <p
                 class="text-[10px] mt-1 text-center leading-tight max-w-[3.5rem]"
                 :class="step.id === currentStep ? 'text-[#1A56DB] font-semibold' : 'text-slate-400'"

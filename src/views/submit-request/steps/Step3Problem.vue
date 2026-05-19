@@ -2,11 +2,15 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useImageUpload } from '@/composables/useImageUpload'
 import { useApplicationStore } from '@/stores/application'
+import { useAuthStore } from '@/stores/auth'
+import type { ThaiDUser } from '@/types/auth'
 import { lookupsApi } from '@/api/lookups'
 import { welfareApi } from '@/api/welfare'
+import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
 
-const app = useApplicationStore()
+const app  = useApplicationStore()
+const auth = useAuthStore()
 
 const commentMap = computed(() => {
   const m = new Map<string, string>()
@@ -65,6 +69,33 @@ watch(bankNameId, () => {
 const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
 const fetchingBankBook = ref(false)
 
+// ─── OCR helpers ─────────────────────────────────────────────────────────────
+// ref ไปยัง BankBookOcrStatus component (สำหรับเรียก reset เมื่อลบรูป)
+const ocrRef = ref<InstanceType<typeof BankBookOcrStatus> | null>(null)
+
+// target name สำหรับส่งให้ OCR เทียบ — สร้างจาก ThaiD user
+const ocrTargetName = computed(() => {
+  const u = auth.user as ThaiDUser | null
+  if (!u?.title || !u?.fname || !u?.lname) return ''
+  return `${u.title} ${u.fname} ${u.lname}`
+})
+
+// หยุด OCR ชั่วคราวระหว่าง compress หรือ fetch จาก server
+const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
+
+/** จัดการ auto-fill เมื่อ OCR match/review */
+function handleOcrAutoFill(payload: { bankNameId: string; accountNumber: string }) {
+  if (payload.bankNameId) {
+    isRestoring.value = true
+    bankNameId.value = payload.bankNameId
+    nextTick(() => { isRestoring.value = false })
+  }
+  if (payload.accountNumber) {
+    bankAccount.value = payload.accountNumber
+    bankAccountTouched.value = true
+  }
+}
+
 // computed preview — ใช้ local preview ก่อน ถ้าไม่มีใช้ blob URL จาก server (edit mode)
 const previewBankBook = computed(() => bankBook.previewUrl.value || app.existingImageUrls['bank_book'] || '')
 
@@ -83,6 +114,7 @@ watch(isReady, (val) => emit('update:ready', val), { immediate: true })
 
 // ─── Sync bankBook file → store (key คงที่ 'bank_book') ──────────────────────
 // watch แยกไว้เพื่อให้ store มีไฟล์อยู่เสมอ แม้ parent ยังไม่เรียก getData()
+// OCR ถูกจัดการโดย BankBookOcrStatus component (watch file prop อัตโนมัติ)
 watch(() => bankBook.file.value, (file) => {
   if (file) {
     app.addDocument(
@@ -127,6 +159,7 @@ onMounted(async () => {
   const storedBankBook = app.getFile('bank_book')
   if (storedBankBook) {
     bankBook.restore(storedBankBook)
+    // OCR จะเริ่มอัตโนมัติเมื่อ BankBookOcrStatus เห็น file prop เปลี่ยน
     return  // มี local file แล้ว — ไม่ต้อง fetch จาก server
   }
 
@@ -329,7 +362,7 @@ defineExpose({
                 </div>
                 <button
                   type="button"
-                  @click="bankBook.clear(); app.clearExistingImage('bank_book')"
+                  @click="bankBook.clear(); app.clearExistingImage('bank_book'); ocrRef?.reset()"
                   class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
                 >
                   ลบและถ่ายใหม่
@@ -337,9 +370,19 @@ defineExpose({
               </div>
             </div>
 
+            <!-- OCR Status component — จัดการ OCR ใน background + แสดงผล -->
+            <BankBookOcrStatus
+              ref="ocrRef"
+              :file="bankBook.file.value"
+              :target-name="ocrTargetName"
+              :bank-options="bankOptions"
+              :disabled="ocrDisabled"
+              @auto-fill="handleOcrAutoFill"
+            />
+
             <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
             <div
-              v-else
+              v-if="!previewBankBook"
               class="border-2 border-dashed rounded-xl p-4 transition-colors"
               :class="(bankBook.isLoading.value || fetchingBankBook) ? 'border-[#1A56DB]/40 bg-blue-50/50' : 'border-slate-200'"
             >

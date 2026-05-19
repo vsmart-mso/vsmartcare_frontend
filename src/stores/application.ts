@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { CasePayload, FullCaseDetail, ReviewComment } from '@/api/welfare'
+import type { OcrBankBookResponse } from '@/api/ocr'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
@@ -189,6 +190,12 @@ export const useApplicationStore = defineStore('application', () => {
   const existingImageUrls     = ref<Record<string, string>>({})
   // ชื่อเอกสาร other_doc (persist ได้)
   const existingOtherTypeName = ref<string>(saved?.existingOtherTypeName ?? '')
+
+  // ── Bank Book OCR State (ไม่ persist เพราะ re-OCR ใหม่ทุกครั้ง) ──────────
+  // เก็บผล OCR จากรูปสมุดบัญชี — ใช้ข้าม step (Step3 → Step5)
+  const bankBookOcrResult = ref<OcrBankBookResponse | null>(null)
+  // กำลัง OCR อยู่หรือไม่ (ใช้แสดง spinner ใน Step3)
+  const bankBookOcrLoading = ref(false)
 
   // ── Auto-save ลง sessionStorage ──────────────────────────────────────────
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
@@ -487,6 +494,18 @@ export const useApplicationStore = defineStore('application', () => {
     existingImageUrls.value = rest
   }
 
+  // ─── Bank Book OCR Actions ──────────────────────────────────────────────
+  function setBankBookOcrLoading(loading: boolean) {
+    bankBookOcrLoading.value = loading
+  }
+  function setBankBookOcrResult(result: OcrBankBookResponse | null) {
+    bankBookOcrResult.value = result
+  }
+  function clearBankBookOcr() {
+    bankBookOcrResult.value = null
+    bankBookOcrLoading.value = false
+  }
+
   // ล้างข้อมูลทั้งหมด — เรียกหลัง submit สำเร็จ
   function clearAll() {
     pdpa.value            = null
@@ -505,6 +524,7 @@ export const useApplicationStore = defineStore('application', () => {
     Object.values(existingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
     existingImageUrls.value     = {}
     existingOtherTypeName.value = ''
+    clearBankBookOcr()
     sessionStorage.removeItem(DRAFT_KEY)
   }
 
@@ -522,6 +542,8 @@ export const useApplicationStore = defineStore('application', () => {
     existingEvidenceIds,
     existingImageUrls,
     existingOtherTypeName,
+    bankBookOcrResult,
+    bankBookOcrLoading,
     reviewComments,
     // actions
     setPdpa,
@@ -538,5 +560,8 @@ export const useApplicationStore = defineStore('application', () => {
     setExistingImage,
     clearExistingImage,
     clearAll,
+    setBankBookOcrLoading,
+    setBankBookOcrResult,
+    clearBankBookOcr,
   }
 })
