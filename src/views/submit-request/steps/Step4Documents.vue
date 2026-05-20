@@ -77,6 +77,9 @@ const previewBankBook = computed(() => bankBook.previewUrl.value || app.existing
 // ─── Edit mode: loading flag ขณะ fetch รูปจาก server ──────────────────────────
 const fetchingImages = ref(false)
 
+// ─── Lightbox: แสดง preview เต็มจอสำหรับรูปสมุดบัญชี ──────────────────────────
+const showBankBookPreview = ref(false)
+
 // ตรวจสอบว่า slot มีรูปอยู่ (local file หรือ server blob URL ใน store)
 function hasImg(uploader: ReturnType<typeof useImageUpload>, key: string): boolean {
   return !!uploader.file.value || !!app.existingImageUrls[key]
@@ -459,14 +462,22 @@ defineExpose({
             {{ bankBook.error.value }}
           </p>
 
-          <!-- พรีวิวเมื่ออัปโหลดแล้ว (local file หรือ server image) -->
+          <!-- พรีวิวเมื่ออัปโหลดแล้ว (local file หรือ server image) — กดรูปเพื่อดูขนาดเต็ม -->
           <div v-if="previewBankBook" class="border border-slate-200 rounded-xl overflow-hidden">
-            <div class="relative">
+            <div class="relative group cursor-zoom-in" @click="showBankBookPreview = true">
               <img
                 :src="previewBankBook"
                 alt="รูปสมุดบัญชี"
                 class="w-full object-contain max-h-48 bg-slate-50"
               />
+              <!-- ไอคอน zoom ปรากฏเมื่อ hover -->
+              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
+                  <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                </div>
+              </div>
               <!-- loading overlay ขณะ compress หรือ fetch จาก server -->
               <div v-if="bankBook.isLoading.value || fetchingBankBook" class="absolute inset-0 bg-white/70 flex items-center justify-center">
                 <svg class="w-6 h-6 text-[#1A56DB] animate-spin" fill="none" viewBox="0 0 24 24">
@@ -658,4 +669,51 @@ defineExpose({
     </div>
 
   </div>
+
+  <!-- ════ Lightbox สมุดบัญชีธนาคาร ════ -->
+  <Teleport to="body">
+    <Transition name="bank-fade">
+      <div
+        v-if="showBankBookPreview && previewBankBook"
+        class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+      >
+        <!-- ปุ่มปิด -->
+        <button
+          type="button"
+          class="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-10"
+          @click="showBankBookPreview = false"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <!-- รูปขนาดเต็ม -->
+        <img
+          :src="previewBankBook"
+          alt="รูปสมุดบัญชีธนาคาร"
+          class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+          @click.stop
+        />
+
+        <!-- ป้ายชื่อด้านล่าง -->
+        <div class="absolute bottom-4 left-0 right-0 flex justify-center">
+          <span class="bg-black/50 text-white text-[13px] px-4 py-1.5 rounded-full">
+            รูปหน้าสมุดบัญชีธนาคาร
+          </span>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
+
+<style scoped>
+.bank-fade-enter-active,
+.bank-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.bank-fade-enter-from,
+.bank-fade-leave-to {
+  opacity: 0;
+}
+</style>
