@@ -2,7 +2,11 @@
 // Component นี้ reuse ได้ทุก step ที่ต้องอัปโหลดรูป
 // ใช้ <label for> แทน JS .click() เพื่อให้ capture="environment" ทำงานได้บน iOS
 
+import { ref } from 'vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+
+// สถานะแสดง/ซ่อน lightbox preview เต็มจอ
+const showPreview = ref(false)
 
 defineProps<{
   uploadId: string      // prefix ไม่ซ้ำกัน เช่น 'exterior', 'person' — ใช้สร้าง input id
@@ -85,13 +89,23 @@ function formatBytes(bytes: number): string {
       <span>กำลังประมวลผลรูปภาพ...</span>
     </div>
 
-    <!-- พรีวิวเมื่ออัปโหลดแล้ว -->
+    <!-- พรีวิวเมื่ออัปโหลดแล้ว — กดที่รูปเพื่อดูขนาดเต็ม -->
     <div v-else-if="previewUrl" class="px-3 pb-3">
-      <img
-        :src="previewUrl"
-        alt="รูปที่อัปโหลด"
-        class="w-full rounded-lg object-contain max-h-44 bg-slate-50 mb-2"
-      />
+      <div class="relative group cursor-zoom-in mb-2" @click="showPreview = true">
+        <img
+          :src="previewUrl"
+          alt="รูปที่อัปโหลด"
+          class="w-full rounded-lg object-contain max-h-44 bg-slate-50"
+        />
+        <!-- ไอคอน zoom ปรากฏเมื่อ hover -->
+        <div class="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+            </svg>
+          </div>
+        </div>
+      </div>
       <div class="flex items-center justify-between">
         <div class="flex flex-col min-w-0 max-w-[75%]">
           <span class="text-[12px] text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
@@ -133,4 +147,52 @@ function formatBytes(bytes: number): string {
       @change="$emit('file-select', $event)"
     />
   </div>
+
+  <!-- ════ Lightbox: กดที่รูปเพื่อดูขนาดเต็มจอ ════ -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div
+        v-if="showPreview && previewUrl"
+        class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+      >
+        <!-- ปุ่มปิด -->
+        <button
+          type="button"
+          class="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-10"
+          @click="showPreview = false"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <!-- รูปขนาดเต็ม -->
+        <img
+          :src="previewUrl"
+          :alt="title"
+          class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+          @click.stop
+        />
+
+        <!-- ชื่อรูปด้านล่าง -->
+        <div class="absolute bottom-4 left-0 right-0 flex justify-center">
+          <span class="bg-black/50 text-white text-[13px] px-4 py-1.5 rounded-full">
+            {{ title }}
+          </span>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
+
+<style scoped>
+/* animation เปิด/ปิด lightbox */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

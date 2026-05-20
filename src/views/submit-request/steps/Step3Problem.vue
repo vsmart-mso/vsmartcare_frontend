@@ -30,8 +30,8 @@ const aidTypes    = ref<string[]>([])
 const aidOtherText = ref('')  // รายละเอียดเพิ่มเติมเมื่อเลือก "ช่วยเหลือเรื่องอื่นๆ"
 const aidTypeOptions = ref<{ value: string; label: string }[]>([])
 
-// id ของตัวเลือก "ช่วยเหลือเรื่องอื่นๆ" (backend กำหนด id=3 คงที่)
-const OTHER_AID_TYPE_ID = '3'
+// id ของตัวเลือก "ช่วยเหลือเรื่องอื่นๆ" (backend กำหนด id=1 คงที่)
+const OTHER_AID_TYPE_ID = '1'
 
 // ตรวจว่าปัจจุบันเลือก "อื่นๆ" อยู่ไหม — ใช้ควบคุมการแสดงช่องกรอกรายละเอียด
 const isOtherAidSelected = computed(() => aidTypes.value.includes(OTHER_AID_TYPE_ID))
@@ -216,9 +216,11 @@ defineExpose({
           <textarea
             v-model="aidOtherText"
             rows="3"
+            maxlength="500"
             placeholder="โปรดระบุรายละเอียดความช่วยเหลือที่ต้องการ..."
             class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
           />
+          <p class="text-right text-[11px] text-slate-400 mt-1">{{ aidOtherText.length }}/500</p>
         </div>
 
         <!-- 10.2 ข้อมูลบัญชีธนาคาร — ยกเลิกตามมติประชุม 2026-05-19
