@@ -18,6 +18,7 @@ const isLoading  = ref(true)
 const loadError  = ref('')
 const caseData   = ref<CaseDisplayRead | null>(null)
 const statusLogs = ref<StatusLogItem[]>([])
+const count037   = ref(0)  // จำนวนฟอร์ม 037 ที่เบิกจ่ายแล้ว
 
 // ─── Auth ───────────────────────────────────────────────────────────────────────
 function isThaiDUser(u: unknown): u is ThaiDUser {
@@ -30,7 +31,24 @@ const fullName  = computed(() => {
   return `${u.title} ${u.fname} ${u.lname}`.trim()
 })
 const avatarLetter = computed(() => thaiDUser.value?.fname?.charAt(0) ?? fullName.value.charAt(0))
-const nationalId   = computed(() => thaiDUser.value?.pid ?? '—')
+// แสดงเลขบัตรประชาชนแบบ mask ตามมาตรฐานสากล: แสดงตัวแรกและ 4 ตัวสุดท้าย
+// ตัวอย่าง: 1234567890123 → 1-XXXX-XXXXX-XX-3
+function formatNationalId(pid: string): string {
+  const d = pid.replace(/\D/g, '')
+  if (d.length !== 13) return pid
+  return `${d[0]}-${d.slice(1,5)}-${d.slice(5,10)}-${d.slice(10,12)}-${d[12]}`
+}
+function maskNationalId(pid: string): string {
+  const d = pid.replace(/\D/g, '')
+  if (d.length !== 13) return pid
+  return `${d[0]}-XXXX-XXXXX-XX-${d[12]}`
+}
+const showFullId = ref(false)
+const nationalId = computed(() => {
+  const pid = thaiDUser.value?.pid
+  if (!pid) return '—'
+  return showFullId.value ? formatNationalId(pid) : maskNationalId(pid)
+})
 
 // ─── Query param: รับทั้ง applicantId และ caseId (fallback) ────────────────────
 const applicantIdParam = computed(() => {
@@ -55,11 +73,26 @@ const EDIT_DATA_STATUS_ID   = 8
 const DISBURSED_STATUS_ID   = 10  // DB id ที่ trigger การประเมินความพึงพอใจ
 
 const currentStatusId = computed(() => caseData.value?.current_status?.id ?? 0)
+
+// กรณีพิเศษ: สถานะ id=4 (เบิกจ่ายสำเร็จ) แต่ยังไม่มีข้อมูลฟอร์ม 037 → ยังอยู่ระหว่างการเบิก
+const isPendingDisbursement = computed(() =>
+  currentStatusId.value === 4 && count037.value === 0,
+)
+
 // ตำแหน่ง timeline ของสถานะปัจจุบัน (0 ถ้าไม่อยู่ใน map)
-const currentTimelineStep = computed(() => DB_STATUS_TO_STEP[currentStatusId.value] ?? 0)
+// ถ้า isPendingDisbursement → บังคับให้อยู่ที่ step 3 (อยู่ระหว่างการเบิก)
+const currentTimelineStep = computed(() => {
+  if (isPendingDisbursement.value) return 3
+  return DB_STATUS_TO_STEP[currentStatusId.value] ?? 0
+})
+
 const isRejected   = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData   = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
-const isDisbursed  = computed(() => currentStatusId.value === DISBURSED_STATUS_ID)
+// แสดงแบบสอบถามเมื่อ: สถานะ id=10 หรือ id=4 ที่มี count_037 > 0 (เบิกจ่ายสำเร็จจริง)
+const isDisbursed  = computed(() =>
+  (currentStatusId.value === DISBURSED_STATUS_ID || currentStatusId.value === 4) &&
+  !isPendingDisbursement.value,
+)
 
 const commentsByStep = computed<Record<number, ReviewComment[]>>(() => {
   const groups: Record<number, ReviewComment[]> = { 1: [], 2: [], 3: [], 4: [] }
@@ -79,11 +112,13 @@ const caseNumber = computed(() =>
   caseData.value?.case_number ?? (caseData.value ? `#${caseData.value.applicant_id}` : '—')
 )
 
-const currentStatusLabel = computed(() =>
-  caseData.value?.current_status?.description_public ?? '—'
-)
+const currentStatusLabel = computed(() => {
+  if (isPendingDisbursement.value) return 'อยู่ระหว่างการเบิก'
+  return caseData.value?.current_status?.description_public ?? '—'
+})
 
 const currentStatusColor = computed(() => {
+  if (isPendingDisbursement.value) return '#ff0000'
   const s = caseData.value?.current_status
   if (!s) return '#64748b'
   return s.color
@@ -132,10 +167,11 @@ onMounted(async () => {
       return
     }
 
-    // 2. ดึงประวัติการเปลี่ยนสถานะ (ถ้าล้มเหลว แสดงข้อมูลหลักได้ปกติ)
+    // 2. ดึงประวัติการเปลี่ยนสถานะและ count_037 (ถ้าล้มเหลว แสดงข้อมูลหลักได้ปกติ)
     try {
       const detail = await welfareApi.getCase(caseData.value.applicant_id)
       statusLogs.value = [...detail.welfare_request_status_logs].reverse()
+      count037.value = detail.count_037 ?? 0
     } catch {
       // ใช้ข้อมูลจาก display แทน
     }
@@ -149,8 +185,11 @@ onMounted(async () => {
       }
     }
 
-    // 4. ถ้าสถานะ=4 (เบิกจ่ายสำเร็จ) เช็กว่าเคยประเมิน aid_received แล้วหรือยัง
-    if (caseData.value.current_status?.id === DISBURSED_STATUS_ID) {
+    // 4. ถ้าสถานะ id=10 หรือ id=4 ที่มี count_037 > 0 เช็กว่าเคยประเมิน aid_received แล้วหรือยัง
+    if (
+      caseData.value.current_status?.id === DISBURSED_STATUS_ID ||
+      (caseData.value.current_status?.id === 4 && count037.value !== 0)
+    ) {
       try {
         const surveys = await welfareApi.getSatisfactionSurveys(caseData.value.applicant_id)
         const alreadyRated = surveys.some(s => s.survey_type === 'aid_received')
@@ -172,9 +211,10 @@ function stepState(stepId: number): 'done' | 'active' | 'pending' {
   const pos = currentTimelineStep.value
   if (stepId < pos) return 'done'
   if (stepId === pos) {
-    // step 2 (รับเรื่องเรียบร้อย) และ step 4 (เบิกจ่ายสำเร็จ) เป็น "milestone สำเร็จ"
-    // → แสดง green checkmark แทน amber clock
-    if (stepId === 2 || stepId === 4) return 'done'
+    // step 2 (รับเรื่องเรียบร้อย) เป็น milestone สำเร็จ → green checkmark
+    // step 4 (เบิกจ่ายสำเร็จ) เป็น milestone สำเร็จ เฉพาะเมื่อไม่ใช่ isPendingDisbursement
+    if (stepId === 2) return 'done'
+    if (stepId === 4 && !isPendingDisbursement.value) return 'done'
     return 'active'
   }
   return 'pending'
@@ -315,7 +355,26 @@ function scrollTimeline(dir: 'left' | 'right') {
           </div>
           <div class="min-w-0">
             <p class="text-[15px] font-semibold text-slate-800 truncate">{{ fullName }}</p>
-            <p class="text-[13px] text-slate-500">{{ nationalId }}</p>
+            <div class="flex items-center gap-1.5">
+              <p class="text-[13px] text-slate-500 font-mono">{{ nationalId }}</p>
+              <button
+                v-if="thaiDUser?.pid"
+                type="button"
+                @click="showFullId = !showFullId"
+                class="text-slate-400 hover:text-slate-600 active:scale-90 transition-all flex-shrink-0"
+                :aria-label="showFullId ? 'ซ่อนเลขบัตรประชาชน' : 'แสดงเลขบัตรประชาชน'"
+              >
+                <!-- ไอคอนตา (เปิด) — แสดงเมื่อกำลัง mask อยู่ -->
+                <svg v-if="!showFullId" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <!-- ไอคอนตาขีดทับ (ปิด) — แสดงเมื่อกำลังแสดงครบอยู่ -->
+                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 

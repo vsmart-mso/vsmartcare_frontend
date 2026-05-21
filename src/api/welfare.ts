@@ -256,6 +256,7 @@ export interface FullCaseDetail {
   welfare_request_status_logs: StatusLogItem[]
   latest_welfare_request_status: StatusLogItem | null
   created_at: string | null
+  count_037: number
 }
 
 // ─── Review Comments (welfare-edit-request) ────────────────────────────────────

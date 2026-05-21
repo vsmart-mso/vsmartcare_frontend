@@ -138,9 +138,11 @@ defineExpose({
         <textarea
           v-model="problemDescription"
           rows="5"
+          maxlength="500"
           placeholder="อธิบายสภาพปัญหาและความเดือดร้อนที่ประสบ..."
           class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
         />
+        <p class="text-right text-[11px] text-slate-400 mt-1">{{ problemDescription.length }}/500</p>
 
       </div>
     </div>

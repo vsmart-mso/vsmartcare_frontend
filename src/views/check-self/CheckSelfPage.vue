@@ -120,7 +120,8 @@ const formReady = computed(() =>
 // ─── Handlers: income input ───────────────────────────────────────────────────
 function handleIncomeInput(e: Event) {
   const input = e.target as HTMLInputElement
-  const digitsOnly = input.value.replace(/[^0-9]/g, '')
+  // จำกัด 10 หลัก — รายได้/ปี ไม่ควรเกินค่านี้ และกัน overflow ฝั่ง backend
+  const digitsOnly = input.value.replace(/[^0-9]/g, '').slice(0, 10)
   annualIncome.value = digitsOnly
   const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('th-TH') : ''
   displayIncome.value = formatted
@@ -339,6 +340,7 @@ function handleBack() {
             :value="selectedOccupation"
             @input="handleOccupationInput"
             type="text"
+            maxlength="255"
             placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
             class="w-full bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             :class="occupationError ? 'border-red-300' : selectedOccupation ? 'border-slate-300' : 'border-slate-200'"

@@ -84,9 +84,10 @@ function toggleItem(arr: string[], value: string) {
   else arr.splice(idx, 1)
 }
 
+// จำนวนนับ (received_count) เป็น integer ใน DB — จำกัด 9 หลักกัน overflow
 function handleNumericInput(e: Event, setter: (v: string) => void) {
   const el = e.target as HTMLInputElement
-  const digits = el.value.replace(/[^0-9]/g, '')
+  const digits = el.value.replace(/[^0-9]/g, '').slice(0, 9)
   setter(digits)
   el.value = digits
 }
@@ -98,9 +99,10 @@ function formatMoney(val: string): string {
 }
 
 // รับ input จากช่องเงิน — เก็บแค่ตัวเลข แต่แสดงพร้อมลูกน้ำ
+// DB เก็บเป็น Numeric(12,2) → จำนวนเต็มได้สูงสุด 10 หลัก
 function handleMoneyInput(e: Event, setter: (v: string) => void) {
   const el = e.target as HTMLInputElement
-  const digits = el.value.replace(/[^0-9]/g, '')
+  const digits = el.value.replace(/[^0-9]/g, '').slice(0, 10)
   setter(digits)
   el.value = digits ? Number(digits).toLocaleString('th-TH') : ''
 }
@@ -240,6 +242,7 @@ defineExpose({
             :value="familyOccupation"
             @input="handleFamilyOccupationInput"
             type="text"
+            maxlength="255"
             placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
             class="w-full border rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             :class="familyOccupationError ? 'border-red-300' : 'border-slate-200'"
@@ -316,6 +319,7 @@ defineExpose({
             <input
               v-model="incomeSourceOther"
               type="text"
+              maxlength="500"
               placeholder="ระบุรายละเอียด"
               class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
@@ -386,6 +390,7 @@ defineExpose({
             <input
               v-model="caregiverOther"
               type="text"
+              maxlength="500"
               placeholder="ระบุรายละเอียด"
               class="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
@@ -540,6 +545,7 @@ defineExpose({
                         :value="aidTypeDetails[opt.value] ?? ''"
                         @input="aidTypeDetails[opt.value] = ($event.target as HTMLInputElement).value"
                         type="text"
+                        maxlength="500"
                         placeholder="ระบุรายละเอียด"
                         class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
                       />

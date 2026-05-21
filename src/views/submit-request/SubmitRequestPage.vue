@@ -55,9 +55,19 @@ const step3OcrState = computed<Step3OcrState>(() => {
   if (app.bankBookOcrLoading) return 'loading'
   const r = app.bankBookOcrResult
   if (!r) return 'ok' // ยังไม่มีผล หรือล้างแล้ว — แสดงปกติ
-  const s = r.bank_info?.match_status
-  if (s === 'match') return 'ok'
-  if (s === 'review') return 'review'
+  const info = r.bank_info
+  const s = info?.match_status
+
+  // ต้องอ่านข้อมูลได้ครบทั้ง 3 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี
+  // ถ้าขาดอย่างใดอย่างหนึ่ง → ถือว่าไม่ผ่าน (bad) แม้ชื่อจะตรงก็ตาม
+  const hasAllInfo = !!(
+    info?.bank_name?.trim() &&
+    info?.account_number?.trim() &&
+    info?.account_name?.trim()
+  )
+
+  if (s === 'match')  return hasAllInfo ? 'ok' : 'bad'
+  if (s === 'review') return hasAllInfo ? 'review' : 'bad'
   // mismatch, blurry, no_text หรือ error → bad
   if (s === 'mismatch' || s === 'blurry' || s === 'no_text') return 'bad'
   return 'ok'

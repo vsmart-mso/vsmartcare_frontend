@@ -437,6 +437,7 @@ defineExpose({
           <input
             v-model="otherDocName"
             type="text"
+            maxlength="255"
             placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
             :class="[
               'w-full border rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',

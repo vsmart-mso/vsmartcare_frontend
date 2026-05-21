@@ -582,6 +582,7 @@ defineExpose({
               @blur="touched.houseNo = true"
               type="text"
               inputmode="text"
+              maxlength="50"
               class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
               :class="errors.houseNo ? 'border-red-300' : 'border-slate-200'"
             />
@@ -597,6 +598,7 @@ defineExpose({
               @input="(e) => handleDigitsInput(e, v => mooNum = v)"
               type="text"
               inputmode="numeric"
+              maxlength="50"
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
@@ -611,6 +613,7 @@ defineExpose({
           <input
             v-model="villageName"
             type="text"
+            maxlength="255"
             class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
@@ -625,6 +628,7 @@ defineExpose({
             <input
               v-model="alley"
               type="text"
+              maxlength="255"
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
@@ -636,6 +640,7 @@ defineExpose({
             <input
               v-model="soi"
               type="text"
+              maxlength="255"
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
@@ -650,6 +655,7 @@ defineExpose({
           <input
             v-model="road"
             type="text"
+            maxlength="255"
             class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
@@ -838,6 +844,7 @@ defineExpose({
             v-model="email"
             type="email"
             inputmode="email"
+            maxlength="255"
             placeholder="example@email.com"
             @blur="touched.email = true"
             class="w-full border rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
@@ -1009,6 +1016,7 @@ defineExpose({
               type="text"
               inputmode="numeric"
               pattern="[0-9]*"
+              maxlength="3"
               placeholder="0"
               class="w-full border rounded-xl px-3 py-2.5 pr-10 text-[14px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
               :class="errors.familyCount
