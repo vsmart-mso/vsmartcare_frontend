@@ -363,7 +363,7 @@ defineExpose({
          Section 12: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
          ════════════════════════════════════════════════════════ -->
     <div
-      v-if="['doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))"
+      v-if="['doc_house_registration_house','doc_house_registration_person','doc_other','bank_book_photo'].some(f => show(f))"
       class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -374,8 +374,8 @@ defineExpose({
       </div>
       <div class="p-4 space-y-3">
 
-        <!-- 12.1 header -->
-        <div>
+        <!-- 12.1 header — แสดงเฉพาะเมื่อมี field เอกสารแนบ (ไม่นับรูปสมุดบัญชี) -->
+        <div v-if="['doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">12.1</span>
             <span class="text-[13px] font-medium text-slate-600">เอกสารประกอบ</span>

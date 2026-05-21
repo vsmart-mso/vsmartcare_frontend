@@ -6,6 +6,7 @@ import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
+import { linkOcrResult } from '@/api/ocr'
 import Step1PersonalInfo from '@/views/submit-request/steps/Step1PersonalInfo.vue'
 import Step2Economics   from '@/views/submit-request/steps/Step2Economics.vue'
 import Step3Problem     from '@/views/submit-request/steps/Step3Problem.vue'
@@ -106,6 +107,27 @@ const anyLoading = computed(() =>
   (showStep4.value && step4Loading.value)
 )
 
+// ─── OCR gate ของรูปสมุดบัญชี (เฉพาะเมื่อ bank_book_photo อยู่ใน scope การแก้ไข) ──
+// เลียนแบบ logic ใน SubmitRequestPage: ระหว่าง OCR โหลด หรือผลไม่ผ่าน/ข้อมูลไม่ครบ
+// → ห้ามบันทึก กันผู้ใช้กดก่อน OCR ตรวจเสร็จ
+const editingBankBook = computed(() => filterFields4.value.includes('bank_book_photo'))
+
+const ocrBlocksSubmit = computed(() => {
+  if (!editingBankBook.value) return false
+  if (app.bankBookOcrLoading) return true
+  const info = app.bankBookOcrResult?.bank_info
+  if (!info) return false // ยังไม่มีผล (ยังไม่เปลี่ยนรูป) — ใช้รูปเดิมได้ ไม่บล็อก
+  const s = info.match_status
+  // ต้องอ่านได้ครบ ธนาคาร + เลขที่บัญชี + ชื่อบัญชี
+  const hasAllInfo = !!(
+    info.bank_name?.trim() &&
+    info.account_number?.trim() &&
+    info.account_name?.trim()
+  )
+  if (s === 'match' || s === 'review') return !hasAllInfo
+  return true // mismatch, blurry, no_text
+})
+
 // ─── Submit ─────────────────────────────────────────────────────────────────────
 const isSubmitting = ref(false)
 const submitError  = ref('')
@@ -119,6 +141,14 @@ async function handleSave() {
     return
   }
   if (isSubmitting.value) return
+
+  // กัน OCR สมุดบัญชียังไม่เสร็จ หรือผลไม่ผ่าน
+  if (ocrBlocksSubmit.value) {
+    submitError.value = app.bankBookOcrLoading
+      ? 'กรุณารอตรวจสอบรูปสมุดบัญชีธนาคารให้เสร็จก่อนบันทึก'
+      : 'กรุณาอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้องก่อนบันทึก'
+    return
+  }
 
   isSubmitting.value = true
   submitError.value  = ''
@@ -191,7 +221,14 @@ async function handleSave() {
     }
 
     const editedId = app.editApplicantId
+
+    // ผูกผล OCR กับ applicant_id (กรณีอัปโหลดรูปสมุดบัญชีใหม่) ก่อนล้าง store
+    const ocrId = app.bankBookOcrResultId
     app.clearAll()
+    if (ocrId != null) {
+      linkOcrResult(ocrId, editedId!).catch(() => { /* silent — ไม่ block การแก้ไขที่สำเร็จแล้ว */ })
+    }
+
     router.push({ name: 'case-tracking', query: { applicantId: String(editedId) } })
 
   } catch (err: unknown) {
@@ -330,17 +367,17 @@ const STEP_LABELS: Record<number, string> = {
         <button
           type="button"
           @click="handleSave"
-          :disabled="isSubmitting || anyLoading"
+          :disabled="isSubmitting || anyLoading || ocrBlocksSubmit"
           class="flex-1 py-3 rounded-xl text-[14px] font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          :class="allReady && !isSubmitting && !anyLoading
+          :class="allReady && !isSubmitting && !anyLoading && !ocrBlocksSubmit
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-blue-700'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
         >
-          <svg v-if="isSubmitting || anyLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <svg v-if="isSubmitting || anyLoading || (ocrBlocksSubmit && app.bankBookOcrLoading)" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
           </svg>
-          {{ isSubmitting ? 'กำลังบันทึก...' : anyLoading ? 'กำลังโหลด...' : 'บันทึกการแก้ไข' }}
+          {{ isSubmitting ? 'กำลังบันทึก...' : anyLoading ? 'กำลังโหลด...' : (ocrBlocksSubmit && app.bankBookOcrLoading) ? 'กำลังตรวจสอบสมุดบัญชี...' : 'บันทึกการแก้ไข' }}
         </button>
       </div>
     </footer>
