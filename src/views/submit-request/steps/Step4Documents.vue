@@ -127,6 +127,9 @@ const isReady = computed(() =>
   (!show('evidence_problem_photo')  || hasImg(problem,  'problem'))  &&
   (!show('evidence_family_photo')   || hasImg(family,   'family'))   &&
   (!show('bank_book_photo')         || hasImg(bankBook, 'bank_book')) &&
+  // ทะเบียนบ้าน 2 ใบเป็น required — ต้องมีรูปครบจึงจะไปต่อได้
+  (!show('doc_house_registration_house')   || hasImg(houseHome,   'house_home'))   &&
+  (!show('doc_house_registration_person')  || hasImg(housePerson, 'house_person')) &&
   !otherDocNameRequired.value
 )
 
@@ -374,82 +377,14 @@ defineExpose({
       </div>
       <div class="p-4 space-y-3">
 
-        <!-- 12.1 header — แสดงเฉพาะเมื่อมี field เอกสารแนบ (ไม่นับรูปสมุดบัญชี) -->
-        <div v-if="['doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))">
+        <!-- 12.1 header — แสดงเมื่อมี field เอกสารแนบ หรือรูปสมุดบัญชี -->
+        <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">12.1</span>
             <span class="text-[13px] font-medium text-slate-600">เอกสารประกอบ</span>
           </div>
-          <p class="text-[12px] text-slate-500 ml-0.5">หากมีเอกสารเพิ่มเติม สามารถแนบได้</p>
+          <p class="text-[12px] text-slate-500 ml-0.5">กรุณาแนบเอกสารที่จำเป็น (มีเครื่องหมาย *) ให้ครบ หากมีเอกสารอื่นเพิ่มเติมสามารถแนบได้</p>
         </div>
-
-        <!-- ทะเบียนบ้าน (รายการบ้าน) -->
-        <PhotoUploadCard
-          v-if="show('doc_house_registration_house')"
-          upload-id="house-home"
-          title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
-          subtitle="หน้าทะเบียนบ้าน"
-          icon="document"
-          :preview-url="previewHouseHome"
-          :file-name="houseHome.file.value?.name"
-          :file-size="houseHome.file.value?.size"
-          :is-loading="houseHome.isLoading.value || fetchingImages"
-          :error="houseHome.error.value"
-          :alert-reason="commentMap.get('doc_house_registration_house')"
-          @file-select="houseHome.handleFileSelect"
-          @clear="clrImg(houseHome, 'house_home')"
-        />
-
-        <!-- ทะเบียนบ้าน (รายการบุคคล) -->
-        <PhotoUploadCard
-          v-if="show('doc_house_registration_person')"
-          upload-id="house-person"
-          title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
-          subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
-          icon="document"
-          :preview-url="previewHousePerson"
-          :file-name="housePerson.file.value?.name"
-          :file-size="housePerson.file.value?.size"
-          :is-loading="housePerson.isLoading.value || fetchingImages"
-          :error="housePerson.error.value"
-          :alert-reason="commentMap.get('doc_house_registration_person')"
-          @file-select="housePerson.handleFileSelect"
-          @clear="clrImg(housePerson, 'house_person')"
-        />
-
-        <!-- รูปอื่น ๆ -->
-        <PhotoUploadCard
-          v-if="show('doc_other')"
-          upload-id="other-doc"
-          title="รูปอื่น ๆ"
-          subtitle="เอกสารแนบเพิ่มเติม"
-          icon="document"
-          :preview-url="previewOtherDoc"
-          :file-name="otherDoc.file.value?.name"
-          :file-size="otherDoc.file.value?.size"
-          :is-loading="otherDoc.isLoading.value || fetchingImages"
-          :error="otherDoc.error.value"
-          :alert-reason="commentMap.get('doc_other')"
-          @file-select="otherDoc.handleFileSelect"
-          @clear="clrImg(otherDoc, 'other_doc')"
-        >
-          <!-- input ชื่อเอกสาร อยู่ตรงกลางระหว่าง header กับปุ่มอัปโหลด -->
-          <input
-            v-model="otherDocName"
-            type="text"
-            maxlength="255"
-            placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
-            :class="[
-              'w-full border rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
-              otherDocNameRequired
-                ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
-                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
-            ]"
-          />
-          <p v-if="otherDocNameRequired" class="text-[11px] text-red-500 mt-1">
-            กรุณาระบุชื่อเอกสาร
-          </p>
-        </PhotoUploadCard>
 
         <!-- ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายจาก Step3 มา) — บังคับ + มี OCR ───────── -->
         <div v-if="show('bank_book_photo')">
@@ -543,7 +478,7 @@ defineExpose({
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              กดเพื่อ เลือก/ถ่าย ภาพ
+              กดเพื่อ เลือก/ถ่ายภาพ
             </label>
           </div>
 
@@ -555,6 +490,76 @@ defineExpose({
             @change="bankBook.handleFileSelect"
           />
         </div>
+
+        <!-- ทะเบียนบ้าน (รายการบ้าน) -->
+        <PhotoUploadCard
+          v-if="show('doc_house_registration_house')"
+          upload-id="house-home"
+          title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
+          subtitle="หน้าทะเบียนบ้าน"
+          icon="document"
+          required
+          :preview-url="previewHouseHome"
+          :file-name="houseHome.file.value?.name"
+          :file-size="houseHome.file.value?.size"
+          :is-loading="houseHome.isLoading.value || fetchingImages"
+          :error="houseHome.error.value"
+          :alert-reason="commentMap.get('doc_house_registration_house')"
+          @file-select="houseHome.handleFileSelect"
+          @clear="clrImg(houseHome, 'house_home')"
+        />
+
+        <!-- ทะเบียนบ้าน (รายการบุคคล) -->
+        <PhotoUploadCard
+          v-if="show('doc_house_registration_person')"
+          upload-id="house-person"
+          title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
+          subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
+          icon="document"
+          required
+          :preview-url="previewHousePerson"
+          :file-name="housePerson.file.value?.name"
+          :file-size="housePerson.file.value?.size"
+          :is-loading="housePerson.isLoading.value || fetchingImages"
+          :error="housePerson.error.value"
+          :alert-reason="commentMap.get('doc_house_registration_person')"
+          @file-select="housePerson.handleFileSelect"
+          @clear="clrImg(housePerson, 'house_person')"
+        />
+
+        <!-- รูปอื่น ๆ -->
+        <PhotoUploadCard
+          v-if="show('doc_other')"
+          upload-id="other-doc"
+          title="รูปอื่น ๆ"
+          subtitle="เอกสารแนบเพิ่มเติม"
+          icon="document"
+          :preview-url="previewOtherDoc"
+          :file-name="otherDoc.file.value?.name"
+          :file-size="otherDoc.file.value?.size"
+          :is-loading="otherDoc.isLoading.value || fetchingImages"
+          :error="otherDoc.error.value"
+          :alert-reason="commentMap.get('doc_other')"
+          @file-select="otherDoc.handleFileSelect"
+          @clear="clrImg(otherDoc, 'other_doc')"
+        >
+          <!-- input ชื่อเอกสาร อยู่ตรงกลางระหว่าง header กับปุ่มอัปโหลด -->
+          <input
+            v-model="otherDocName"
+            type="text"
+            maxlength="255"
+            placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
+            :class="[
+              'w-full border rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+              otherDocNameRequired
+                ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+            ]"
+          />
+          <p v-if="otherDocNameRequired" class="text-[11px] text-red-500 mt-1">
+            กรุณาระบุชื่อเอกสาร
+          </p>
+        </PhotoUploadCard>
 
       </div>
     </div>

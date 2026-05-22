@@ -92,6 +92,116 @@ const allReady = computed(() =>
   (!showStep4.value || step4Ready.value)
 )
 
+// ─── Dirty check: ต้องแก้ไข "ทุก" field ที่ถูกตีกลับก่อน จึงจะบันทึกได้ ────────────
+// เก็บ snapshot ค่า "ตั้งต้น" ของแต่ละ step ทันทีที่ restore เสร็จ (loading = false)
+// แล้วเทียบทีละ field ตอนจะบันทึก — ถ้ายังมี field ใดที่ค่าเท่าเดิม = ยังไม่ได้แก้ → ห้ามบันทึก
+// (เทียบผ่าน getData() ทั้งคู่ จึง normalize เหมือนกัน ไม่เกิด false dirty จากการแปลงค่า)
+const baseline = ref<Record<number, string | null>>({})
+
+/** อ่าน instance ของ step component ตามหมายเลข (null = ยังไม่ mount) */
+function stepInstance(step: number): StepExpose | null {
+  const r = ({ 1: step1Ref, 2: step2Ref, 3: step3Ref } as const)[step as 1 | 2 | 3]
+  return (r?.value as unknown as StepExpose) ?? null
+}
+
+/** snapshot ค่าปัจจุบันของ step เป็น JSON string (null = ยังไม่มี ref ให้อ่าน) */
+function snapshot(step: number): string | null {
+  const inst = stepInstance(step)
+  if (!inst?.getData) return null
+  return JSON.stringify(inst.getData())
+}
+
+/** เก็บค่าตั้งต้นครั้งเดียวต่อ step — เรียกตอน loading กลายเป็น false หลัง restore */
+function captureBaseline(step: number) {
+  if (baseline.value[step] != null) return
+  baseline.value = { ...baseline.value, [step]: snapshot(step) }
+}
+
+// field รูปภาพ (step 4) → docType ใน documentsMeta — ถือว่า "แก้ไข" เมื่อมีไฟล์ใหม่ถูกอัปโหลด
+const FILE_FIELD_DOCTYPE: Record<string, string> = {
+  evidence_house_exterior:       'exterior',
+  evidence_house_interior:       'interior',
+  evidence_person_photo:         'person',
+  evidence_problem_photo:        'problem',
+  evidence_family_photo:         'family',
+  doc_house_registration_house:  'house_home',
+  doc_house_registration_person: 'house_person',
+  doc_other:                     'other_doc',
+  bank_book_photo:               'bank_book',
+}
+
+// แปลงชื่อ field (จาก reviewComments) → ค่าที่ใช้เทียบ จาก object ผลของ getData()
+// คืน null = ไม่รู้จัก field นี้ (จะถูกข้าม ไม่นำมาบังคับ — กันเคส field ที่ยังไม่มีในฟอร์ม)
+function fieldValue(name: string, data: Record<string, unknown> | null): string | null {
+  if (!data) return null
+  const a = (data.address as Record<string, unknown>) ?? {}
+  const c = (data.contact as Record<string, unknown>) ?? {}
+  switch (name) {
+    // ── Step 1: ที่อยู่ / ติดต่อ / ข้อมูลทั่วไป ──
+    case 'current_address_house_no':    return String(a.houseNo ?? '')
+    case 'current_address_moo':         return String(a.mooNum ?? '')
+    case 'current_address_village':     return String(a.villageName ?? '')
+    case 'current_address_alley':       return String(a.alley ?? '')
+    case 'current_address_soi':         return String(a.soi ?? '')
+    case 'current_address_road':        return String(a.road ?? '')
+    case 'current_address_province':    return String(a.province ?? '')
+    case 'current_address_district':    return String(a.district ?? '')
+    case 'current_address_subdistrict': return String(a.subdistrict ?? '')
+    case 'current_address_gps':         return `${a.gpsLat ?? ''},${a.gpsLng ?? ''}`
+    case 'contact_phone_home':          return String(c.phone ?? '')
+    case 'contact_fax':                 return String(c.fax ?? '')
+    case 'contact_mobile':              return String(c.mobile ?? '')
+    case 'contact_email':               return String(c.email ?? '')
+    case 'marital_status':              return String(data.maritalStatus ?? '')
+    case 'housing_type':                return String(data.housingType ?? '')
+    case 'housing_rent':                return String(data.rentPerMonth ?? '')
+    case 'family_members_count':        return String(data.familyCount ?? '')
+    // ── Step 2: เศรษฐกิจ / สวัสดิการ ──
+    case 'family_occupation':   return String(data.familyOccupation ?? '')
+    case 'family_income':       return String(data.monthlyIncome ?? '')
+    case 'income_sources':      return JSON.stringify(data.incomeSources ?? [])
+    case 'income_source_other': return String(data.incomeSourceOther ?? '')
+    case 'dependents':          return JSON.stringify(data.caregiverRoles ?? [])
+    case 'dependents_other':    return String(data.caregiverOther ?? '')
+    case 'gov_aid_received':    return String(data.govAidHistory ?? '')
+    case 'gov_aid_count':       return String(data.timesThisYear ?? '')
+    case 'gov_aid_amount':      return String(data.totalAmount ?? '')
+    case 'gov_aid_types':       return JSON.stringify(data.aidTypes ?? [])
+    case 'gov_aid_type_detail': return JSON.stringify(data.aidTypeDetails ?? {})
+    // ── Step 3: ปัญหา / ความช่วยเหลือ / ธนาคาร ──
+    case 'family_problems':             return String(data.problemDescription ?? '')
+    case 'requested_assistance_type':   return JSON.stringify(data.aidTypes ?? [])
+    case 'requested_assistance_detail': return String(data.aidOtherText ?? '')
+    case 'bank_name':                   return String(data.bankNameId ?? '')
+    case 'bank_account_number':         return String(data.bankAccount ?? '')
+    default: return null
+  }
+}
+
+// true = แก้ไขครบ "ทุก" field ที่ถูกตีกลับแล้ว (ถ้ายังเหลือ field ที่ค่าเท่าเดิม → false)
+const allFieldsEdited = computed(() => {
+  const comments = app.reviewComments.filter(c => c.name !== 'remarks')
+  if (comments.length === 0) return false // ไม่มีอะไรให้แก้ (ปกติ guard redirect ไปแล้ว)
+
+  for (const c of comments) {
+    // ── field รูปภาพ (step 4): ต้องอัปโหลดไฟล์ใหม่ทับ ──
+    const docType = FILE_FIELD_DOCTYPE[c.name]
+    if (docType) {
+      if (!app.documentsMeta.some(m => m.id === docType)) return false
+      continue
+    }
+    // ── field ข้อความ/ตัวเลือก: เทียบค่าปัจจุบันกับค่าตั้งต้นทีละ field ──
+    const base = baseline.value[c.step]
+    const cur  = snapshot(c.step)
+    if (base == null || cur == null) return false // restore ยังไม่เสร็จ → ยังบันทึกไม่ได้
+    const baseVal = fieldValue(c.name, JSON.parse(base) as Record<string, unknown>)
+    const curVal  = fieldValue(c.name, JSON.parse(cur)  as Record<string, unknown>)
+    if (baseVal == null) continue        // resolver ไม่รู้จัก field → ข้าม ไม่บังคับ
+    if (baseVal === curVal) return false  // field นี้ยังไม่ถูกแก้ → ห้ามบันทึก
+  }
+  return true
+})
+
 // ─── สถานะการโหลดของแต่ละ step ──────────────────────────────────────────────
 // แต่ละ step component ดึง options จาก API ตอน mount และส่งสถานะนี้กลับมา
 // ระหว่างที่ step ใดยังโหลดอยู่ จะปิดปุ่ม "บันทึกการแก้ไข" กันผู้ใช้กดก่อนพร้อม
@@ -141,6 +251,12 @@ async function handleSave() {
     return
   }
   if (isSubmitting.value) return
+
+  // ต้องแก้ไขครบทุก field ที่ถูกตีกลับก่อน — ถ้ายังมีหัวข้อที่ค่าเท่าเดิม ไม่ให้บันทึก
+  if (!allFieldsEdited.value) {
+    submitError.value = 'กรุณาแก้ไขข้อมูลให้ครบทุกหัวข้อที่ถูกตีกลับก่อนกดบันทึก'
+    return
+  }
 
   // กัน OCR สมุดบัญชียังไม่เสร็จ หรือผลไม่ผ่าน
   if (ocrBlocksSubmit.value) {
@@ -289,7 +405,7 @@ const STEP_LABELS: Record<number, string> = {
           ref="step1Ref"
           :filterFields="filterFields1"
           @update:ready="v => step1Ready = v"
-          @update:loading="v => step1Loading = v"
+          @update:loading="v => { step1Loading = v; if (!v) captureBaseline(1) }"
         />
       </template>
 
@@ -305,7 +421,7 @@ const STEP_LABELS: Record<number, string> = {
           ref="step2Ref"
           :filterFields="filterFields2"
           @update:ready="v => step2Ready = v"
-          @update:loading="v => step2Loading = v"
+          @update:loading="v => { step2Loading = v; if (!v) captureBaseline(2) }"
         />
       </template>
 
@@ -321,7 +437,7 @@ const STEP_LABELS: Record<number, string> = {
           ref="step3Ref"
           :filterFields="filterFields3"
           @update:ready="v => step3Ready = v"
-          @update:loading="v => step3Loading = v"
+          @update:loading="v => { step3Loading = v; if (!v) captureBaseline(3) }"
         />
       </template>
 
@@ -369,7 +485,7 @@ const STEP_LABELS: Record<number, string> = {
           @click="handleSave"
           :disabled="isSubmitting || anyLoading || ocrBlocksSubmit"
           class="flex-1 py-3 rounded-xl text-[14px] font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          :class="allReady && !isSubmitting && !anyLoading && !ocrBlocksSubmit
+          :class="allReady && allFieldsEdited && !isSubmitting && !anyLoading && !ocrBlocksSubmit
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-blue-700'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
         >
