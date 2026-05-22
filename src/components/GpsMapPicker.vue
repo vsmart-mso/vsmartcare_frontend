@@ -19,7 +19,8 @@ const emit = defineEmits<{
 }>()
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const inputMode       = ref<'map' | 'manual'>('map') // สลับระหว่างโหมดแผนที่กับกรอกพิกัด
+// เริ่มต้นที่โหมด 'manual' เพื่อให้ผู้ใช้กดรับพิกัด GPS ได้ทันที (สลับไปโหมดแผนที่ได้ภายหลัง)
+const inputMode       = ref<'map' | 'manual'>('manual') // สลับระหว่างโหมดแผนที่กับกรอกพิกัด
 const searchQuery     = ref('')
 const searchResults   = ref<NominatimResult[]>([])
 const isSearching     = ref(false)
@@ -325,20 +326,20 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
             {{ inputMode === 'map' ? 'ค้นหาที่อยู่หรือเลือกจุดบนแผนที่' : 'กดรับพิกัดอัตโนมัติหรือกรอกพิกัดด้วยตนเอง' }}
           </p>
         </div>
-        <!-- Toggle แผนที่ / กรอกพิกัด -->
+        <!-- Toggle กรอกพิกัด / แผนที่ — เรียง "กรอกพิกัด" ไว้ซ้ายให้ตรงกับโหมดเริ่มต้น -->
         <div class="flex rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 text-[12px] font-semibold">
           <button
             type="button"
-            @click="inputMode = 'map'"
-            class="px-3 py-1.5 transition-colors"
-            :class="inputMode === 'map' ? 'bg-[#1A56DB] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
-          >แผนที่</button>
-          <button
-            type="button"
             @click="inputMode = 'manual'"
-            class="px-3 py-1.5 transition-colors border-l border-slate-200"
+            class="px-3 py-1.5 transition-colors"
             :class="inputMode === 'manual' ? 'bg-[#1A56DB] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
           >กรอกพิกัด</button>
+          <button
+            type="button"
+            @click="inputMode = 'map'"
+            class="px-3 py-1.5 transition-colors border-l border-slate-200"
+            :class="inputMode === 'map' ? 'bg-[#1A56DB] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+          >แผนที่</button>
         </div>
       </div>
     </div>

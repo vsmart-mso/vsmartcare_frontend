@@ -89,6 +89,16 @@ watch(
     try {
       const result = await ocrBankBook(file, targetName, null, controller.signal)
       if (seq !== _seq) return // มี request ใหม่มาแล้ว
+
+      // ── ทำความสะอาดเลขที่บัญชี: เก็บเฉพาะตัวเลข ──────────────────────────────
+      // OCR อาจอ่านเลขบัญชีติด - ช่องว่าง หรือตัวอักษร/อักขระพิเศษมาด้วย
+      // เลขบัญชีธนาคารต้องเป็นตัวเลขล้วน จึงตัดทุกอย่างที่ไม่ใช่ตัวเลขออก
+      // ถ้าตัดแล้วเหลือว่าง (เช่น OCR อ่านมาเป็นตัวอักษรล้วน) จะถือว่าข้อมูลไม่ครบ
+      // ผ่าน bankInfoComplete → แสดง error และบล็อกการส่งโดยอัตโนมัติ
+      if (result.bank_info) {
+        result.bank_info.account_number = sanitizeAccountNumber(result.bank_info.account_number)
+      }
+
       ocrResult.value = result
       app.setBankBookOcrResult(result)
 
@@ -131,6 +141,15 @@ const bankInfoComplete = computed(() => {
   const i = ocrResult.value?.bank_info
   return !!(i?.bank_name?.trim() && i?.account_number?.trim() && i?.account_name?.trim())
 })
+
+/**
+ * เก็บเฉพาะตัวเลขจากเลขที่บัญชีที่ OCR อ่านได้
+ * \D คือ "ทุกอักขระที่ไม่ใช่ตัวเลข" → ตัด - ช่องว่าง ตัวอักษร และอักขระพิเศษออกทั้งหมด
+ * เช่น "123-4-56789-0" → "1234567890", "abc123" → "123", null → ''
+ */
+function sanitizeAccountNumber(raw: string | null): string {
+  return (raw ?? '').replace(/\D/g, '')
+}
 
 /** หา bank_name_id จากชื่อธนาคารที่ OCR อ่านได้ (fuzzy match กับ label) */
 function findBankId(bankName: string | null): string | null {
