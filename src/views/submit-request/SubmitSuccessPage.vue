@@ -73,6 +73,7 @@ function goToTracking() {
 }
 
 // ─── Satisfaction Survey ─────────────────────────────────────────────────────
+/* [ปิดใช้งานชั่วคราว] แบบประเมินความพึงพอใจหลังกรอกฟอร์ม — เดี๋ยวอนาคตจะกลับมาใช้
 // สถานะ: 'pending' = ยังไม่ประเมิน | 'submitting' = กำลังส่ง | 'done' = ส่งแล้ว
 const surveyState   = ref<'pending' | 'submitting' | 'done'>('pending')
 const selectedRating = ref(0)   // 1-5 ดาวที่ user กด (0 = ยังไม่เลือก)
@@ -107,6 +108,7 @@ async function submitSurvey() {
 function skipSurvey() {
   surveyState.value = 'done'
 }
+*/
 </script>
 
 <template>
@@ -180,10 +182,14 @@ function skipSurvey() {
         </div>
       </div>
 
-      <!-- ── Card: ประเมินความพึงพอใจ ── -->
+      <!-- ════════════════════════════════════════════════════════════════
+           [ปิดใช้งานชั่วคราว] แบบประเมินความพึงพอใจ "หลังกรอกฟอร์มสำเร็จ"
+           เก็บโค้ดไว้ก่อน เดี๋ยวอนาคตจะกลับมาเปิดใช้งานใหม่
+           (หมายเหตุ: HTML comment ซ้อนกันไม่ได้ จึงถอดคอมเมนต์ย่อยภายในออกชั่วคราว)
+           ════════════════════════════════════════════════════════════════
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-        <!-- สถานะ: ส่งแล้ว ── แสดงขอบคุณ -->
+        สถานะ: ส่งแล้ว ── แสดงขอบคุณ
         <div v-if="surveyState === 'done'" class="flex flex-col items-center px-5 py-6 gap-2">
           <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mb-1">
             <svg class="w-7 h-7 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -194,9 +200,9 @@ function skipSurvey() {
           <p class="text-[13px] text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาระบบ</p>
         </div>
 
-        <!-- สถานะ: ยังไม่ประเมิน / กำลังส่ง -->
+        สถานะ: ยังไม่ประเมิน / กำลังส่ง
         <template v-else>
-          <!-- หัว -->
+          หัว
           <div class="flex gap-3 px-4 pt-4 pb-3">
             <div class="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
               <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
@@ -212,7 +218,7 @@ function skipSurvey() {
           <div class="px-4 pb-4 space-y-4">
             <p class="text-[13px] text-slate-600">ท่านพึงพอใจกับระบบการยื่นคำขอรับความช่วยเหลือมากน้อยเพียงใด?</p>
 
-            <!-- ดาว 1-5 -->
+            ดาว 1-5
             <div class="flex justify-center gap-3">
               <button
                 v-for="star in 5"
@@ -237,7 +243,7 @@ function skipSurvey() {
               </button>
             </div>
 
-            <!-- ช่องความคิดเห็นเพิ่มเติม (ไม่บังคับ) -->
+            ช่องความคิดเห็นเพิ่มเติม (ไม่บังคับ)
             <textarea
               v-model="surveyComment"
               rows="2"
@@ -246,10 +252,10 @@ function skipSurvey() {
               class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
             />
 
-            <!-- error -->
+            error
             <p v-if="surveyError" class="text-[12px] text-red-500 text-center">{{ surveyError }}</p>
 
-            <!-- ปุ่ม -->
+            ปุ่ม
             <div class="flex gap-2">
               <button
                 type="button"
@@ -274,6 +280,7 @@ function skipSurvey() {
           </div>
         </template>
       </div>
+      -->
 
       <!-- ── ปุ่ม ── -->
       <div class="space-y-3 pt-1 pb-4">

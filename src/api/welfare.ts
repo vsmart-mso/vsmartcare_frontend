@@ -182,6 +182,9 @@ export interface StatusLogItem {
     description_staff: string
     color: string
   }
+  // หมายเหตุ/เหตุผลที่เจ้าหน้าที่บันทึกตอนเปลี่ยนสถานะ
+  // กรณีปฏิเสธ (status 5) field นี้จะเก็บเหตุผลที่คุณสมบัติไม่ผ่านเกณฑ์
+  remarks: string | null
   created_at: string
   updated_at: string
 }
@@ -259,6 +262,16 @@ export interface FullCaseDetail {
   count_037: number
 }
 
+// ─── Approve Case (การอนุมัติเคสของเจ้าหน้าที่) ─────────────────────────────────
+// ใช้แยก stage ของช่วง "อยู่ระหว่างการเบิก": ถ้า row ล่าสุด approve_status === true
+// แปลว่าเจ้าหน้าที่อนุมัติแล้ว (ก้าวจาก 33% → 66%)
+export interface ApproveCaseItem {
+  id: number
+  applicant_id: number
+  approve_status: boolean
+  user_sdshv: string | null
+}
+
 // ─── Review Comments (welfare-edit-request) ────────────────────────────────────
 
 export interface ReviewComment {
@@ -328,6 +341,15 @@ export const welfareApi = {
     return apiClient<StatusLogItem>('/v1/case_for_staff/welfare-request-status', {
       method: 'POST',
       body: { applicant_id: applicantId, current_status_id: currentStatusId },
+    })
+  },
+
+  // ดึงประวัติการอนุมัติเคส (approve_case) ของ applicant — ใช้เช็กว่าอนุมัติแล้วหรือยัง
+  // backend คืนรายการเรียงจากใหม่สุด (id desc); ผู้เรียกใช้ดู row ล่าสุด (index 0) เป็นสถานะปัจจุบัน
+  getApproveCases(applicantId: number) {
+    return apiClient<ApproveCaseItem[]>('/v1/case_for_staff/approve-case', {
+      method: 'GET',
+      query: { applicant_id: applicantId },
     })
   },
 

@@ -19,6 +19,7 @@ const loadError  = ref('')
 const caseData   = ref<CaseDisplayRead | null>(null)
 const statusLogs = ref<StatusLogItem[]>([])
 const count037   = ref(0)  // จำนวนฟอร์ม 037 ที่เบิกจ่ายแล้ว
+const approveStatus = ref(false)  // true = เจ้าหน้าที่อนุมัติเคสแล้ว (มี approve_case.approve_status=true)
 
 // ─── Auth ───────────────────────────────────────────────────────────────────────
 function isThaiDUser(u: unknown): u is ThaiDUser {
@@ -88,11 +89,44 @@ const currentTimelineStep = computed(() => {
 
 const isRejected   = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData   = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
+
+// เหตุผลที่ถูกปฏิเสธ (คุณสมบัติไม่ตรงตามหลักเกณฑ์)
+// เจ้าหน้าที่บันทึกไว้ในช่อง remarks ของ status log ที่มี current_status.id === 5
+// statusLogs ถูก reverse แล้ว (ล่าสุดอยู่หน้าสุด) → find จึงได้ remarks ของการปฏิเสธครั้งล่าสุด
+const rejectionReason = computed(() => {
+  if (!isRejected.value) return ''
+  const log = statusLogs.value.find(l => l.current_status.id === REJECTED_STATUS_ID)
+  return log?.remarks?.trim() ?? ''
+})
+/* [ปิดใช้งานชั่วคราว] ใช้คู่กับแบบประเมินหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้
 // แสดงแบบสอบถามเมื่อ: สถานะ id=10 หรือ id=4 ที่มี count_037 > 0 (เบิกจ่ายสำเร็จจริง)
 const isDisbursed  = computed(() =>
   (currentStatusId.value === DISBURSED_STATUS_ID || currentStatusId.value === 4) &&
   !isPendingDisbursement.value,
 )
+*/
+
+// ─── ความคืบหน้าการเบิกจ่าย (donut บน timeline step "อยู่ระหว่างการเบิก") ────────
+// แบ่งช่วง "อยู่ระหว่างการเบิก" ออกเป็น 3 ระยะ:
+//   • 33%  = เพิ่งเข้าสู่ช่วงเบิก (status 3) — รอเจ้าหน้าที่ตรวจสอบ/อนุมัติ
+//   • 66%  = status 3 + เจ้าหน้าที่อนุมัติแล้ว (approve_case.approve_status === true)
+//   • 100% = เบิกจ่ายสำเร็จ → step เปลี่ยนเป็น "เบิกจ่ายสำเร็จ" + ติ๊กถูก (เหมือนเดิม)
+//            ดังนั้น donut บน timeline จะแสดงแค่ 33% / 66% ตอน step นี้ active
+
+// อยู่ในช่วง "อยู่ระหว่างการเบิก" (timeline step 3) — รวมกรณี isPendingDisbursement
+const isDisbursementPhase = computed(() => currentTimelineStep.value === 3)
+
+// เปอร์เซ็นต์บน donut ตาม stage (ใช้ตอน step 3 กำลัง active → 33 หรือ 66)
+const disbursementPercent = computed(() => approveStatus.value ? 66 : 33)
+
+// สีของ donut บน timeline (ส้ม = กำลังดำเนินการ)
+const donutColor = '#F59E0B'
+
+// เรขาคณิตของ donut ขนาดเล็กบน timeline node (viewBox 36×36, ศูนย์กลาง 18,18, รัศมี 15)
+// stroke-dashoffset = เส้นรอบวง × (1 − percent/100) → ยิ่ง % มากเส้นยิ่งเต็มวง
+const DONUT_RADIUS = 15
+const donutCircumference = 2 * Math.PI * DONUT_RADIUS
+const donutOffset = computed(() => donutCircumference * (1 - disbursementPercent.value / 100))
 
 const commentsByStep = computed<Record<number, ReviewComment[]>>(() => {
   const groups: Record<number, ReviewComment[]> = { 1: [], 2: [], 3: [], 4: [] }
@@ -176,6 +210,20 @@ onMounted(async () => {
       // ใช้ข้อมูลจาก display แทน
     }
 
+    // 2.1 ถ้าอยู่ในช่วงเบิก/เบิกจ่าย (status 3, 4, 10) ดึง approve_case มาแยก stage 33%/66%
+    const sid = caseData.value.current_status?.id ?? 0
+    if (sid === 3 || sid === 4 || sid === DISBURSED_STATUS_ID) {
+      try {
+        // backend เรียง row ด้วย id.desc() (ใหม่สุดอยู่ index 0)
+        // เช็กจาก "row ล่าสุด" เท่านั้น เพื่อสะท้อนสถานะอนุมัติปัจจุบันจริง
+        // (กันกรณีเคยอนุมัติ=true แล้วภายหลังมี row ใหม่=false → ต้องถือเป็นยังไม่อนุมัติ)
+        const approves = await welfareApi.getApproveCases(caseData.value.applicant_id)
+        approveStatus.value = approves[0]?.approve_status ?? false
+      } catch {
+        // ไม่ใช่ข้อมูลหลัก — ไม่ block การแสดงผล (default = ยังไม่อนุมัติ → 33%)
+      }
+    }
+
     // 3. ถ้าสถานะ=8 (แก้ไขข้อมูล) ดึง review comments จากเจ้าหน้าที่
     if (caseData.value.current_status?.id === EDIT_DATA_STATUS_ID) {
       try {
@@ -185,6 +233,7 @@ onMounted(async () => {
       }
     }
 
+    /* [ปิดใช้งานชั่วคราว] แบบประเมินหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้
     // 4. ถ้าสถานะ id=10 หรือ id=4 ที่มี count_037 > 0 เช็กว่าเคยประเมิน aid_received แล้วหรือยัง
     if (
       caseData.value.current_status?.id === DISBURSED_STATUS_ID ||
@@ -198,6 +247,7 @@ onMounted(async () => {
         // ถ้าโหลดไม่ได้ แสดง form ให้ประเมินได้เลย (ไม่ block)
       }
     }
+    */
   } catch {
     loadError.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
@@ -263,6 +313,7 @@ async function handleEdit() {
 }
 
 // ─── Satisfaction Survey (aid_received) ───────────────────────────────────────
+/* [ปิดใช้งานชั่วคราว] แบบประเมินความพึงพอใจหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้
 const surveyState    = ref<'pending' | 'submitting' | 'done'>('pending')
 const selectedRating = ref(0)
 const hoverRating    = ref(0)
@@ -292,6 +343,7 @@ async function submitAidSurvey() {
 function skipAidSurvey() {
   surveyState.value = 'done'
 }
+*/
 
 // ─── ป้องกันกด back กลับไปหน้ากรอกฟอร์มหรือ check-self หลังจาก submit แล้ว ─────
 onBeforeRouteLeave((to) => {
@@ -462,7 +514,33 @@ function scrollTimeline(dir: 'left' | 'right') {
                 <template v-else>
                   <template v-for="(step, i) in TIMELINE_STEPS" :key="step.id">
                     <div class="flex flex-col items-center w-[72px]">
+
+                      <!-- step "อยู่ระหว่างการเบิก" ที่กำลัง active → donut แสดง % ความคืบหน้า (33/66) -->
                       <div
+                        v-if="step.id === 3 && stepState(step.id) === 'active' && isDisbursementPhase"
+                        class="relative w-9 h-9 flex-shrink-0"
+                      >
+                        <!-- -rotate-90 ให้เส้น progress เริ่มจากด้านบน (12 นาฬิกา) -->
+                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                          <circle cx="18" cy="18" :r="DONUT_RADIUS" fill="none" stroke="#FEF3C7" stroke-width="4" />
+                          <circle
+                            cx="18" cy="18" :r="DONUT_RADIUS"
+                            fill="none" :stroke="donutColor" stroke-width="4" stroke-linecap="round"
+                            :stroke-dasharray="donutCircumference"
+                            :stroke-dashoffset="donutOffset"
+                            class="transition-all duration-700 ease-out"
+                          />
+                        </svg>
+                        <!-- ตัวเลข % กลางวง -->
+                        <span
+                          class="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold leading-none"
+                          :style="{ color: donutColor }"
+                        >{{ disbursementPercent }}%</span>
+                      </div>
+
+                      <!-- node ปกติ -->
+                      <div
+                        v-else
                         class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
                         :class="{
                           'text-white shadow-md':                                stepState(step.id) === 'done',
@@ -519,10 +597,37 @@ function scrollTimeline(dir: 'left' | 'right') {
           </div>
         </div>
 
-        <!-- ── ประเมินความพึงพอใจการได้รับความช่วยเหลือ (แสดงเฉพาะเมื่อสถานะ = เบิกจ่ายสำเร็จ) ── -->
+        <!-- ── เหตุผลที่ถูกปฏิเสธ (แสดงเฉพาะเมื่อสถานะ = คุณสมบัติไม่ตรงตามหลักเกณฑ์ และมีเหตุผล) ── -->
+        <div
+          v-if="isRejected && rejectionReason"
+          class="bg-white rounded-2xl border-2 border-red-300 shadow-md shadow-red-100 overflow-hidden"
+        >
+          <!-- หัวการ์ด -->
+          <div class="flex items-center gap-3 bg-red-50 px-4 py-3.5 border-b border-red-200">
+            <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-[16px] font-bold text-red-700">เหตุผลที่ไม่ผ่านเกณฑ์</p>
+              <p class="text-[13px] text-red-600 mt-0.5">รายละเอียดจากเจ้าหน้าที่</p>
+            </div>
+          </div>
+          <!-- เนื้อความเหตุผล — whitespace-pre-wrap เพื่อรักษาการขึ้นบรรทัดที่เจ้าหน้าที่พิมพ์ -->
+          <div class="p-4">
+            <p class="text-[14px] text-slate-700 leading-relaxed whitespace-pre-wrap">{{ rejectionReason }}</p>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             [ปิดใช้งานชั่วคราว] แบบประเมินความพึงพอใจ "หลังเบิกจ่ายสำเร็จ"
+             เก็บโค้ดไว้ก่อน เดี๋ยวอนาคตจะกลับมาเปิดใช้งานใหม่
+             (หมายเหตุ: HTML comment ซ้อนกันไม่ได้ จึงถอดคอมเมนต์ย่อยภายในออกชั่วคราว)
+             ════════════════════════════════════════════════════════════════
         <div v-if="isDisbursed" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-          <!-- ส่งแล้ว: ขอบคุณ -->
+          ส่งแล้ว: ขอบคุณ
           <div v-if="surveyState === 'done'" class="flex flex-col items-center px-5 py-6 gap-2">
             <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mb-1">
               <svg class="w-7 h-7 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -533,9 +638,9 @@ function scrollTimeline(dir: 'left' | 'right') {
             <p class="text-[13px] text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาการให้บริการ</p>
           </div>
 
-          <!-- ยังไม่ประเมิน / กำลังส่ง -->
+          ยังไม่ประเมิน / กำลังส่ง
           <template v-else>
-            <!-- หัว -->
+            หัว
             <div class="flex gap-3 px-4 pt-4 pb-3">
               <div class="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
@@ -551,7 +656,7 @@ function scrollTimeline(dir: 'left' | 'right') {
             <div class="px-4 pb-4 space-y-4">
               <p class="text-[13px] text-slate-600">ท่านพึงพอใจกับการได้รับความช่วยเหลือครั้งนี้มากน้อยเพียงใด?</p>
 
-              <!-- ดาว 1-5 -->
+              ดาว 1-5
               <div class="flex justify-center gap-3">
                 <button
                   v-for="star in 5"
@@ -576,7 +681,7 @@ function scrollTimeline(dir: 'left' | 'right') {
                 </button>
               </div>
 
-              <!-- ช่องความคิดเห็น (ไม่บังคับ) -->
+              ช่องความคิดเห็น (ไม่บังคับ)
               <textarea
                 v-model="surveyComment"
                 rows="2"
@@ -585,10 +690,10 @@ function scrollTimeline(dir: 'left' | 'right') {
                 class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
               />
 
-              <!-- error -->
+              error
               <p v-if="surveyError" class="text-[13px] text-red-500 text-center">{{ surveyError }}</p>
 
-              <!-- ปุ่ม -->
+              ปุ่ม
               <div class="flex gap-2">
                 <button
                   type="button"
@@ -612,6 +717,7 @@ function scrollTimeline(dir: 'left' | 'right') {
             </div>
           </template>
         </div>
+        -->
 
        <!-- ── ตรวจสอบข้อมูลและยืนยัน (แสดงเฉพาะเมื่อสถานะ = แก้ไขข้อมูล) ── -->
         <div v-if="isEditData" class="bg-white rounded-2xl border-2 border-red-300 shadow-md shadow-red-100 overflow-hidden warn-card">

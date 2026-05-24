@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Step1PersonalInfo from './steps/Step1PersonalInfo.vue'
 import Step2Economics   from './steps/Step2Economics.vue'
@@ -38,7 +38,13 @@ const submitError  = ref('')
 const stepLoading = ref(false)
 
 // เมื่อสลับ step: รีเซ็ตสถานะโหลดก่อน — step ใหม่จะส่งค่าจริงกลับมาเองตอน mount
-watch(currentStep, () => { stepLoading.value = false })
+// แล้วเลื่อนหน้าจอกลับขึ้นบนสุด ไม่งั้น step ใหม่จะค้างอยู่ที่ตำแหน่ง scroll เดิมของ step ก่อนหน้า
+// ใช้ nextTick รอให้ DOM ของ step ใหม่ render เสร็จก่อน แล้วค่อยเลื่อน (กันการ clamp ตำแหน่งผิด)
+watch(currentStep, async () => {
+  stepLoading.value = false
+  await nextTick()
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+})
 
 const steps = [
   { id: 1, label: 'ข้อมูลส่วนตัว' },
