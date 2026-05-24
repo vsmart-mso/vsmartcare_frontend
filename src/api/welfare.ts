@@ -107,6 +107,8 @@ export interface CaseApplicantPayload {
   problem_details?: string | null
   bank_name_id?: number | null
   bank_account_no?: string | null
+  bank_account_type_id?: number | null   // ประเภทเงินฝาก (FK bank_account_type)
+  bank_branch_name?: string | null        // ชื่อสาขาจาก OCR
   age?: number | null
   reset_processing_state?: boolean
 }
@@ -235,6 +237,8 @@ export interface FullApplicantRead {
   problem_details: string | null
   bank_name_id: number | null
   bank_account_no: string | null
+  bank_account_type_id: number | null
+  bank_branch_name: string | null
   age: number | null
 }
 

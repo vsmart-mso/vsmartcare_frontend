@@ -49,6 +49,8 @@ const fetchingBankBook = ref(false)
 
 // bankOptions ดึงจาก lookups API — ส่งให้ BankBookOcrStatus ใช้ map ชื่อ→id
 const bankOptions = ref<{ value: string; label: string }[]>([])
+// accountTypeOptions (ประเภทเงินฝาก) — ส่งให้ BankBookOcrStatus ใช้ map deposit_type→id
+const accountTypeOptions = ref<{ value: string; label: string }[]>([])
 
 // ─── OCR helpers ────────────────────────────────────────────────────────────
 const ocrRef = ref<InstanceType<typeof BankBookOcrStatus> | null>(null)
@@ -64,10 +66,17 @@ const ocrTargetName = computed(() => {
 const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
 
 // OCR auto-fill: เขียนค่าลง store โดยตรง (Step3 unmount แล้ว — ใช้ setBankInfo)
-function handleOcrAutoFill(payload: { bankNameId: string; accountNumber: string }) {
+function handleOcrAutoFill(payload: {
+  bankNameId: string
+  accountNumber: string
+  bankAccountTypeId: string
+  branchName: string
+}) {
   app.setBankInfo(
-    payload.bankNameId   || app.step3?.bankNameId  || '',
-    payload.accountNumber || app.step3?.bankAccount || '',
+    payload.bankNameId        || app.step3?.bankNameId        || '',
+    payload.accountNumber     || app.step3?.bankAccount       || '',
+    payload.bankAccountTypeId || app.step3?.bankAccountTypeId || '',
+    payload.branchName        || app.step3?.bankBranchName    || '',
   )
 }
 
@@ -199,6 +208,10 @@ onMounted(async () => {
   // 3. ดึงรายชื่อธนาคารจาก API (ใช้ใน OCR auto-fill ของสมุดบัญชี)
   const bankNameData = await lookupsApi.fetchBankNames().catch(() => [])
   bankOptions.value  = bankNameData.map(d => ({ value: String(d.id), label: d.name }))
+
+  // ประเภทเงินฝาก (สำหรับ map OCR deposit_type → id)
+  const acctTypeData = await lookupsApi.fetchBankAccountTypes().catch(() => [])
+  accountTypeOptions.value = acctTypeData.map(d => ({ value: String(d.id), label: d.name }))
 
   // 4. Edit mode: lazy-fetch รูปเดิมจาก server (fetch เฉพาะ slot ที่ยังไม่มีรูป)
   //    โหมด edit-request: ดึงเฉพาะ slot ที่ field ถูกแสดง — เลี่ยงโหลดรูปที่ไม่ใช้
@@ -447,6 +460,7 @@ defineExpose({
             :file="bankBook.file.value"
             :target-name="ocrTargetName"
             :bank-options="bankOptions"
+            :account-type-options="accountTypeOptions"
             :disabled="ocrDisabled"
             @auto-fill="handleOcrAutoFill"
           />

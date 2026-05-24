@@ -26,6 +26,8 @@ export type ReceivedWelfareType = LookupItem
 export type RequestType = LookupItem
 /** ตอบจาก `GET /v1/lookups/bank-names` */
 export type BankNameType = LookupItem
+/** ตอบจาก `GET /v1/lookups/bank-account-types` (ประเภทเงินฝาก) */
+export type BankAccountType = LookupItem
 
 // ─── Module-level cache ────────────────────────────────────────────────────────
 // เก็บ Promise ไว้ด้วย เพื่อกัน race condition กรณีมีการเรียกพร้อมกันก่อน cache เสร็จ
@@ -78,4 +80,7 @@ export const lookupsApi = {
 
   /** รายชื่อธนาคาร */
   fetchBankNames: () => fetchLookup('/v1/lookups/bank-names'),
+
+  /** ประเภทเงินฝาก (เงินฝากออมทรัพย์ / ประจำ / กระแสรายวัน) */
+  fetchBankAccountTypes: () => fetchLookup('/v1/lookups/bank-account-types'),
 }

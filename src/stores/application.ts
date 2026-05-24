@@ -90,6 +90,8 @@ export interface Step3Data {
   aidOtherText: string        // welfare_request_types.request_other_text (เฉพาะ request_type_id=3)
   bankNameId: string          // applicants.bank_name_id (FK → bank_name.id)
   bankAccount: string         // applicants.bank_account_no
+  bankAccountTypeId: string   // applicants.bank_account_type_id (FK → bank_account_type.id) — map จาก OCR deposit_type
+  bankBranchName: string      // applicants.bank_branch_name — ชื่อสาขาจาก OCR
   // bankBookPhoto → ส่งแยกผ่าน files Map ใช้ key คงที่ 'bank_book'
 }
 
@@ -252,9 +254,14 @@ export const useApplicationStore = defineStore('application', () => {
 
   // อัปเดตเฉพาะข้อมูลบัญชี (เรียกจาก OCR auto-fill ใน Step4 — ตอนนั้น Step3 unmount แล้ว)
   // ถ้ายังไม่มี step3 ใน store ให้สร้าง draft ขึ้นมาก่อน
-  function setBankInfo(bankNameId: string, bankAccount: string) {
+  function setBankInfo(
+    bankNameId: string,
+    bankAccount: string,
+    bankAccountTypeId = '',
+    bankBranchName = '',
+  ) {
     if (step3.value) {
-      step3.value = { ...step3.value, bankNameId, bankAccount }
+      step3.value = { ...step3.value, bankNameId, bankAccount, bankAccountTypeId, bankBranchName }
     } else {
       step3.value = {
         problemDescription: '',
@@ -262,6 +269,8 @@ export const useApplicationStore = defineStore('application', () => {
         aidOtherText:       '',
         bankNameId,
         bankAccount,
+        bankAccountTypeId,
+        bankBranchName,
       }
     }
   }
@@ -397,6 +406,8 @@ export const useApplicationStore = defineStore('application', () => {
         problem_details:       s3?.problemDescription || null,
         bank_name_id:          Number(s3?.bankNameId) || null,
         bank_account_no:       s3?.bankAccount     || null,
+        bank_account_type_id:  Number(s3?.bankAccountTypeId) || null,
+        bank_branch_name:      s3?.bankBranchName  || null,
         age,
       },
       addresses,
@@ -488,6 +499,8 @@ export const useApplicationStore = defineStore('application', () => {
       aidOtherText:       caseData.welfare_request_types.find(rt => rt.request_other_text)?.request_other_text ?? '',
       bankNameId:         String(a.bank_name_id ?? ''),
       bankAccount:        a.bank_account_no ?? '',
+      bankAccountTypeId:  String(a.bank_account_type_id ?? ''),
+      bankBranchName:     a.bank_branch_name ?? '',
     }
 
     // ── Evidence IDs สำหรับ lazy-load รูปใน Step4 ───────────────────────────

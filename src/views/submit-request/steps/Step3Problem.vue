@@ -49,6 +49,8 @@ const isOtherAidSelected = computed(() => aidTypes.value.includes(OTHER_AID_TYPE
 // (Step4 เรียก app.setBankInfo() ตอน OCR auto-fill → Step3.onMounted restore กลับมา)
 const bankNameId  = ref('')   // applicants.bank_name_id
 const bankAccount = ref('')   // applicants.bank_account_no
+const bankAccountTypeId = ref('')  // applicants.bank_account_type_id (OCR map ประเภทเงินฝาก)
+const bankBranchName    = ref('')  // applicants.bank_branch_name (OCR ชื่อสาขา)
 
 // ─── หมายเหตุ: รูปสมุดบัญชี + OCR + เลขที่บัญชี ──────────────────────────────
 // ย้ายไป Step4Documents.vue (ต่อจาก "รูปอื่น ๆ") แล้วตามมติประชุม 2026-05-19
@@ -85,6 +87,8 @@ onMounted(async () => {
     aidOtherText.value       = s.aidOtherText ?? ''
     bankNameId.value         = s.bankNameId
     bankAccount.value        = s.bankAccount
+    bankAccountTypeId.value  = s.bankAccountTypeId ?? ''
+    bankBranchName.value     = s.bankBranchName ?? ''
     await nextTick()
   } else {
     // ตั้งค่าเริ่มต้น: เลือก "ช่วยเหลือเรื่องอื่นๆ" อัตโนมัติ
@@ -102,6 +106,8 @@ defineExpose({
     aidOtherText:       isOtherAidSelected.value ? aidOtherText.value : '',
     bankNameId:         bankNameId.value,
     bankAccount:        bankAccount.value.replace(/-/g, ''),
+    bankAccountTypeId:  bankAccountTypeId.value,
+    bankBranchName:     bankBranchName.value,
     // bankBookPhoto ส่งผ่าน store (key 'bank_book') — ไม่ส่งผ่าน getData()
   }),
 })
