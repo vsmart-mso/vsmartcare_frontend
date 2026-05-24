@@ -12,6 +12,9 @@ export interface BankInfo {
   account_number: string | null
   account_name: string | null
   bank_name: string | null
+  deposit_type: string | null   // ประเภทเงินฝาก เช่น "ออมทรัพย์"
+  branch_name: string | null    // ชื่อสาขา เช่น "เซ็นทรัลเวิลด์"
+  branch_code: string | null    // รหัสสาขา (ตัวเลข 2-6 หลัก)
   match_status: MatchStatus
   fuzzy_score: number
 }
@@ -31,6 +34,9 @@ export interface OcrResultRecord extends OcrBankBookResponse {
   account_number: string | null
   account_name: string | null
   bank_name: string | null
+  deposit_type: string | null
+  branch_name: string | null
+  branch_code: string | null
   match_status: MatchStatus
   fuzzy_score: number
   created_at: string

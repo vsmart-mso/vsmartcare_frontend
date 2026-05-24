@@ -64,12 +64,14 @@ const step3OcrState = computed<Step3OcrState>(() => {
   const info = r.bank_info
   const s = info?.match_status
 
-  // ต้องอ่านข้อมูลได้ครบทั้ง 3 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี
-  // ถ้าขาดอย่างใดอย่างหนึ่ง → ถือว่าไม่ผ่าน (bad) แม้ชื่อจะตรงก็ตาม
+  // ต้องอ่านข้อมูลได้ครบทั้ง 5 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี + ประเภทเงินฝาก + ชื่อสาขา
+  // (branch_code เป็นข้อมูลเสริม ไม่บังคับ) — ถ้าขาดอย่างใดอย่างหนึ่ง → ถือว่าไม่ผ่าน (bad) แม้ชื่อจะตรงก็ตาม
   const hasAllInfo = !!(
     info?.bank_name?.trim() &&
     info?.account_number?.trim() &&
-    info?.account_name?.trim()
+    info?.account_name?.trim() &&
+    info?.deposit_type?.trim() &&
+    info?.branch_name?.trim()
   )
 
   if (s === 'match')  return hasAllInfo ? 'ok' : 'bad'

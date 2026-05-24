@@ -25,12 +25,18 @@ const props = defineProps<{
   file: File | null
   targetName: string
   bankOptions: { value: string; label: string }[]
+  accountTypeOptions: { value: string; label: string }[]  // ประเภทเงินฝาก (master) สำหรับ map จาก OCR
   disabled?: boolean
 }>()
 
 // ─── Emits ──────────────────────────────────────────────────────────────────
 const emit = defineEmits<{
-  'auto-fill': [payload: { bankNameId: string; accountNumber: string }]
+  'auto-fill': [payload: {
+    bankNameId: string
+    accountNumber: string
+    bankAccountTypeId: string
+    branchName: string
+  }]
 }>()
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -106,10 +112,14 @@ watch(
       const info = result.bank_info
       if (info && (info.match_status === 'match' || info.match_status === 'review')) {
         const bankNameId = findBankId(info.bank_name)
-        if (bankNameId || info.account_number) {
+        const bankAccountTypeId = findAccountTypeId(info.deposit_type)
+        const branchName = info.branch_name?.trim() ?? ''
+        if (bankNameId || info.account_number || bankAccountTypeId || branchName) {
           emit('auto-fill', {
-            bankNameId:    bankNameId ?? '',
-            accountNumber: info.account_number ?? '',
+            bankNameId:        bankNameId ?? '',
+            accountNumber:     info.account_number ?? '',
+            bankAccountTypeId: bankAccountTypeId ?? '',
+            branchName,
           })
         }
       }
@@ -135,11 +145,18 @@ watch(
   },
 )
 
-// OCR ต้องอ่านข้อมูลได้ครบทั้ง 3 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี
+// OCR ต้องอ่านข้อมูลได้ครบทั้ง 5 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี + ประเภทเงินฝาก + ชื่อสาขา
+// (branch_code เป็นข้อมูลเสริม ไม่บังคับ เพราะสมุดหลายเล่มไม่พิมพ์รหัสสาขาชัด)
 // ถ้าขาดอย่างใดอย่างหนึ่ง ถือว่าไม่ผ่าน (ใช้คุม UI ให้สอดคล้องกับ gate ใน SubmitRequestPage)
 const bankInfoComplete = computed(() => {
   const i = ocrResult.value?.bank_info
-  return !!(i?.bank_name?.trim() && i?.account_number?.trim() && i?.account_name?.trim())
+  return !!(
+    i?.bank_name?.trim() &&
+    i?.account_number?.trim() &&
+    i?.account_name?.trim() &&
+    i?.deposit_type?.trim() &&
+    i?.branch_name?.trim()
+  )
 })
 
 /**
@@ -156,6 +173,19 @@ function findBankId(bankName: string | null): string | null {
   if (!bankName || props.bankOptions.length === 0) return null
   const match = props.bankOptions.find(
     opt => opt.label.includes(bankName) || bankName.includes(opt.label)
+  )
+  return match?.value ?? null
+}
+
+/**
+ * หา bank_account_type_id จากประเภทเงินฝากที่ OCR อ่านได้ (fuzzy match กับ label)
+ * เช่น OCR อ่าน "ออมทรัพย์" → master "เงินฝากออมทรัพย์" (label.includes(ocr) = true)
+ */
+function findAccountTypeId(depositType: string | null): string | null {
+  const t = depositType?.trim()
+  if (!t || props.accountTypeOptions.length === 0) return null
+  const match = props.accountTypeOptions.find(
+    opt => opt.label.includes(t) || t.includes(opt.label)
   )
   return match?.value ?? null
 }
@@ -204,6 +234,10 @@ defineExpose({ reset })
         <p v-if="ocrResult.bank_info.bank_name"><strong>ธนาคาร:</strong> {{ ocrResult.bank_info.bank_name }}</p>
         <p v-if="ocrResult.bank_info.account_number"><strong>เลขที่บัญชี:</strong> {{ ocrResult.bank_info.account_number }}</p>
         <p v-if="ocrResult.bank_info.account_name"><strong>ชื่อบัญชี:</strong> {{ ocrResult.bank_info.account_name }}</p>
+        <p v-if="ocrResult.bank_info.deposit_type"><strong>ประเภทเงินฝาก:</strong> {{ ocrResult.bank_info.deposit_type }}</p>
+        <p v-if="ocrResult.bank_info.branch_name">
+          <strong>สาขา:</strong> {{ ocrResult.bank_info.branch_name }}<template v-if="ocrResult.bank_info.branch_code"> ({{ ocrResult.bank_info.branch_code }})</template>
+        </p>
         <p class="text-[11px] text-emerald-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}%</p>
       </div>
     </div>
@@ -220,6 +254,10 @@ defineExpose({ reset })
         <p v-if="ocrResult.bank_info.bank_name"><strong>ธนาคาร:</strong> {{ ocrResult.bank_info.bank_name }}</p>
         <p v-if="ocrResult.bank_info.account_number"><strong>เลขที่บัญชี:</strong> {{ ocrResult.bank_info.account_number }}</p>
         <p v-if="ocrResult.bank_info.account_name"><strong>ชื่อบัญชี:</strong> {{ ocrResult.bank_info.account_name }}</p>
+        <p v-if="ocrResult.bank_info.deposit_type"><strong>ประเภทเงินฝาก:</strong> {{ ocrResult.bank_info.deposit_type }}</p>
+        <p v-if="ocrResult.bank_info.branch_name">
+          <strong>สาขา:</strong> {{ ocrResult.bank_info.branch_name }}<template v-if="ocrResult.bank_info.branch_code"> ({{ ocrResult.bank_info.branch_code }})</template>
+        </p>
         <p class="text-[11px] text-amber-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}% — อาจมีบางส่วนไม่ตรง</p>
       </div>
     </div>
@@ -235,12 +273,14 @@ defineExpose({ reset })
       <div>
         <p class="text-[13px] font-semibold text-red-700">อ่านข้อมูลสมุดบัญชีได้ไม่ครบ</p>
         <p class="text-[12px] text-red-600 mt-0.5">
-          ต้องอ่านได้ครบทั้ง ธนาคาร เลขที่บัญชี และชื่อบัญชี กรุณาถ่ายใหม่ให้ชัดหรืออัปโหลดรูปอื่น
+          ต้องอ่านได้ครบทั้ง ธนาคาร เลขที่บัญชี ชื่อบัญชี ประเภทเงินฝาก และชื่อสาขา กรุณาถ่ายใหม่ให้ชัดหรืออัปโหลดรูปอื่น
         </p>
         <ul class="text-[11px] text-red-500 mt-1 space-y-0.5">
           <li v-if="!ocrResult?.bank_info?.bank_name?.trim()">• ไม่พบ ธนาคาร</li>
           <li v-if="!ocrResult?.bank_info?.account_number?.trim()">• ไม่พบ เลขที่บัญชี</li>
           <li v-if="!ocrResult?.bank_info?.account_name?.trim()">• ไม่พบ ชื่อบัญชี</li>
+          <li v-if="!ocrResult?.bank_info?.deposit_type?.trim()">• ไม่พบ ประเภทเงินฝาก</li>
+          <li v-if="!ocrResult?.bank_info?.branch_name?.trim()">• ไม่พบ ชื่อสาขา</li>
         </ul>
       </div>
     </div>
