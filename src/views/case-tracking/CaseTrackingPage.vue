@@ -67,13 +67,19 @@ const TIMELINE_STEPS = [
 
 // map DB current_status.id → ตำแหน่ง step บน timeline (1–4)
 // DB id=10 ("อยู่ระหว่างการเบิก") แสดงเป็น step 4 "เบิกจ่ายสำเร็จ" บน UI
-const DB_STATUS_TO_STEP: Record<number, number> = { 1: 1, 2: 2, 3: 3, 10: 4, 4: 4 }
+// DB id=11 ("ส่งต่อข้อมูลเรียบร้อยแล้ว") ก็แสดงเป็น step 4 (ติ๊กถูกครบทุกขั้น เหมือนเบิกจ่ายสำเร็จ)
+const DB_STATUS_TO_STEP: Record<number, number> = { 1: 1, 2: 2, 3: 3, 10: 4, 4: 4, 11: 4 }
 
 const REJECTED_STATUS_ID    = 5
 const EDIT_DATA_STATUS_ID   = 8
 const DISBURSED_STATUS_ID   = 10  // DB id ที่ trigger การประเมินความพึงพอใจ
+const FORWARDED_STATUS_ID   = 11  // "ส่งต่อข้อมูลเรียบร้อยแล้ว" → แสดงเป็น "เบิกจ่ายสำเร็จ"
+const DISBURSED_SUCCESS_COLOR = '#009f75'  // สีเขียวของสถานะเบิกจ่ายสำเร็จ
 
 const currentStatusId = computed(() => caseData.value?.current_status?.id ?? 0)
+
+// สถานะ id=11 (ส่งต่อข้อมูลเรียบร้อยแล้ว) — ถือว่าเบิกจ่ายสำเร็จ ติ๊กถูกครบทุกขั้น
+const isForwarded = computed(() => currentStatusId.value === FORWARDED_STATUS_ID)
 
 // กรณีพิเศษ: สถานะ id=4 (เบิกจ่ายสำเร็จ) แต่ยังไม่มีข้อมูลฟอร์ม 037 → ยังอยู่ระหว่างการเบิก
 const isPendingDisbursement = computed(() =>
@@ -147,11 +153,13 @@ const caseNumber = computed(() =>
 )
 
 const currentStatusLabel = computed(() => {
+  if (isForwarded.value) return 'เบิกจ่ายสำเร็จ'   // id=11 → แสดงข้อความเบิกจ่ายสำเร็จ
   if (isPendingDisbursement.value) return 'อยู่ระหว่างการเบิก'
   return caseData.value?.current_status?.description_public ?? '—'
 })
 
 const currentStatusColor = computed(() => {
+  if (isForwarded.value) return DISBURSED_SUCCESS_COLOR   // id=11 → สีเขียวเบิกจ่ายสำเร็จ
   if (isPendingDisbursement.value) return '#ff0000'
   const s = caseData.value?.current_status
   if (!s) return '#64748b'
@@ -279,7 +287,8 @@ const filteredStatusLogs = computed(() => {
   for (const log of statusLogs.value) {
     const step = DB_STATUS_TO_STEP[log.current_status.id]
     if (!step) continue  // ข้ามสถานะพิเศษ (rejected=5, edit=8 ฯลฯ)
-    if (log.current_status.id === 4) continue  // id=4 ตามหลัง id=10 เสมอ ไม่แสดงในประวัติ
+    if (log.current_status.id === 4) continue   // id=4 ตามหลัง id=10 เสมอ ไม่แสดงในประวัติ
+    if (log.current_status.id === 11) continue  // id=11 (ส่งต่อข้อมูลฯ) แสดงเป็นเบิกจ่ายสำเร็จอยู่แล้ว ไม่แสดงซ้ำในประวัติ
 
     if (step < maxStep) {
       // regression: ลบ step ที่สูงกว่าออกทั้งหมด
