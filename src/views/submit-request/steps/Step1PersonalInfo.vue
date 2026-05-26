@@ -424,7 +424,7 @@ defineExpose({
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-[13px] font-bold">1</span>
         </div>
-        <p class="text-[14px] font-bold text-[#1A56DB]">ผู้ยื่นคำร้อง / ผู้แจ้งแทน / ผู้ยื่นคำขอ</p>
+        <p class="text-[14px] font-bold text-[#1A56DB]">ผู้ยื่นขอรับความช่วยเหลือ</p>
       </div>
       <div class="p-4">
 
