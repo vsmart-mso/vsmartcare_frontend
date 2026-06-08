@@ -260,6 +260,8 @@ onMounted(async () => {
     loadError.value = 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
   } finally {
     isLoading.value = false
+    // เช็ก notification หลัง skeleton หายแล้ว — กัน animation เล่นขณะโหลด
+    checkNotification()
   }
 })
 
@@ -361,6 +363,42 @@ onBeforeRouteLeave((to) => {
   }
 })
 
+// ─── Status Notification ──────────────────────────────────────────────────────
+// แสดง notification แถบแจ้งสถานะล่าสุดแก่ผู้ใช้เมื่อเข้าหน้านี้
+// เก็บ key ใน sessionStorage เพื่อไม่ให้แสดงซ้ำในรอบ session เดียวกัน
+
+const notifVisible = ref(false)
+
+// key เฉพาะต่อ applicant_id + status_id เพื่อ dismiss ได้แม่นยำ
+function getNotifKey(applicantId: number, statusId: number) {
+  return `notif_seen_${applicantId}_${statusId}`
+}
+
+function dismissNotif() {
+  if (!caseData.value) return
+  const key = getNotifKey(
+    caseData.value.applicant_id,
+    caseData.value.current_status?.id ?? 0,
+  )
+  sessionStorage.setItem(key, '1')  // บันทึกว่าเห็นแล้ว
+  notifVisible.value = false
+}
+
+// เรียกหลัง caseData โหลดสำเร็จ — เช็กว่าควรแสดง notification หรือเปล่า
+function checkNotification() {
+  if (!caseData.value) return
+  const statusId = caseData.value.current_status?.id
+
+  // ไม่แสดงถ้า: ยังไม่มีสถานะ หรืออยู่สถานะ 1 (รอรับเรื่อง — ยังไม่มีการเปลี่ยนแปลง)
+  if (!statusId || statusId === 1) return
+
+  // ไม่แสดงถ้าเคย dismiss ไปแล้วใน session นี้
+  const key = getNotifKey(caseData.value.applicant_id, statusId)
+  if (sessionStorage.getItem(key)) return
+
+  notifVisible.value = true
+}
+
 // ─── History collapse ──────────────────────────────────────────────────────────
 const historyOpen  = ref(true)
 const timelineRef  = ref<HTMLElement | null>(null)
@@ -408,6 +446,76 @@ function scrollTimeline(dir: 'left' | 'right') {
 
       <!-- Content -->
       <template v-else-if="caseData">
+
+        <!-- ── Notification: แจ้งเตือนสถานะล่าสุด ── -->
+        <Transition name="notif">
+          <div
+            v-if="notifVisible"
+            role="alert"
+            aria-live="polite"
+            class="relative flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-md overflow-hidden"
+            :style="{
+              backgroundColor: currentStatusColor + '12',
+              borderColor: currentStatusColor + '50',
+            }"
+          >
+            <!-- เส้นสีด้านบน card -->
+            <div
+              class="absolute top-0 left-0 right-0 h-[3px]"
+              :style="{ backgroundColor: currentStatusColor }"
+            ></div>
+
+            <!-- ไอคอนกระดิ่ง + ping ripple -->
+            <div class="relative flex-shrink-0">
+              <!-- วงขยาย 2 รอบแล้วหยุด -->
+              <span
+                class="absolute inset-0 rounded-full notif-ping"
+                :style="{ backgroundColor: currentStatusColor + '40' }"
+              ></span>
+              <div
+                class="relative w-9 h-9 rounded-full flex items-center justify-center"
+                :style="{ backgroundColor: currentStatusColor + '25' }"
+              >
+                <svg
+                  class="w-[18px] h-[18px] notif-bell"
+                  :style="{ color: currentStatusColor }"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- ข้อความ -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <!-- dot กระพริบเบาๆ -->
+                <span
+                  class="w-1.5 h-1.5 rounded-full flex-shrink-0 notif-dot"
+                  :style="{ backgroundColor: currentStatusColor }"
+                ></span>
+                <p class="text-[12px] font-medium text-slate-500">อัปเดตสถานะคำขอ</p>
+              </div>
+              <p
+                class="text-[15px] font-bold leading-snug"
+                :style="{ color: currentStatusColor }"
+              >{{ currentStatusLabel }}</p>
+            </div>
+
+            <!-- ปุ่ม dismiss -->
+            <button
+              type="button"
+              @click="dismissNotif"
+              class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-white/60 active:scale-90 transition-all"
+              aria-label="ปิดการแจ้งเตือน"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </Transition>
 
         <!-- ── User Card ── -->
         <div class="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-center gap-3">
@@ -1001,7 +1109,63 @@ function scrollTimeline(dir: 'left' | 'right') {
 </template>
 
 <style scoped>
-/* Card border pulse — ดึงดูดสายตาให้รู้ว่าต้องดำเนินการ */
+/* ── Notification card transitions ────────────────────────────────────────── */
+
+/* เข้า: spring bounce — ลงมาแล้ว overshoot เล็กน้อยก่อน settle */
+.notif-enter-active {
+  animation: notif-enter 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+/* ออก: เลื่อนขึ้นและ fade ออกเร็ว */
+.notif-leave-active {
+  animation: notif-leave 0.22s ease-in both;
+}
+/* กัน flash ก่อน animation เริ่ม */
+.notif-enter-from { opacity: 0; }
+.notif-leave-to   { opacity: 0; }
+
+@keyframes notif-enter {
+  from { opacity: 0; transform: translateY(-18px) scale(0.93); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes notif-leave {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-10px) scale(0.96); }
+}
+
+/* Bell ring — แกว่งครั้งเดียว หลัง card ปรากฏ 0.25s */
+.notif-bell {
+  animation: notif-bell-ring 0.85s ease-in-out 0.25s both;
+  transform-origin: top center;
+}
+@keyframes notif-bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  12% { transform: rotate(20deg); }
+  28% { transform: rotate(-16deg); }
+  44% { transform: rotate(11deg); }
+  58% { transform: rotate(-7deg); }
+  72% { transform: rotate(3deg); }
+  86% { transform: rotate(-1deg); }
+}
+
+/* Ping ripple — ขยายวง 2 รอบแล้วหยุด */
+.notif-ping {
+  animation: notif-ping-expand 0.75s cubic-bezier(0, 0, 0.2, 1) 0.15s 2 forwards;
+}
+@keyframes notif-ping-expand {
+  0%   { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+
+/* Status dot — กระพริบเบาๆ ต่อเนื่อง */
+.notif-dot {
+  animation: notif-dot-pulse 2s ease-in-out infinite;
+}
+@keyframes notif-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── Card border pulse — ดึงดูดสายตาให้รู้ว่าต้องดำเนินการ */
 @keyframes warn-border-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
   50%       { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
