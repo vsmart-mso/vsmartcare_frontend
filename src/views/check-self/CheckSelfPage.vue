@@ -377,15 +377,33 @@ function handleBack() {
         </div>
       </div>
 
-      <!-- Error: ไม่ผ่านเกณฑ์ → แสดงข้อความ ไม่ไปต่อ -->
+      <!-- Error: ไม่ผ่านเกณฑ์ → แสดงข้อความมาตรฐาน ไม่ไปต่อ -->
       <div
         v-if="failedEligibility"
-        class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4"
+        class="flex items-start gap-3 bg-red-50 border-2 border-red-300 rounded-2xl px-4 py-4 mb-4 shadow-md shadow-red-100"
         role="alert"
+        aria-live="assertive"
       >
-        <p class="text-[13px] text-red-700 leading-relaxed">
-          ไม่สามารถดำเนินการต่อได้ กรุณาตรวจสอบข้อมูลที่กรอกหรือติดต่อเจ้าหน้าที่
-        </p>
+        <!-- ไอคอน -->
+        <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+          </svg>
+        </div>
+        <!-- ข้อความทั้งหมดอยู่ด้วยกัน -->
+        <div class="flex-1 min-w-0">
+          <p class="text-[15px] font-bold text-red-700 leading-snug mb-1">
+            คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
+          </p>
+          <p class="text-[14px] text-red-800 leading-relaxed">
+            ระบบไม่สามารถดำเนินการต่อได้
+            หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
+              href="tel:1300"
+              class="font-bold underline underline-offset-2 hover:opacity-80 active:opacity-60"
+              aria-label="โทรหาสายด่วน ๑๓๐๐"
+            >๑๓๐๐</a>
+          </p>
+        </div>
       </div>
 
       <!-- Error: ข้อผิดพลาดจาก API -->
