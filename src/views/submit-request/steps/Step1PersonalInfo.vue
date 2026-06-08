@@ -210,12 +210,11 @@ const errors = computed(() => ({
     touched.mobile && !isValidMobile(mobile.value)
       ? 'เบอร์มือถือต้อง 10 หลัก ขึ้นต้นด้วย 06x / 08x / 09x เช่น 0812345678'
       : '',
+  // email optional — validate format เฉพาะเมื่อมีค่า
   email:
-    touched.email && !email.value.trim()
-      ? 'กรุณากรอกอีเมล'
-      : touched.email && !isValidEmail(email.value)
-        ? 'รูปแบบอีเมลไม่ถูกต้อง'
-        : '',
+    touched.email && email.value.trim() && !isValidEmail(email.value)
+      ? 'รูปแบบอีเมลไม่ถูกต้อง'
+      : '',
   maritalStatus:
     touched.maritalStatus && !maritalStatus.value
       ? 'กรุณาเลือกสถานภาพสมรส'
@@ -290,7 +289,7 @@ const isReady = computed(() => {
     (!show('current_address_district')    || addr.district.value    !== '') &&
     (!show('current_address_subdistrict') || addr.subdistrict.value !== '') &&
     (!show('contact_mobile')              || isValidMobile(mobile.value))   &&
-    (!show('contact_email')               || isValidEmail(email.value))     &&
+    (!show('contact_email')               || !email.value.trim() || isValidEmail(email.value.trim())) &&
     (!show('marital_status')              || maritalStatus.value    !== '') &&
     (!show('housing_type')                || housingType.value      !== '') &&
     (!show('family_members_count')        || familyCount.value      !== '')
@@ -834,10 +833,10 @@ defineExpose({
           <p v-if="errors.mobile" class="text-[11px] text-red-500 mt-1 px-1">{{ errors.mobile }}</p>
         </div>
 
-        <!-- อีเมล — required, validate format -->
+        <!-- อีเมล — optional, validate format เฉพาะเมื่อมีค่า -->
         <div v-if="show('contact_email')">
           <label class="flex items-center gap-1 text-[12px] text-slate-600 mb-1.5 font-medium">
-            <span>อีเมล <span class="text-red-500">*</span></span>
+            <span>อีเมล</span>
             <FieldAlert v-if="commentMap.has('contact_email')" :reason="commentMap.get('contact_email')!" />
           </label>
           <input
