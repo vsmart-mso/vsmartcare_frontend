@@ -96,14 +96,8 @@ const currentTimelineStep = computed(() => {
 const isRejected   = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData   = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
 
-// เหตุผลที่ถูกปฏิเสธ (คุณสมบัติไม่ตรงตามหลักเกณฑ์)
-// เจ้าหน้าที่บันทึกไว้ในช่อง remarks ของ status log ที่มี current_status.id === 5
-// statusLogs ถูก reverse แล้ว (ล่าสุดอยู่หน้าสุด) → find จึงได้ remarks ของการปฏิเสธครั้งล่าสุด
-const rejectionReason = computed(() => {
-  if (!isRejected.value) return ''
-  const log = statusLogs.value.find(l => l.current_status.id === REJECTED_STATUS_ID)
-  return log?.remarks?.trim() ?? ''
-})
+// หมายเหตุ: ไม่แสดง remarks ของเจ้าหน้าที่ให้ประชาชนเห็น (TASK-02)
+// ใช้ข้อความมาตรฐาน "คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น..." แทน
 /* [ปิดใช้งานชั่วคราว] ใช้คู่กับแบบประเมินหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้
 // แสดงแบบสอบถามเมื่อ: สถานะ id=10 หรือ id=4 ที่มี count_037 > 0 (เบิกจ่ายสำเร็จจริง)
 const isDisbursed  = computed(() =>
@@ -606,26 +600,31 @@ function scrollTimeline(dir: 'left' | 'right') {
           </div>
         </div>
 
-        <!-- ── เหตุผลที่ถูกปฏิเสธ (แสดงเฉพาะเมื่อสถานะ = คุณสมบัติไม่ตรงตามหลักเกณฑ์ และมีเหตุผล) ── -->
+        <!-- ── แจ้งผลไม่ผ่านเกณฑ์ (แสดงเฉพาะเมื่อสถานะ = คุณสมบัติไม่ตรงตามหลักเกณฑ์) ── -->
+        <!-- ไม่แสดง remarks จากเจ้าหน้าที่ — ใช้ข้อความมาตรฐานตาม TASK-02 -->
         <div
-          v-if="isRejected && rejectionReason"
-          class="bg-white rounded-2xl border-2 border-red-300 shadow-md shadow-red-100 overflow-hidden"
+          v-if="isRejected"
+          class="flex items-start gap-3 bg-red-50 border-2 border-red-300 rounded-2xl px-4 py-4 shadow-md shadow-red-100"
         >
-          <!-- หัวการ์ด -->
-          <div class="flex items-center gap-3 bg-red-50 px-4 py-3.5 border-b border-red-200">
-            <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
-              </svg>
-            </div>
-            <div>
-              <p class="text-[16px] font-bold text-red-700">เหตุผลที่ไม่ผ่านเกณฑ์</p>
-              <p class="text-[13px] text-red-600 mt-0.5">รายละเอียดจากเจ้าหน้าที่</p>
-            </div>
+          <!-- ไอคอน -->
+          <div class="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+            </svg>
           </div>
-          <!-- เนื้อความเหตุผล — whitespace-pre-wrap เพื่อรักษาการขึ้นบรรทัดที่เจ้าหน้าที่พิมพ์ -->
-          <div class="p-4">
-            <p class="text-[14px] text-slate-700 leading-relaxed whitespace-pre-wrap">{{ rejectionReason }}</p>
+          <!-- ข้อความทั้งหมดอยู่ด้วยกัน -->
+          <div class="flex-1 min-w-0">
+            <p class="text-[15px] font-bold text-red-700 leading-snug mb-1">
+              คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
+            </p>
+            <p class="text-[14px] text-red-800 leading-relaxed">
+              ระบบไม่สามารถดำเนินการต่อได้
+              หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
+                href="tel:1300"
+                class="font-bold underline underline-offset-2 hover:opacity-80 active:opacity-60"
+                aria-label="โทรหาสายด่วน ๑๓๐๐"
+              >๑๓๐๐</a>
+            </p>
           </div>
         </div>
 
