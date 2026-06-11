@@ -24,7 +24,7 @@ const commentMap = computed(() => {
 const problemDescription = ref('')
 
 // ─── 10.1 ประเภทความช่วยเหลือ ────────────────────────────────────────────────
-const aidTypes     = ref<string[]>([])
+const aidTypes     = ref<string[]>(['1'])   // ['1'] = ล็อก "ช่วยเหลือเป็นเงิน" ให้เลือกไว้เสมอ
 const aidOtherText  = ref('')   // รายละเอียดเพิ่มเติมเมื่อเลือก "ช่วยเหลือเรื่องอื่นๆ" (id=3)
 const aidInKindText = ref('')   // รายละเอียดเพิ่มเติมเมื่อเลือก "ช่วยเหลือเป็นสิ่งของ" (id=2)
 
@@ -33,11 +33,12 @@ const MONEY_AID_TYPE_ID   = '1'
 const IN_KIND_AID_TYPE_ID = '2'
 const OTHER_AID_TYPE_ID   = '3'
 
-const isMoneyAidSelected   = computed(() => aidTypes.value.includes(MONEY_AID_TYPE_ID))
 const isInKindAidSelected  = computed(() => aidTypes.value.includes(IN_KIND_AID_TYPE_ID))
 const isOtherAidSelected   = computed(() => aidTypes.value.includes(OTHER_AID_TYPE_ID))
 
 function toggleAidType(value: string) {
+  // "ช่วยเหลือเป็นเงิน" ถูกล็อกไว้ — ห้ามถอดออก
+  if (value === MONEY_AID_TYPE_ID) return
   const idx = aidTypes.value.indexOf(value)
   if (idx === -1) aidTypes.value.push(value)
   else aidTypes.value.splice(idx, 1)
@@ -78,7 +79,10 @@ onMounted(async () => {
   const s = app.step3
   if (s) {
     problemDescription.value = s.problemDescription
-    aidTypes.value           = [...s.aidTypes]
+    // คง "ช่วยเหลือเป็นเงิน" (id=1) ไว้เสมอ แม้ข้อมูลเก่าจะไม่มี
+    aidTypes.value           = s.aidTypes.includes(MONEY_AID_TYPE_ID)
+                                 ? [...s.aidTypes]
+                                 : [MONEY_AID_TYPE_ID, ...s.aidTypes]
     aidOtherText.value       = s.aidOtherText ?? ''
     aidInKindText.value      = s.aidInKindText ?? ''
     bankNameId.value         = s.bankNameId
@@ -170,31 +174,15 @@ defineExpose({
 
             <!-- ช่วยเหลือเป็นเงิน (id=1) -->
             <div>
-              <label
-                class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
-                :class="isMoneyAidSelected ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
-                @click.prevent="toggleAidType(MONEY_AID_TYPE_ID)"
-              >
-                <div
-                  class="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150"
-                  :class="isMoneyAidSelected ? 'bg-[#1A56DB] border-[#1A56DB]' : 'bg-white border-slate-300'"
-                >
-                  <svg v-if="isMoneyAidSelected" class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <!-- ล็อกไว้เสมอ: เลือกอัตโนมัติ ถอดออกไม่ได้ (cursor-default, ไม่มี @click) -->
+              <label class="flex items-center gap-3 border border-[#1A56DB] bg-blue-50 rounded-xl px-4 py-3 cursor-default">
+                <div class="w-5 h-5 rounded border-2 bg-[#1A56DB] border-[#1A56DB] flex items-center justify-center flex-shrink-0">
+                  <svg class="w-[11px] h-[11px] text-white" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="1,5 4.5,9 11,1" />
                   </svg>
                 </div>
-                <span class="text-[14px] transition-colors" :class="isMoneyAidSelected ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
-                  ช่วยเหลือเป็นเงิน
-                </span>
+                <span class="text-[14px] text-[#1A56DB] font-medium">ช่วยเหลือเป็นเงิน</span>
               </label>
-              <div v-if="isMoneyAidSelected" class="mt-2 ml-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-[1px]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
-                </svg>
-                <p class="text-[12px] text-amber-700 leading-relaxed">
-                  กรุณาแนบสมุดบัญชีธนาคารในขั้นตอนที่ 4 เพื่อให้เจ้าหน้าที่อ่านข้อมูลบัญชีโดยอัตโนมัติ
-                </p>
-              </div>
             </div>
 
             <!-- ช่วยเหลือเรื่องอื่นๆ (id=3) -->

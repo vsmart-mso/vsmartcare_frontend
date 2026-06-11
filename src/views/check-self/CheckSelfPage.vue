@@ -219,6 +219,8 @@ async function handleSubmit() {
 
 // ─── Handler: ย้อนกลับ ────────────────────────────────────────────────────────
 function handleBack() {
+  // กันย้อนกลับระหว่างกำลังบันทึกผลตรวจสิทธิ์ (API ทำงานอยู่)
+  if (isSubmitting.value) return
   router.back()
 }
 </script>
@@ -236,7 +238,8 @@ function handleBack() {
         <!-- ปุ่มย้อนกลับ -->
         <button
           @click="handleBack"
-          class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
+          :disabled="isSubmitting"
+          class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           aria-label="ย้อนกลับ"
         >
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -314,9 +317,10 @@ function handleBack() {
             <input
               id="dob"
               v-model="manualDob"
+              :disabled="isSubmitting"
               type="date"
               :max="new Date().toISOString().slice(0, 10)"
-              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             />
             <p class="text-[12px] text-slate-400 mt-1 px-1">ThaiID ไม่ส่งข้อมูลวันเกิดมา — กรุณากรอกวันเกิดของท่าน</p>
           </template>
@@ -345,10 +349,11 @@ function handleBack() {
             id="occupation"
             :value="selectedOccupation"
             @input="handleOccupationInput"
+            :disabled="isSubmitting"
             type="text"
             maxlength="255"
             placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
-            class="w-full bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             :class="occupationError ? 'border-red-300' : selectedOccupation ? 'border-slate-300' : 'border-slate-200'"
           />
           <p v-if="occupationError" class="text-[12px] text-red-500 mt-1 px-1">{{ occupationError }}</p>
@@ -370,11 +375,12 @@ function handleBack() {
               @input="handleIncomeInput"
               @focus="handleIncomeFocus"
               @blur="handleIncomeBlur"
+              :disabled="isSubmitting"
               type="text"
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="0"
-              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-16 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-16 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             />
             <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">
               บาท/ปี

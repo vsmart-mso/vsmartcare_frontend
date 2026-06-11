@@ -48,8 +48,8 @@ export interface HouseholdMemberForm {
   relationToApplicantId: number | null
   occupation: string
   monthlyIncome: string
-  physicalCondition: 'normal' | 'disabled' | 'chronic_illness'
-  selfCare: boolean
+  physicalCondition: '' | 'normal' | 'disabled' | 'chronic_illness'   // '' = ยังไม่เลือก
+  selfCare: boolean | null                                            // null = ยังไม่เลือก
 }
 
 // ข้อมูล Step 1 — ข้อมูลส่วนตัว, ที่อยู่, ติดต่อ
@@ -393,8 +393,8 @@ export const useApplicationStore = defineStore('application', () => {
       relation_to_applicant_id: m.relationToApplicantId ?? null,
       occupation:           m.occupation || null,
       monthly_income:       (() => { const n = Number(m.monthlyIncome); return m.monthlyIncome !== '' && !isNaN(n) ? n : null })(),
-      physical_condition:   m.physicalCondition,
-      self_care:            m.selfCare,
+      physical_condition:   m.physicalCondition || 'normal',
+      self_care:            m.selfCare ?? false,
     }))
 
     const economic_infos: CasePayload['economic_infos'] = [{
@@ -501,7 +501,8 @@ export const useApplicationStore = defineStore('application', () => {
       householdMembers: (caseData.household_members ?? []).map((m, i) => ({
         seq:                  m.seq ?? i + 1,
         nationalId:           m.national_id ?? '',
-        prefixId:             String(m.prefix_id ?? ''),
+        // prefix_id มีค่า → ใช้ id; ไม่มีแต่มี prefix_other → 'none' (อื่นๆ/ไม่ระบุ); ไม่มีทั้งคู่ → '' (ยังไม่เลือก)
+        prefixId:             m.prefix_id != null ? String(m.prefix_id) : (m.prefix_other ? 'none' : ''),
         prefixOther:          m.prefix_other ?? '',
         firstName:            m.first_name ?? '',
         lastName:             m.last_name ?? '',
