@@ -10,11 +10,13 @@
 
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useEligibilityStore } from '@/stores/eligibility'
 import { authApi, redirectBrowserToThaIDLogin } from '@/api/auth'
 
 export function useAuth() {
   const router = useRouter()           // ใช้เปลี่ยนหน้า
   const authStore = useAuthStore()     // ดึง Store กลางมาใช้
+  const eligibilityStore = useEligibilityStore()
 
   /** เริ่มล็อกอิน ThaiD (จริง = redirect ไป imauth — mock = ไปหน้าจำลอง dev) */
   async function redirectToThaID() {
@@ -30,6 +32,7 @@ export function useAuth() {
       // finally = ทำเสมอ ไม่ว่า API จะสำเร็จหรือล้มเหลว
       // เพื่อให้ผู้ใช้ออกได้แม้ network มีปัญหา
       authStore.clearAuth()
+      eligibilityStore.clearEligibility()
       router.push({ name: 'login' })
     }
   }

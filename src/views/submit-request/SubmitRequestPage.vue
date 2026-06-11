@@ -11,17 +11,36 @@ import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
+import { useEligibilityStore } from '@/stores/eligibility'
 import { linkOcrResult } from '@/api/ocr'
 
 const router = useRouter()
 const route  = useRoute()
 const app    = useApplicationStore()
 const auth   = useAuthStore()
+const eligibilityStore = useEligibilityStore()
 
 const currentStep  = ref(1)
 
+function isThaiDUser(u: unknown): u is ThaiDUser {
+  return u != null && typeof (u as ThaiDUser).person_id === 'number'
+}
+
 // ถ้ามี ?step=X ใน URL ให้เริ่มที่ step นั้น (ใช้เมื่อกลับมาแก้ไขจาก case-tracking)
-onMounted(() => {
+onMounted(async () => {
+  const personId = isThaiDUser(auth.user) ? auth.user.person_id : 0
+  if (personId) {
+    try {
+      const eligibility = await eligibilityStore.fetchEligibility(personId)
+      if (!eligibility.can_submit) {
+        router.replace({ name: 'case-tracking' })
+        return
+      }
+    } catch {
+      // API ล้มเหลว → ปล่อยให้เข้าหน้าปกติ
+    }
+  }
+
   const s = Number(route.query.step)
   if (s >= 1 && s <= steps.length) {
     currentStep.value = s
@@ -266,6 +285,14 @@ async function handleSubmit() {
         .join(', ')
     } else if (typeof rawDetail === 'string') {
       detail = rawDetail
+      if (detail === 'submission_cooldown_active' || detail === 'active_case_exists') {
+        const personId = isThaiDUser(auth.user) ? auth.user.person_id : 0
+        if (personId) {
+          await eligibilityStore.fetchEligibility(personId, true)
+        }
+        router.replace({ name: 'case-tracking' })
+        return
+      }
     } else {
       detail = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'
     }

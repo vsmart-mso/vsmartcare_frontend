@@ -94,6 +94,21 @@ export interface CaseDisplayRead {
   description_public: string | null
 }
 
+// ─── Submission Eligibility ─────────────────────────────────────────────────────
+
+export type EligibilityReason = 'none' | 'active_case' | 'cooldown' | 'eligible' | 'unknown_status'
+
+export interface SubmissionEligibilityRead {
+  can_submit: boolean
+  can_access_portal: boolean
+  reason: EligibilityReason
+  last_applicant_id: number | null
+  last_submitted_at: string | null
+  eligible_at: string | null
+  days_remaining: number | null
+  current_status_id: number | null
+}
+
 // ─── Case Submission ────────────────────────────────────────────────────────────
 
 export interface CaseApplicantPayload {
@@ -350,6 +365,13 @@ export const welfareApi = {
   // คืน list ของคำร้องทั้งหมดของ person (ใช้ตรวจสอบว่ามีคำร้องที่ยังดำเนินการอยู่หรือไม่)
   getCasesDisplay(personsId: number) {
     return apiClient<CaseDisplayRead[]>('/v1/cases/display', {
+      method: 'GET',
+      query: { persons_id: personsId },
+    })
+  },
+
+  getSubmissionEligibility(personsId: number) {
+    return apiClient<SubmissionEligibilityRead>('/v1/cases/submission-eligibility', {
       method: 'GET',
       query: { persons_id: personsId },
     })

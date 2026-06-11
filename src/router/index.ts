@@ -83,19 +83,15 @@ const router = createRouter({
 
 // ─── Helper: หาหน้า "home" ที่เหมาะสมตามสถานะของผู้ใช้ ─────────────────────────
 // ใช้ร่วมกันระหว่าง guard (กรณี login แล้วเข้าหน้า login) และ LoginThaIDReturnPage
-//
-// เงื่อนไข:
-//   1. มีคำขอค้างอยู่ (status 1-3) → case-tracking
-//   2. ผ่านการตรวจสอบสิทธิ์แล้ว   → submit-request
-//   3. ไม่มีข้อมูลอะไรเลย          → pdpa
 async function resolveHomeRoute(personId: number): Promise<string> {
   if (!personId) return 'pdpa'
   try {
-    const cases = await welfareApi.getCasesDisplay(personId)
-    if (cases.length > 0) return 'case-tracking'
-
-    const latestPassed = await welfareApi.getLatestPassedScreening(personId)
-    if (latestPassed) return 'submit-request'
+    const eligibility = await welfareApi.getSubmissionEligibility(personId)
+    if (eligibility.reason === 'active_case' || eligibility.reason === 'cooldown') {
+      return 'case-tracking'
+    }
+    if (eligibility.can_submit && eligibility.last_applicant_id != null) return 'check-self'
+    if (eligibility.can_submit) return 'pdpa'
   } catch {
     // API ล้มเหลว → ไป pdpa เป็น fallback ปลอดภัย
   }

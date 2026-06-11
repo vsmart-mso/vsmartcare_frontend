@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useApplicationStore } from '@/stores/application'
 import { welfareApi } from '@/api/welfare'
+import { useEligibilityStore } from '@/stores/eligibility'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const app = useApplicationStore()
+const eligibilityStore = useEligibilityStore()
 
 // isChecking = true ระหว่างเช็คว่าผู้ใช้เคยผ่านสิทธิ์แล้วหรือยัง (ใน onMounted)
 // ถ้าเคยผ่าน → เด้งไปหน้ากรอกฟอร์มเลย; ระหว่างนี้โชว์ skeleton กันฟอร์มกระพริบ
@@ -35,10 +37,14 @@ onMounted(async () => {
   const personId = authUser.value.person_id
   if (personId) {
     try {
-      const passed = await welfareApi.getLatestPassedScreening(personId)
-      if (passed) {
-        router.replace({ name: 'submit-request' })
-        return   // กำลัง redirect — ค้าง skeleton ไว้ ไม่ต้องโชว์ฟอร์ม
+      const eligibility = await eligibilityStore.fetchEligibility(personId)
+      if (
+        eligibility.reason === 'active_case'
+        || eligibility.reason === 'cooldown'
+        || !eligibility.can_submit
+      ) {
+        router.replace({ name: 'case-tracking' })
+        return
       }
     } catch {
       // API ล้มเหลว → ปล่อยให้เข้าหน้าปกติ
