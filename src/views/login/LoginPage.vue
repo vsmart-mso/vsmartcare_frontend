@@ -230,6 +230,37 @@ function handleTangRath() {
           </p>
         </div>
 
+        <!-- ส่วนที่ 5: ดาวน์โหลดแบบฟอร์ม KTB Corporate Online -->
+        <div class="flex gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4 mt-3">
+          <!-- ไอคอน เอกสาร -->
+          <svg
+            class="w-[18px] h-[18px] text-amber-500 flex-shrink-0 mt-[2px]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-[13px] text-amber-800 leading-[1.65] mb-2">
+              กรุณาเตรียม <strong>แบบแจ้งข้อมูลการรับเงินโอนผ่านระบบ KTB Corporate Online</strong>
+              กรอกให้ครบก่อนยื่นคำขอ
+            </p>
+            <a
+              href="/forms/ktb-corporate-online.pdf"
+              download="แบบ-KTB-Corporate-Online.pdf"
+              class="inline-flex items-center gap-2 text-[13px] font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
+            >
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              ดาวน์โหลดแบบฟอร์ม KTB
+            </a>
+          </div>
+        </div>
+
       </div>
     </main>
 

@@ -39,6 +39,7 @@ const family   = useImageUpload({ maxWidth: 1200, maxHeight: 900,  quality: 0.80
 // ─── Section 14: เอกสารแนบเพิ่มเติม (ไม่บังคับ) ────────────────────────────
 const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const ktbForm      = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const otherDocName = ref('') // ชื่อประเภทเอกสาร "อื่นๆ" — backend บังคับส่งเมื่ออัปโหลด
 
@@ -108,6 +109,7 @@ const previewProblem     = computed(() => problem.previewUrl.value     || app.ex
 const previewFamily      = computed(() => family.previewUrl.value      || app.existingImageUrls['family']       || '')
 const previewHouseHome   = computed(() => houseHome.previewUrl.value   || app.existingImageUrls['house_home']   || '')
 const previewHousePerson = computed(() => housePerson.previewUrl.value || app.existingImageUrls['house_person'] || '')
+const previewKtbForm     = computed(() => ktbForm.previewUrl.value     || app.existingImageUrls['ktb_form']     || '')
 const previewOtherDoc    = computed(() => otherDoc.previewUrl.value    || app.existingImageUrls['other_doc']    || '')
 
 // นับรูปทั้งหมดที่อัปโหลดแล้ว (นับทั้ง local file และ server image)
@@ -120,6 +122,7 @@ const totalUploaded = computed(() =>
     { u: family,      k: 'family'       },
     { u: houseHome,   k: 'house_home'   },
     { u: housePerson, k: 'house_person' },
+    { u: ktbForm,     k: 'ktb_form'    },
     { u: otherDoc,    k: 'other_doc'    },
     { u: bankBook,    k: 'bank_book'    },
   ].filter(({ u, k }) => u.file.value || app.existingImageUrls[k]).length,
@@ -139,6 +142,7 @@ const isReady = computed(() =>
   // ทะเบียนบ้าน 2 ใบเป็น required — ต้องมีรูปครบจึงจะไปต่อได้
   (!show('doc_house_registration_house')   || hasImg(houseHome,   'house_home'))   &&
   (!show('doc_house_registration_person')  || hasImg(housePerson, 'house_person')) &&
+  (!show('doc_ktb_corporate')              || hasImg(ktbForm,     'ktb_form'))     &&
   !otherDocNameRequired.value
 )
 
@@ -165,6 +169,7 @@ watch(() => problem.file.value,     (f) => syncFile('problem',      'problem',  
 watch(() => family.file.value,      (f) => syncFile('family',       'family',       f ?? null))
 watch(() => houseHome.file.value,   (f) => syncFile('house_home',   'house_home',   f ?? null))
 watch(() => housePerson.file.value, (f) => syncFile('house_person', 'house_person', f ?? null))
+watch(() => ktbForm.file.value,     (f) => syncFile('ktb_form',     'ktb_form',     f ?? null))
 watch(() => otherDoc.file.value,    (f) => syncFile('other_doc',    'other_doc',    f ?? null, otherDocName.value))
 watch(() => bankBook.file.value,    (f) => syncFile('bank_book',    'bank_book',    f ?? null))
 // เมื่อชื่อเปลี่ยน ให้ persist ลง store เสมอ (ไม่ว่าจะมีไฟล์หรือไม่)
@@ -191,6 +196,7 @@ onMounted(async () => {
     { id: 'family',       field: 'evidence_family_photo',         uploader: family       },
     { id: 'house_home',   field: 'doc_house_registration_house',  uploader: houseHome    },
     { id: 'house_person', field: 'doc_house_registration_person', uploader: housePerson  },
+    { id: 'ktb_form',     field: 'doc_ktb_corporate',             uploader: ktbForm      },
     { id: 'other_doc',    field: 'doc_other',                     uploader: otherDoc     },
     { id: 'bank_book',    field: 'bank_book_photo',               uploader: bankBook     },
   ]
@@ -379,7 +385,7 @@ defineExpose({
          Section 12: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
          ════════════════════════════════════════════════════════ -->
     <div
-      v-if="['doc_house_registration_house','doc_house_registration_person','doc_other','bank_book_photo'].some(f => show(f))"
+      v-if="['doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other','bank_book_photo'].some(f => show(f))"
       class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -391,7 +397,7 @@ defineExpose({
       <div class="p-4 space-y-3">
 
         <!-- 12.1 header — แสดงเมื่อมี field เอกสารแนบ หรือรูปสมุดบัญชี -->
-        <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))">
+        <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">12.1</span>
             <span class="text-[13px] font-medium text-slate-600">เอกสารประกอบ</span>
@@ -539,6 +545,24 @@ defineExpose({
           :alert-reason="commentMap.get('doc_house_registration_person')"
           @file-select="housePerson.handleFileSelect"
           @clear="clrImg(housePerson, 'house_person')"
+        />
+
+        <!-- แบบฟอร์ม KTB Corporate Online -->
+        <PhotoUploadCard
+          v-if="show('doc_ktb_corporate')"
+          upload-id="ktb-form"
+          title="รูปแบบฟอร์ม KTB Corporate Online"
+          subtitle="ถ่ายรูปแบบแจ้งข้อมูลการรับเงินโอนที่กรอกแล้ว"
+          icon="document"
+          required
+          :preview-url="previewKtbForm"
+          :file-name="ktbForm.file.value?.name"
+          :file-size="ktbForm.file.value?.size"
+          :is-loading="ktbForm.isLoading.value || fetchingImages"
+          :error="ktbForm.error.value"
+          :alert-reason="commentMap.get('doc_ktb_corporate')"
+          @file-select="ktbForm.handleFileSelect"
+          @clear="clrImg(ktbForm, 'ktb_form')"
         />
 
         <!-- รูปอื่น ๆ -->
