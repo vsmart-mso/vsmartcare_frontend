@@ -131,6 +131,23 @@ export interface CaseIncomeSourcePayload {
   other_details?: string | null
 }
 
+export type PhysicalCondition = 'normal' | 'disabled' | 'chronic_illness'
+
+export interface HouseholdMemberPayload {
+  seq: number
+  national_id?: string | null
+  prefix_id?: number | null
+  prefix_other?: string | null
+  first_name: string
+  last_name: string
+  date_of_birth?: string | null
+  relation_to_applicant_id?: number | null
+  occupation?: string | null
+  monthly_income?: number | null
+  physical_condition: PhysicalCondition
+  self_care: boolean
+}
+
 export interface CaseEconomicInfoPayload {
   housing_types_id?: number | null
   housing_types_rent?: number | null  // ค่าเช่าต่อเดือน (บาท) — ส่งเฉพาะเมื่อเลือกบ้านเช่า
@@ -163,8 +180,10 @@ export interface CasePayload {
   addresses: CaseAddressPayload[]
   dependency_loads: CaseDependencyLoadPayload[]
   economic_infos: CaseEconomicInfoPayload[]
+  household_members?: HouseholdMemberPayload[]
   request_type_ids: number[]
   request_other_text?: string | null
+  request_in_kind_text?: string | null
   welfare_history?: CaseWelfareHistoryPayload | null
   initial_current_status_id: number
 }
@@ -242,12 +261,29 @@ export interface FullApplicantRead {
   age: number | null
 }
 
+export interface FullHouseholdMemberRead {
+  id: number
+  seq: number
+  national_id: string | null
+  prefix_id: number | null
+  prefix_other: string | null
+  first_name: string
+  last_name: string
+  date_of_birth: string | null
+  relation_to_applicant_id: number | null
+  occupation: string | null
+  monthly_income: string | null  // Decimal จาก backend ส่งมาเป็น string
+  physical_condition: PhysicalCondition
+  self_care: boolean
+}
+
 export interface FullCaseDetail {
   applicant: FullApplicantRead
   addresses: FullAddressRead[]
   dependency_loads: Array<{ dependency_type_id: number; dependency_other_text: string | null }>
   economic_infos: FullEconomicInfoRead[]
-  welfare_request_types: Array<{ request_type_id: number; request_other_text: string | null }>
+  household_members: FullHouseholdMemberRead[]
+  welfare_request_types: Array<{ request_type_id: number; request_other_text: string | null; request_in_kind_text: string | null }>
   welfare_history: {
     received_count: number | null
     has_received_welfare: boolean
