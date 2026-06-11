@@ -126,6 +126,7 @@ const FILE_FIELD_DOCTYPE: Record<string, string> = {
   evidence_family_photo:         'family',
   doc_house_registration_house:  'house_home',
   doc_house_registration_person: 'house_person',
+  doc_ktb_corporate:             'ktb_form',
   doc_other:                     'other_doc',
   bank_book_photo:               'bank_book',
 }

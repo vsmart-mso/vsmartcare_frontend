@@ -169,6 +169,7 @@ export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
   house_home:   6,
   house_person: 7,
   family:       8,
+  ktb_form:     11,
   other_doc:    99,
 }
 
