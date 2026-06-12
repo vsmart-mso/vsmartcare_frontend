@@ -56,6 +56,19 @@ function formatPID(pid: string): string {
   return `${pid[0]}-${pid.slice(1, 5)}-${pid.slice(5, 10)}-${pid.slice(10, 12)}-${pid[12]}`
 }
 
+// format เลขบัตรแบบ progressive สำหรับ "ระหว่างพิมพ์" — ใส่ - ตามรูปแบบ x-xxxx-xxxxx-xx-x
+// รับ digits (ตัวเลขล้วน) คืน string ที่มี - คั่น (ใช้แสดงในช่อง input เท่านั้น ไม่ใช่ค่าที่เก็บ)
+function formatPIDInput(digits: string): string {
+  const d = digits.replace(/\D/g, '').slice(0, 13)
+  const parts: string[] = []
+  parts.push(d.slice(0, 1))
+  if (d.length > 1)  parts.push(d.slice(1, 5))
+  if (d.length > 5)  parts.push(d.slice(5, 10))
+  if (d.length > 10) parts.push(d.slice(10, 12))
+  if (d.length > 12) parts.push(d.slice(12, 13))
+  return parts.filter(p => p).join('-')
+}
+
 // แปลงวันเกิดเป็น DD/MM/พ.ศ.
 
 // ─── 1.2 ความเกี่ยวข้อง — ล็อคเป็น "ตนเอง" ──────────────────────────────────
@@ -109,21 +122,32 @@ const householdMembers = ref<HouseholdMemberForm[]>([])
 const editingMember  = ref<HouseholdMemberForm | null>(null)
 const editingIndex   = ref<number | null>(null)   // null=ไม่ได้แก้, -1=เพิ่มใหม่, N=แก้ index N
 const editMemberErrors = reactive({
-  firstName:     '',
-  lastName:      '',
-  dateOfBirth:   '',
-  nationalId:    '',
-  monthlyIncome: '',
+  prefixId:              '',
+  firstName:             '',
+  lastName:              '',
+  dateOfBirth:           '',
+  nationalId:            '',
+  relationToApplicantId: '',
+  occupation:            '',
+  monthlyIncome:         '',
+  physicalCondition:     '',
+  selfCare:              '',
 })
 // display value ของรายได้ (มีลูกน้ำ) แยกจาก raw ที่เก็บใน editingMember.monthlyIncome
 const displayIncome = ref('')
 
 function _resetMemberErrors() {
-  editMemberErrors.firstName     = ''
-  editMemberErrors.lastName      = ''
-  editMemberErrors.dateOfBirth   = ''
-  editMemberErrors.nationalId    = ''
-  editMemberErrors.monthlyIncome = ''
+  editMemberErrors.prefixId              = ''
+  editMemberErrors.firstName             = ''
+  editMemberErrors.lastName              = ''
+  editMemberErrors.dateOfBirth           = ''
+  editMemberErrors.nationalId            = ''
+  editMemberErrors.relationToApplicantId = ''
+  editMemberErrors.occupation            = ''
+  editMemberErrors.monthlyIncome         = ''
+  editMemberErrors.physicalCondition     = ''
+  editMemberErrors.selfCare              = ''
+  nationalIdSuccess.value                = ''
 }
 
 // แปลง raw income string → display string พร้อมลูกน้ำ (e.g. "1000.50" → "1,000.50")
@@ -148,7 +172,7 @@ function _blankMember(seq: number): HouseholdMemberForm {
     seq, nationalId: '', prefixId: '', prefixOther: '',
     firstName: '', lastName: '', dateOfBirth: '',
     relationToApplicantId: null, occupation: '', monthlyIncome: '',
-    physicalCondition: 'normal', selfCare: true,
+    physicalCondition: '', selfCare: null,
   }
 }
 
@@ -173,15 +197,32 @@ function deleteMember(idx: number) {
   householdMembers.value.forEach((m, i) => { m.seq = i + 1 })
 }
 
+// ข้อความ "ถูกต้อง" สีเขียว — แยกจาก editMemberErrors เพราะเป็นสถานะสำเร็จ ไม่ใช่ error
+const nationalIdSuccess = ref('')
+
+// ตรวจว่าเลขบัตรซ้ำกับสมาชิกคนอื่นในครัวเรือนหรือไม่ (ไม่นับตัวที่กำลังแก้ไขอยู่)
+// editingIndex: -1 = เพิ่มใหม่ (idx !== -1 จริงเสมอ → เทียบทุกคน), N = แก้ไข (ข้าม index N)
+function isDuplicateMemberId(val: string): boolean {
+  return householdMembers.value.some((m, idx) => idx !== editingIndex.value && m.nationalId === val)
+}
+
 // ตรวจ nationalId แบบ stateful — เรียกได้ทั้งจาก input (real-time) และ blur
 // fromBlur=true → แจ้ง "กรอกไม่ครบ" เมื่อออกจากช่องแต่ยังไม่ถึง 13 หลัก
 function validateNationalId(val: string, fromBlur = false) {
+  nationalIdSuccess.value = ''   // เคลียร์สถานะเขียวทุกครั้งก่อนตรวจใหม่
   if (!val) {
     editMemberErrors.nationalId = ''
   } else if (val.length === 13) {
-    editMemberErrors.nationalId = isValidThaiNationalId(val)
-      ? ''
-      : 'เลขบัตรประชาชนไม่ถูกต้อง (ตรวจสอบอีกครั้ง)'
+    if (!isValidThaiNationalId(val)) {
+      editMemberErrors.nationalId = 'เลขบัตรประชาชนไม่ถูกต้อง (ตรวจสอบอีกครั้ง)'
+    } else if (authUser.value?.pid && val === authUser.value.pid) {
+      editMemberErrors.nationalId = 'เลขบัตรนี้ซ้ำกับผู้ประสบปัญหาทางสังคม'
+    } else if (isDuplicateMemberId(val)) {
+      editMemberErrors.nationalId = 'เลขบัตรนี้ซ้ำกับสมาชิกคนอื่นในครัวเรือน'
+    } else {
+      editMemberErrors.nationalId = ''
+      nationalIdSuccess.value = 'เลขบัตรประชาชนถูกต้อง'
+    }
   } else if (fromBlur) {
     editMemberErrors.nationalId = `กรอกไม่ครบ (${val.length}/13 หลัก)`
   } else {
@@ -257,12 +298,13 @@ function handleDobPartChange() {
   if (editingMember.value) editingMember.value.dateOfBirth = iso
 }
 
-// input handler: กรองให้รับเฉพาะตัวเลข (ใช้กับ nationalId)
+// input handler: กรองให้รับเฉพาะตัวเลข แล้วแสดงแบบมี - (ใช้กับ nationalId)
+// เก็บลง editingMember.nationalId เป็น "ตัวเลขล้วน" (ไม่มี -) ส่วน - ใช้แค่ตอนแสดง
 function handleMemberDigitsInput(e: Event, field: 'nationalId') {
   const el     = e.target as HTMLInputElement
-  const digits = el.value.replace(/[^0-9]/g, '')
+  const digits = el.value.replace(/[^0-9]/g, '').slice(0, 13)
   if (editingMember.value) editingMember.value[field] = digits
-  el.value = digits
+  el.value = formatPIDInput(digits)   // โชว์รูปแบบมี - ในช่อง
   validateNationalId(digits)
 }
 
@@ -296,9 +338,24 @@ function saveMember() {
   const m = editingMember.value
   if (!m) return
 
+  // คำนำหน้า: required
+  editMemberErrors.prefixId = m.prefixId ? '' : 'กรุณาเลือกคำนำหน้า'
+
   // ชื่อ-นามสกุล: required
   editMemberErrors.firstName = m.firstName.trim() ? '' : 'กรุณากรอกชื่อ'
   editMemberErrors.lastName  = m.lastName.trim()  ? '' : 'กรุณากรอกนามสกุล'
+
+  // ความสัมพันธ์กับผู้ประสบปัญหา: required
+  editMemberErrors.relationToApplicantId = m.relationToApplicantId !== null ? '' : 'กรุณาเลือกความสัมพันธ์'
+
+  // อาชีพ: required
+  editMemberErrors.occupation = m.occupation.trim() ? '' : 'กรุณากรอกอาชีพ'
+
+  // สภาพทางร่างกาย: required
+  editMemberErrors.physicalCondition = m.physicalCondition ? '' : 'กรุณาเลือกสภาพทางร่างกาย'
+
+  // การช่วยเหลือตนเอง: required (radio — ต้องเลือก ได้/ไม่ได้)
+  editMemberErrors.selfCare = m.selfCare !== null ? '' : 'กรุณาเลือกการช่วยเหลือตนเอง'
 
   // วันเกิด: required และต้องไม่อยู่ในอนาคต
   if (!m.dateOfBirth) {
@@ -317,8 +374,10 @@ function saveMember() {
   // เลขบัตรประชาชน: optional — ใช้ validateNationalId (fromBlur=true ให้แจ้ง "ไม่ครบ")
   validateNationalId(m.nationalId, true)
 
-  // รายได้: optional — ถ้ากรอก ต้องเป็นตัวเลข ≥ 0 (ทศนิยมได้)
-  if (m.monthlyIncome && !/^\d+(\.\d{0,2})?$/.test(m.monthlyIncome)) {
+  // รายได้: required — ต้องกรอก และเป็นตัวเลข ≥ 0 (ทศนิยมได้)
+  if (!m.monthlyIncome) {
+    editMemberErrors.monthlyIncome = 'กรุณากรอกรายได้ต่อเดือน'
+  } else if (!/^\d+(\.\d{0,2})?$/.test(m.monthlyIncome)) {
     editMemberErrors.monthlyIncome = 'รายได้ต้องเป็นตัวเลขเท่านั้น'
   } else {
     editMemberErrors.monthlyIncome = ''
@@ -1254,7 +1313,7 @@ defineExpose({
                 <!-- ชื่อ + อายุ + ความสัมพันธ์ -->
                 <div class="flex-1 min-w-0">
                   <p class="text-[14px] font-semibold text-slate-800 leading-snug">
-                    <span v-if="m.prefixId">{{ prefixOptions.find(p => p.value === m.prefixId)?.label }}</span>
+                    <span v-if="m.prefixId && m.prefixId !== 'none'">{{ prefixOptions.find(p => p.value === m.prefixId)?.label }}</span>
                     <span v-else-if="m.prefixOther">{{ m.prefixOther }}</span>
                     {{ m.firstName }} {{ m.lastName }}
                   </p>
@@ -1325,65 +1384,60 @@ defineExpose({
             </svg>
           </div>
           <p class="text-[13px] font-medium text-slate-500">ยังไม่มีข้อมูลสมาชิกในครัวเรือน</p>
-          <p class="text-[11px] text-slate-400">กดปุ่ม "เพิ่มสมาชิก" เพื่อเพิ่มข้อมูล</p>
+          <p class="text-[11px] text-slate-400">กดปุ่ม "เพิ่มสมาชิกในครัวเรือน" เพื่อเพิ่มข้อมูล</p>
         </div>
 
-        <!-- ปุ่มเพิ่มสมาชิก -->
+        <!-- ปุ่มเพิ่มสมาชิกในครัวเรือน -->
         <button v-if="editingIndex === null" type="button" @click="openAddMember"
-          class="flex items-center gap-2 px-4 py-2 bg-[#1A56DB] text-white text-[13px] font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm mt-2">
+          class="flex items-center gap-2 px-4 py-2 bg-[#1A56DB] text-white text-[13px] font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm mt-2 mx-auto">
           <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
           </svg>
-          เพิ่มสมาชิก
+          เพิ่มสมาชิกในครัวเรือน
         </button>
 
         <!-- ฟอร์ม add/edit สมาชิก -->
         <div v-if="editingMember !== null" class="mt-3 border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
-          <p class="text-[13px] font-semibold text-slate-700 mb-3">
-            {{ editingIndex === -1 ? 'เพิ่มสมาชิก' : 'แก้ไขข้อมูลสมาชิก' }}
+          <p class="text-[14px] font-semibold text-slate-700 mb-5">
+            {{ editingIndex === -1 ? 'เพิ่มสมาชิกในครัวเรือน' : 'แก้ไขข้อมูลสมาชิกในครัวเรือน' }}
           </p>
-          <div class="grid grid-cols-2 gap-3">
-            <!-- คำนำหน้า -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">คำนำหน้า</label>
-              <select v-model="editingMember.prefixId"
-                class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]">
-                <option value="">-- อื่นๆ / ไม่ระบุ --</option>
-                <option v-for="opt in prefixOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-              <!-- แสดง prefixOther เมื่อไม่เลือกจากรายการ (prefix_other → VARCHAR(50)) -->
-              <input v-if="editingMember.prefixId === ''"
-                v-model="editingMember.prefixOther" type="text" maxlength="50"
-                placeholder="ระบุคำนำหน้า (ถ้ามี)"
-                class="mt-1.5 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]" />
-            </div>
-            <!-- เลขบัตร -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">เลขบัตรประชาชน</label>
-              <input
-                :value="editingMember.nationalId"
-                @input="(e) => handleMemberDigitsInput(e, 'nationalId')"
-                @blur="handleNationalIdBlur"
-                maxlength="13" type="text" inputmode="numeric"
-                placeholder="ระบุ 13 หลัก (ถ้ามี)"
-                class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
-                :class="editMemberErrors.nationalId ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
-              <p v-if="editMemberErrors.nationalId" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.nationalId }}</p>
-            </div>
-            <!-- ชื่อ -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">ชื่อ <span class="text-red-500">*</span></label>
-              <input
-                :value="editingMember.firstName"
-                @input="(e) => handleMemberNameInput(e, 'firstName')"
-                type="text"
-                class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
-                :class="editMemberErrors.firstName ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
-              <p v-if="editMemberErrors.firstName" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.firstName }}</p>
+          <div class="space-y-3 mt-2">
+            <!-- คำนำหน้า + ชื่อ (แถวเดียว — layout เดียวกับส่วนผู้ประสบปัญหาทางสังคม) -->
+            <div class="flex gap-3">
+              <!-- คำนำหน้า -->
+              <div class="w-[35%]">
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">คำนำหน้า <span class="text-red-500">*</span></label>
+                <select v-model="editingMember.prefixId"
+                  class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                  :class="editMemberErrors.prefixId ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'">
+                  <!-- option แรกเป็น placeholder (disabled) บังคับให้ผู้ใช้เลือก -->
+                  <option value="" disabled>เลือกคำนำหน้า</option>
+                  <option v-for="opt in prefixOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  <!-- 'none' = อื่นๆ / ไม่ระบุ → ส่ง prefix_id เป็น null (ดู toPayload ใน store) -->
+                  <option value="none">อื่นๆ / ไม่ระบุ</option>
+                </select>
+                <p v-if="editMemberErrors.prefixId" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.prefixId }}</p>
+                <!-- เลือก 'อื่นๆ / ไม่ระบุ' → ให้กรอกคำนำหน้าเองได้ (เก็บลง prefix_other) -->
+                <input v-if="editingMember.prefixId === 'none'"
+                  v-model="editingMember.prefixOther" type="text" maxlength="50"
+                  placeholder="ระบุคำนำหน้า"
+                  class="mt-1.5 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]" />
+              </div>
+              <!-- ชื่อ -->
+              <div class="flex-1">
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">ชื่อ <span class="text-red-500">*</span></label>
+                <input
+                  :value="editingMember.firstName"
+                  @input="(e) => handleMemberNameInput(e, 'firstName')"
+                  type="text"
+                  class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                  :class="editMemberErrors.firstName ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+                <p v-if="editMemberErrors.firstName" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.firstName }}</p>
+              </div>
             </div>
             <!-- นามสกุล -->
             <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">นามสกุล <span class="text-red-500">*</span></label>
+              <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">นามสกุล <span class="text-red-500">*</span></label>
               <input
                 :value="editingMember.lastName"
                 @input="(e) => handleMemberNameInput(e, 'lastName')"
@@ -1392,9 +1446,29 @@ defineExpose({
                 :class="editMemberErrors.lastName ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
               <p v-if="editMemberErrors.lastName" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.lastName }}</p>
             </div>
+            <!-- เลขบัตรประชาชน -->
+            <div>
+              <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">เลขบัตรประชาชน</label>
+              <input
+                :value="formatPIDInput(editingMember.nationalId)"
+                @input="(e) => handleMemberDigitsInput(e, 'nationalId')"
+                @blur="handleNationalIdBlur"
+                maxlength="17" type="text" inputmode="numeric"
+                placeholder="ระบุ 13 หลัก (ถ้ามี)"
+                class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                :class="editMemberErrors.nationalId ? 'border-red-300 focus:ring-red-200' : nationalIdSuccess ? 'border-green-400 focus:ring-green-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+              <!-- error (แดง) มาก่อน ถ้าไม่มี error และเลขถูกต้องจึงโชว์ข้อความเขียว -->
+              <p v-if="editMemberErrors.nationalId" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.nationalId }}</p>
+              <p v-else-if="nationalIdSuccess" class="text-[11px] text-green-600 mt-0.5 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                </svg>
+                {{ nationalIdSuccess }}
+              </p>
+            </div>
             <!-- วันเกิด + อายุอัตโนมัติ (เลือกแบบไทย) — เต็มแถว เพราะมี 3 select -->
-            <div class="col-span-2">
-              <label class="text-[12px] text-slate-600 mb-1.5 block">วัน/เดือน/ปีเกิด <span class="text-red-500">*</span></label>
+            <div>
+              <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">วัน/เดือน/ปีเกิด <span class="text-red-500">*</span></label>
               <div class="flex gap-2">
                 <!-- วัน: แคบ -->
                 <select
@@ -1429,52 +1503,75 @@ defineExpose({
                 {{ formatThaiDate(editingMember.dateOfBirth) }} · อายุ {{ calcMemberAge(editingMember.dateOfBirth) }} ปี
               </p>
             </div>
-            <!-- ความสัมพันธ์ -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">ความสัมพันธ์กับผู้ประสบปัญหา</label>
-              <select
-                v-model="editingMember.relationToApplicantId"
-                class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] appearance-none">
-                <option :value="null">— ไม่ระบุ —</option>
-                <option v-for="opt in relationTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <!-- อาชีพ -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">อาชีพ</label>
-              <input v-model="editingMember.occupation" type="text" maxlength="255"
-                class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]" />
-            </div>
-            <!-- รายได้ต่อเดือน -->
-            <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">รายได้ต่อเดือน (บาท)</label>
-              <div class="relative">
-                <input
-                  :value="displayIncome"
-                  @input="handleMemberIncomeInput"
-                  type="text" inputmode="decimal"
-                  placeholder="0"
-                  class="w-full bg-white border rounded-xl px-3 py-2 pr-14 text-[13px] focus:outline-none focus:ring-2 transition-colors"
-                  :class="editMemberErrors.monthlyIncome ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
-                <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">บาท</span>
+            <!-- ความสัมพันธ์ + อาชีพ + รายได้ + สภาพร่างกาย (จัด 2 คอลัมน์ให้กระชับ) -->
+            <div class="grid grid-cols-2 gap-3">
+              <!-- ความสัมพันธ์ -->
+              <div>
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">ความสัมพันธ์กับผู้ประสบปัญหา <span class="text-red-500">*</span></label>
+                <select
+                  v-model="editingMember.relationToApplicantId"
+                  class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors appearance-none"
+                  :class="editMemberErrors.relationToApplicantId ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'">
+                  <option :value="null" disabled>เลือกความสัมพันธ์</option>
+                  <option v-for="opt in relationTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+                <p v-if="editMemberErrors.relationToApplicantId" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.relationToApplicantId }}</p>
               </div>
-              <p v-if="editMemberErrors.monthlyIncome" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.monthlyIncome }}</p>
+              <!-- อาชีพ -->
+              <div>
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">อาชีพ <span class="text-red-500">*</span></label>
+                <input v-model="editingMember.occupation" type="text" maxlength="255"
+                  class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                  :class="editMemberErrors.occupation ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+                <p v-if="editMemberErrors.occupation" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.occupation }}</p>
+              </div>
+              <!-- รายได้ต่อเดือน -->
+              <div>
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">รายได้ต่อเดือน (บาท) <span class="text-red-500">*</span></label>
+                <div class="relative">
+                  <input
+                    :value="displayIncome"
+                    @input="handleMemberIncomeInput"
+                    type="text" inputmode="decimal"
+                    placeholder="0"
+                    class="w-full bg-white border rounded-xl px-3 py-2 pr-14 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                    :class="editMemberErrors.monthlyIncome ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+                  <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">บาท</span>
+                </div>
+                <p v-if="editMemberErrors.monthlyIncome" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.monthlyIncome }}</p>
+              </div>
+              <!-- สภาพร่างกาย -->
+              <div>
+                <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">สภาพทางร่างกาย <span class="text-red-500">*</span></label>
+                <select v-model="editingMember.physicalCondition"
+                  class="w-full bg-white border rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 transition-colors"
+                  :class="editMemberErrors.physicalCondition ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'">
+                  <option value="" disabled>เลือกสภาพทางร่างกาย</option>
+                  <option v-for="opt in physicalConditionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+                <p v-if="editMemberErrors.physicalCondition" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.physicalCondition }}</p>
+              </div>
             </div>
-            <!-- สภาพร่างกาย -->
+            <!-- การช่วยเหลือตนเอง (radio 2 ตัวเลือก) -->
             <div>
-              <label class="text-[12px] text-slate-600 mb-1 block">สภาพร่างกาย</label>
-              <select v-model="editingMember.physicalCondition"
-                class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]">
-                <option v-for="opt in physicalConditionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
-            <!-- ดูแลตนเองได้ -->
-            <div class="col-span-2 flex items-center gap-2 pt-1">
-              <input type="checkbox" :id="`self-care-${editingIndex}`" v-model="editingMember.selfCare"
-                class="w-4 h-4 rounded accent-[#1A56DB]" />
-              <label :for="`self-care-${editingIndex}`" class="text-[13px] text-slate-700 cursor-pointer">
-                ดูแลตนเองได้
-              </label>
+              <label class="text-[12px] text-slate-600 mb-1.5 font-medium block">การช่วยเหลือตนเอง <span class="text-red-500">*</span></label>
+              <div class="grid grid-cols-2 gap-2">
+                <!-- ช่วยเหลือตนเองได้ -->
+                <label
+                  class="flex items-center gap-2 border rounded-xl px-3 py-2.5 cursor-pointer transition-colors"
+                  :class="editingMember.selfCare === true ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 hover:bg-slate-50'">
+                  <input type="radio" :value="true" v-model="editingMember.selfCare" class="w-4 h-4 accent-[#1A56DB]" />
+                  <span class="text-[13px] text-slate-700">ช่วยเหลือตนเองได้</span>
+                </label>
+                <!-- ช่วยเหลือตนเองไม่ได้ -->
+                <label
+                  class="flex items-center gap-2 border rounded-xl px-3 py-2.5 cursor-pointer transition-colors"
+                  :class="editingMember.selfCare === false ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 hover:bg-slate-50'">
+                  <input type="radio" :value="false" v-model="editingMember.selfCare" class="w-4 h-4 accent-[#1A56DB]" />
+                  <span class="text-[13px] text-slate-700">ช่วยเหลือตนเองไม่ได้</span>
+                </label>
+              </div>
+              <p v-if="editMemberErrors.selfCare" class="text-[11px] text-red-500 mt-0.5">{{ editMemberErrors.selfCare }}</p>
             </div>
           </div>
           <!-- ปุ่ม บันทึก / ยกเลิก -->
