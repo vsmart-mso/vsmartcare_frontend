@@ -28,6 +28,8 @@ export type RequestType = LookupItem
 export type BankNameType = LookupItem
 /** ตอบจาก `GET /v1/lookups/bank-account-types` (ประเภทเงินฝาก) */
 export type BankAccountType = LookupItem
+/** ตอบจาก `GET /v1/lookups/household-member-relation-types` */
+export type HouseholdMemberRelationType = LookupItem
 
 // ─── Module-level cache ────────────────────────────────────────────────────────
 // เก็บ Promise ไว้ด้วย เพื่อกัน race condition กรณีมีการเรียกพร้อมกันก่อน cache เสร็จ
@@ -83,4 +85,7 @@ export const lookupsApi = {
 
   /** ประเภทเงินฝาก (เงินฝากออมทรัพย์ / ประจำ / กระแสรายวัน) */
   fetchBankAccountTypes: () => fetchLookup('/v1/lookups/bank-account-types'),
+
+  /** ความสัมพันธ์กับผู้ประสบปัญหา (บิดา/มารดา / บุตร / คู่สมรส ฯลฯ) */
+  fetchHouseholdMemberRelationTypes: () => fetchLookup('/v1/lookups/household-member-relation-types'),
 }

@@ -36,6 +36,22 @@ export const REQUESTER_RELATION_MAP: Readonly<Record<string, number>> = {
   ตนเอง: 1,
 }
 
+// ข้อมูลสมาชิกครัวเรือน 1 แถว (ปสค.๒)
+export interface HouseholdMemberForm {
+  seq: number
+  nationalId: string                                      // '' = ไม่มี → null
+  prefixId: string                                        // '' = ใช้ prefixOther
+  prefixOther: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string                                   // '' = ไม่ระบุ, format YYYY-MM-DD
+  relationToApplicantId: number | null
+  occupation: string
+  monthlyIncome: string
+  physicalCondition: '' | 'normal' | 'disabled' | 'chronic_illness'   // '' = ยังไม่เลือก
+  selfCare: boolean | null                                            // null = ยังไม่เลือก
+}
+
 // ข้อมูล Step 1 — ข้อมูลส่วนตัว, ที่อยู่, ติดต่อ
 export interface Step1Data {
   relationship: string  // ข้อความแสดงผล — ส่ง API เป็น applicants.requester_relation_id
@@ -63,7 +79,7 @@ export interface Step1Data {
   maritalStatus: string   // applicants.marital_status_id (string → int ตอนส่ง API)
   housingType: string     // economic_infos.housing_types_id (string → int ตอนส่ง API)
   rentPerMonth: string    // economic_infos.housing_types_rent
-  familyCount: string     // economic_infos.household_members
+  householdMembers: HouseholdMemberForm[]  // household_members[] (แทน familyCount เดิม)
 }
 
 // ข้อมูล Step 2 — เศรษฐกิจ (economic_infos + income_sources + dependency_loads + welfare_histories)
@@ -87,10 +103,11 @@ export interface Step2Data {
 export interface Step3Data {
   problemDescription: string  // applicants.problem_details
   aidTypes: string[]          // welfare_request_types.request_type_id (หลาย row)
-  aidOtherText: string        // welfare_request_types.request_other_text (เฉพาะ request_type_id=3)
+  aidOtherText: string        // welfare_request_types.request_other_text (request_type_id=3)
+  aidInKindText: string       // welfare_request_types.request_in_kind_text (request_type_id=2)
   bankNameId: string          // applicants.bank_name_id (FK → bank_name.id)
   bankAccount: string         // applicants.bank_account_no
-  bankAccountTypeId: string   // applicants.bank_account_type_id (FK → bank_account_type.id) — map จาก OCR deposit_type
+  bankAccountTypeId: string   // applicants.bank_account_type_id (FK → bank_account_type.id)
   bankBranchName: string      // applicants.bank_branch_name — ชื่อสาขาจาก OCR
   // bankBookPhoto → ส่งแยกผ่าน files Map ใช้ key คงที่ 'bank_book'
 }
@@ -152,6 +169,7 @@ export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
   house_home:   6,
   house_person: 7,
   family:       8,
+  ktb_form:     11,
   other_doc:    99,
 }
 
@@ -267,6 +285,7 @@ export const useApplicationStore = defineStore('application', () => {
         problemDescription: '',
         aidTypes:           [],
         aidOtherText:       '',
+        aidInKindText:      '',
         bankNameId,
         bankAccount,
         bankAccountTypeId,
@@ -363,6 +382,21 @@ export const useApplicationStore = defineStore('application', () => {
       other_details:         s2?.incomeSourceOther || null,
     }))
 
+    const householdMembersList = (s1?.householdMembers ?? []).map((m, i) => ({
+      seq:                  m.seq || i + 1,
+      national_id:          m.nationalId || null,
+      prefix_id:            Number(m.prefixId) || null,
+      prefix_other:         m.prefixOther || null,
+      first_name:           m.firstName,
+      last_name:            m.lastName,
+      date_of_birth:        m.dateOfBirth || null,
+      relation_to_applicant_id: m.relationToApplicantId ?? null,
+      occupation:           m.occupation || null,
+      monthly_income:       (() => { const n = Number(m.monthlyIncome); return m.monthlyIncome !== '' && !isNaN(n) ? n : null })(),
+      physical_condition:   m.physicalCondition || 'normal',
+      self_care:            m.selfCare ?? false,
+    }))
+
     const economic_infos: CasePayload['economic_infos'] = [{
       housing_types_id:   Number(s1?.housingType ?? '0') || null,
       housing_types_rent: s1?.rentPerMonth ? (Number(s1.rentPerMonth) || null) : null,
@@ -373,7 +407,7 @@ export const useApplicationStore = defineStore('application', () => {
                            : cs?.annualIncome
                              ? Math.round(cs.annualIncome / 12)
                              : null,
-      household_members: Number(s1?.familyCount ?? '0') || null,
+      household_members: householdMembersList.length > 0 ? householdMembersList.length : null,
       family_occupation: s2?.familyOccupation || null,
       income_sources,
     }]
@@ -413,9 +447,11 @@ export const useApplicationStore = defineStore('application', () => {
       addresses,
       dependency_loads,
       economic_infos,
+      household_members: householdMembersList,
       // request_type_ids เก็บ id ของประเภทความช่วยเหลือที่ร้องขอ (Step3)
       request_type_ids: (s3?.aidTypes ?? []).map(idStr => Number(idStr)),
       request_other_text: s3?.aidOtherText || null,
+      request_in_kind_text: s3?.aidInKindText || null,
       welfare_history,
       initial_current_status_id: 1, // รับเรื่อง
     }
@@ -462,7 +498,21 @@ export const useApplicationStore = defineStore('application', () => {
       housingType:   String(eco?.housing_types_id ?? ''),
       // แปลง Decimal string จาก backend เป็น integer string (ตัดทศนิยมทิ้ง)
       rentPerMonth:  eco?.housing_types_rent ? String(Math.round(Number(eco.housing_types_rent))) : '',
-      familyCount:   String(eco?.household_members ?? ''),
+      householdMembers: (caseData.household_members ?? []).map((m, i) => ({
+        seq:                  m.seq ?? i + 1,
+        nationalId:           m.national_id ?? '',
+        // prefix_id มีค่า → ใช้ id; ไม่มีแต่มี prefix_other → 'none' (อื่นๆ/ไม่ระบุ); ไม่มีทั้งคู่ → '' (ยังไม่เลือก)
+        prefixId:             m.prefix_id != null ? String(m.prefix_id) : (m.prefix_other ? 'none' : ''),
+        prefixOther:          m.prefix_other ?? '',
+        firstName:            m.first_name ?? '',
+        lastName:             m.last_name ?? '',
+        dateOfBirth:          m.date_of_birth ?? '',
+        relationToApplicantId: m.relation_to_applicant_id ?? null,
+        occupation:           m.occupation ?? '',
+        monthlyIncome:        m.monthly_income ? String(Math.round(Number(m.monthly_income))) : '',
+        physicalCondition:    (m.physical_condition ?? 'normal') as 'normal' | 'disabled' | 'chronic_illness',
+        selfCare:             m.self_care ?? true,
+      })),
     }
 
     // ── checkSelf (occupation สำหรับ Step2) ─────────────────────────────────
@@ -496,7 +546,8 @@ export const useApplicationStore = defineStore('application', () => {
     step3.value = {
       problemDescription: a.problem_details ?? '',
       aidTypes:           caseData.welfare_request_types.map(rt => String(rt.request_type_id)),
-      aidOtherText:       caseData.welfare_request_types.find(rt => rt.request_other_text)?.request_other_text ?? '',
+      aidOtherText:       caseData.welfare_request_types.find(rt => rt.request_type_id === 3)?.request_other_text ?? '',
+      aidInKindText:      caseData.welfare_request_types.find(rt => rt.request_type_id === 2)?.request_in_kind_text ?? '',
       bankNameId:         String(a.bank_name_id ?? ''),
       bankAccount:        a.bank_account_no ?? '',
       bankAccountTypeId:  String(a.bank_account_type_id ?? ''),

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
@@ -126,6 +126,7 @@ const FILE_FIELD_DOCTYPE: Record<string, string> = {
   evidence_family_photo:         'family',
   doc_house_registration_house:  'house_home',
   doc_house_registration_person: 'house_person',
+  doc_ktb_corporate:             'ktb_form',
   doc_other:                     'other_doc',
   bank_book_photo:               'bank_book',
 }
@@ -155,7 +156,7 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
     case 'marital_status':              return String(data.maritalStatus ?? '')
     case 'housing_type':                return String(data.housingType ?? '')
     case 'housing_rent':                return String(data.rentPerMonth ?? '')
-    case 'family_members_count':        return String(data.familyCount ?? '')
+    case 'family_members_count':        return String((data.householdMembers as unknown[])?.length ?? 0)
     // ── Step 2: เศรษฐกิจ / สวัสดิการ ──
     case 'family_occupation':   return String(data.familyOccupation ?? '')
     case 'family_income':       return String(data.monthlyIncome ?? '')
@@ -169,11 +170,15 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
     case 'gov_aid_types':       return JSON.stringify(data.aidTypes ?? [])
     case 'gov_aid_type_detail': return JSON.stringify(data.aidTypeDetails ?? {})
     // ── Step 3: ปัญหา / ความช่วยเหลือ / ธนาคาร ──
-    case 'family_problems':             return String(data.problemDescription ?? '')
-    case 'requested_assistance_type':   return JSON.stringify(data.aidTypes ?? [])
-    case 'requested_assistance_detail': return String(data.aidOtherText ?? '')
-    case 'bank_name':                   return String(data.bankNameId ?? '')
-    case 'bank_account_number':         return String(data.bankAccount ?? '')
+    case 'family_problems':           return String(data.problemDescription ?? '')
+    // รวม aidTypes + aidOtherText + aidInKindText ให้ dirty-check ตรวจได้ครบ
+    case 'requested_assistance_type': return JSON.stringify({
+      types:   data.aidTypes      ?? [],
+      other:   data.aidOtherText  ?? '',
+      inKind:  data.aidInKindText ?? '',
+    })
+    case 'bank_name':                 return String(data.bankNameId ?? '')
+    case 'bank_account_number':       return String(data.bankAccount ?? '')
     default: return null
   }
 }
@@ -300,15 +305,19 @@ async function handleSave() {
     } else {
       partialUpdate.applicant = { reset_processing_state: true } as typeof updatePayload.applicant
     }
-    if (showStep1.value)  partialUpdate.addresses = updatePayload.addresses
+    if (showStep1.value) {
+      partialUpdate.addresses         = updatePayload.addresses
+      partialUpdate.household_members = updatePayload.household_members
+    }
     if (showStep2.value) {
       partialUpdate.economic_infos   = updatePayload.economic_infos
       partialUpdate.dependency_loads = updatePayload.dependency_loads
       partialUpdate.welfare_history  = updatePayload.welfare_history
     }
     if (showStep3.value) {
-      partialUpdate.request_type_ids  = updatePayload.request_type_ids
-      partialUpdate.request_other_text = updatePayload.request_other_text
+      partialUpdate.request_type_ids    = updatePayload.request_type_ids
+      partialUpdate.request_other_text  = updatePayload.request_other_text
+      partialUpdate.request_in_kind_text = updatePayload.request_in_kind_text
     }
 
     await welfareApi.updateCase(app.editApplicantId!, partialUpdate)
@@ -378,6 +387,12 @@ const STEP_LABELS: Record<number, string> = {
       <p class="text-[17px] font-bold text-white">แก้ไขข้อมูล</p>
     </header>
 
+    <!-- overlay ปิดกั้น interaction ทั้งหน้าขณะกำลังบันทึก (z-10: ต่ำกว่า header/footer z-20) -->
+    <div v-if="isSubmitting"
+      class="fixed inset-0 z-10 bg-white/40 cursor-not-allowed"
+      aria-hidden="true"
+    />
+
     <main class="pt-[4.5rem] pb-32 px-4 space-y-4">
 
       <!-- Banner แจ้งผู้ใช้ -->
@@ -437,7 +452,7 @@ const STEP_LABELS: Record<number, string> = {
           ref="step3Ref"
           :filterFields="filterFields3"
           @update:ready="v => step3Ready = v"
-          @update:loading="v => { step3Loading = v; if (!v) captureBaseline(3) }"
+          @update:loading="v => { step3Loading = v; if (!v) nextTick(() => captureBaseline(3)) }"
         />
       </template>
 

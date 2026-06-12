@@ -6,12 +6,17 @@ import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 import type { CaseDisplayRead, StatusLogItem, ReviewComment } from '@/api/welfare'
 import { useApplicationStore } from '@/stores/application'
+import { useEligibilityStore } from '@/stores/eligibility'
+import { useAuth } from '@/composables/useAuth'
+import { formatThaiDate } from '@/utils/formatDate'
 import CaseTrackingSkeleton from './components/CaseTrackingSkeleton.vue'
 
 const route  = useRoute()
 const router = useRouter()
 const auth   = useAuthStore()
 const app    = useApplicationStore()
+const eligibilityStore = useEligibilityStore()
+const { logout } = useAuth()
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 const isLoading  = ref(true)
@@ -95,6 +100,11 @@ const currentTimelineStep = computed(() => {
 
 const isRejected   = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData   = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
+
+const isInCooldown = computed(() => eligibilityStore.reason === 'cooldown')
+const cooldownEligibleAt = computed(() =>
+  formatThaiDate(eligibilityStore.data?.eligible_at),
+)
 
 // หมายเหตุ: ไม่แสดง remarks ของเจ้าหน้าที่ให้ประชาชนเห็น (TASK-02)
 // ใช้ข้อความมาตรฐาน "คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น..." แทน
@@ -187,6 +197,8 @@ onMounted(async () => {
   }
 
   try {
+    await eligibilityStore.fetchEligibility(personId)
+
     // 1. ดึงรายการคำร้องทั้งหมดของ person แล้วเลือก case ที่ต้องการ
     const cases = await welfareApi.getCasesDisplay(personId)
 
@@ -399,6 +411,10 @@ const timelineRef  = ref<HTMLElement | null>(null)
 function scrollTimeline(dir: 'left' | 'right') {
   timelineRef.value?.scrollBy({ left: dir === 'right' ? 140 : -140, behavior: 'smooth' })
 }
+
+async function handleLogout() {
+  await logout()
+}
 </script>
 
 <template>
@@ -421,7 +437,10 @@ function scrollTimeline(dir: 'left' | 'right') {
     <!-- ══════════════════════════════════════════════════════════
          Loading / Error
          ══════════════════════════════════════════════════════════ -->
-    <main class="flex-1 mx-auto w-full max-w-md px-4 pt-[4.5rem] pb-8 space-y-3">
+    <main
+      class="flex-1 mx-auto w-full max-w-md px-4 pt-[4.5rem] space-y-3"
+      :class="isInCooldown ? 'pb-28' : 'pb-8'"
+    >
 
       <!-- Loading — โชว์โครงหน้าจอจำลอง (skeleton) แทน spinner เปล่า ๆ -->
       <CaseTrackingSkeleton v-if="isLoading" />
@@ -706,6 +725,22 @@ function scrollTimeline(dir: 'left' | 'right') {
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- ── แจ้งเตือนช่วงรอครบกำหนดยื่นคำขอใหม่ (cooldown 30 วัน) ── -->
+        <div
+          v-if="isInCooldown"
+          class="flex items-start gap-3 bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-4 shadow-md shadow-amber-100"
+        >
+          <div class="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+            </svg>
+          </div>
+          <p class="flex-1 min-w-0 text-[14px] text-amber-900 leading-relaxed">
+            ท่านจะสามารถยื่นขอรับสวัสดิการครั้งถัดไปได้ตั้งแต่วันที่ <br>
+            <span class="font-bold text-[#1A56DB]">{{ cooldownEligibleAt }}</span>
+          </p>
         </div>
 
         <!-- ── แจ้งผลไม่ผ่านเกณฑ์ (แสดงเฉพาะเมื่อสถานะ = คุณสมบัติไม่ตรงตามหลักเกณฑ์) ── -->
@@ -1104,6 +1139,23 @@ function scrollTimeline(dir: 'left' | 'right') {
       </template>
 
     </main>
+
+    <!-- Footer: ออกจากระบบ (ช่วง cooldown) — fixed ด้านล่างเหมือนปุ่มย้อนกลับหน้าอื่น -->
+    <footer
+      v-if="isInCooldown"
+      class="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+      style="padding-bottom: max(env(safe-area-inset-bottom), 12px)"
+    >
+      <div class="mx-auto max-w-md px-4 pt-3">
+        <button
+          type="button"
+          class="w-full py-3 rounded-xl bg-[#1A56DB] text-white text-[14px] font-bold shadow-md shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all"
+          @click="handleLogout"
+        >
+          ออกจากระบบ
+        </button>
+      </div>
+    </footer>
   </div>
 </template>
 

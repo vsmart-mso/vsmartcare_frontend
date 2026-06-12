@@ -32,6 +32,8 @@ const canProceed = computed(() =>
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
 function handleReject() {
+  // กันกดระหว่างกำลังบันทึก consent อยู่ (ไม่ให้ยกเลิกกลางคันขณะ API ทำงาน)
+  if (isSubmitting.value) return
   // ล้างข้อมูล session ทั้งหมด แล้วกลับไปหน้า login
   authStore.clearAuth()
   router.push({ name: 'login' })
@@ -180,8 +182,8 @@ async function handleProceed() {
         <div class="px-4 py-3 space-y-3">
 
           <!-- Checkbox 1: ยินยอม PDPA -->
-          <label class="flex items-start gap-3 cursor-pointer select-none">
-            <input type="checkbox" v-model="consentPDPA" class="sr-only" />
+          <label class="flex items-start gap-3 select-none" :class="isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+            <input type="checkbox" v-model="consentPDPA" :disabled="isSubmitting" class="sr-only" />
             <!--
               sr-only = ซ่อน checkbox จริงจากตา แต่ screen reader ยังอ่านได้
               แทนที่ด้วย div ที่ดูสวยกว่า และ v-model ทำงานผ่าน label
@@ -205,8 +207,8 @@ async function handleProceed() {
           </label>
 
           <!-- Checkbox 2: รับทราบเงื่อนไข -->
-          <label class="flex items-start gap-3 cursor-pointer select-none">
-            <input type="checkbox" v-model="consentTerms" class="sr-only" />
+          <label class="flex items-start gap-3 select-none" :class="isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+            <input type="checkbox" v-model="consentTerms" :disabled="isSubmitting" class="sr-only" />
             <div
               :class="[
                 'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-150',
@@ -255,8 +257,8 @@ async function handleProceed() {
         </p>
 
         <!-- Checkbox 3: style เดียวกันกับ checkbox 1 และ 2 -->
-        <label class="flex items-start gap-3 cursor-pointer select-none mt-3">
-          <input type="checkbox" v-model="consentWarning" class="sr-only" />
+        <label class="flex items-start gap-3 select-none mt-3" :class="isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+          <input type="checkbox" v-model="consentWarning" :disabled="isSubmitting" class="sr-only" />
           <div
             :class="[
               'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-150',
@@ -299,10 +301,11 @@ async function handleProceed() {
         <!-- ปุ่ม 2 ปุ่ม -->
         <div class="flex gap-3">
 
-          <!-- ปุ่ม "ปฏิเสธ" — ghost button -->
+          <!-- ปุ่ม "ปฏิเสธ" — ghost button (disable ระหว่างบันทึก) -->
           <button
             @click="handleReject"
-            class="flex-1 h-12 rounded-xl border-2 border-slate-300 bg-white text-[15px] font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+            :disabled="isSubmitting"
+            class="flex-1 h-12 rounded-xl border-2 border-slate-300 bg-white text-[15px] font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
             ปฏิเสธ
           </button>
