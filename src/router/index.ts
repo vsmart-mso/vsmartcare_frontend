@@ -4,6 +4,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAdminAuthStore } from '@/stores/adminAuth'
 import { authApi } from '@/api/auth'
 import { welfareApi } from '@/api/welfare'
 import type { ThaiDUser } from '@/types/auth'
@@ -67,6 +68,19 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/edit-request/EditRequestPage.vue'),
     meta: { requiresAuth: true },
   },
+  // ─── Admin (TASK-v-care-12062026-01) — แยกขาดจาก flow ประชาชน ───
+  {
+    path: '/admin/login',
+    name: 'admin-login',
+    component: () => import('@/views/admin/AdminLoginPage.vue'),
+    meta: { requiresAdminGuest: true },
+  },
+  {
+    path: '/admin/provinces',
+    name: 'admin-provinces',
+    component: () => import('@/views/admin/AdminProvincesPage.vue'),
+    meta: { requiresAdminAuth: true },
+  },
   {
     // catch-all: ถ้าพิมพ์ URL ที่ไม่มีในระบบ ให้พากลับหน้าแรกเสมอ
     // :pathMatch(.*)*  คือ regex ที่จับ path ทุกแบบ
@@ -102,6 +116,18 @@ async function resolveHomeRoute(personId: number): Promise<string> {
 export { resolveHomeRoute }
 
 router.beforeEach(async (to) => {
+  // ─── Admin guard (แยกขาดจาก citizen — ใช้ adminAuth store / localStorage) ───
+  if (to.meta.requiresAdminAuth || to.meta.requiresAdminGuest) {
+    const adminAuth = useAdminAuthStore()
+    if (to.meta.requiresAdminAuth && !adminAuth.isAuthenticated) {
+      return { name: 'admin-login' }
+    }
+    if (to.meta.requiresAdminGuest && adminAuth.isAuthenticated) {
+      return { name: 'admin-provinces' }
+    }
+    return true
+  }
+
   const auth = useAuthStore()
 
   // --- Session Restoration ---

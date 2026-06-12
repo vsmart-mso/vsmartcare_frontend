@@ -50,6 +50,8 @@ onMounted(async () => {
 const stepReady    = ref(false)
 const isSubmitting = ref(false)
 const submitError  = ref('')
+// จังหวัดถูกปิดระหว่างกรอกฟอร์ม (TASK-v-care-12062026-01) → แสดง overlay แล้วเตะออก
+const provinceBlocked = ref(false)
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
@@ -285,6 +287,16 @@ async function handleSubmit() {
         .join(', ')
     } else if (typeof rawDetail === 'string') {
       detail = rawDetail
+      // จังหวัดถูกปิดระหว่างกรอกฟอร์ม → แสดงข้อความมาตรฐานแล้วเตะออกจากระบบ
+      if (detail === 'province_not_enabled') {
+        provinceBlocked.value = true
+        window.setTimeout(() => {
+          auth.clearAuth()
+          app.clearAll()
+          router.replace({ name: 'login' })
+        }, 4000)
+        return
+      }
       if (detail === 'submission_cooldown_active' || detail === 'active_case_exists') {
         const personId = isThaiDUser(auth.user) ? auth.user.person_id : 0
         if (personId) {
@@ -305,6 +317,28 @@ async function handleSubmit() {
 
 <template>
   <div class="min-h-dvh flex flex-col bg-slate-100">
+
+    <!-- ══════════════════════════════════════════════════════════
+         Overlay: จังหวัดยังไม่เปิดบริการ (ถูกปิดระหว่างกรอกฟอร์ม)
+         แสดงข้อความมาตรฐานแล้วระบบจะพาออกจากระบบอัตโนมัติ
+         ══════════════════════════════════════════════════════════ -->
+    <div
+      v-if="provinceBlocked"
+      class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 px-6 text-center"
+      role="alertdialog"
+      aria-live="assertive"
+    >
+      <p class="text-[18px] font-semibold text-slate-800 mb-3">
+        ยังไม่เปิดให้บริการในพื้นที่ของท่าน
+      </p>
+      <p class="text-[14px] text-slate-500 leading-relaxed max-w-sm">
+        ขออภัยในความไม่สะดวก ขณะนี้ระบบ พม. CARE
+        ยังไม่เปิดให้บริการบันทึกข้อมูลสำหรับจังหวัดของท่าน
+      </p>
+      <p class="text-[13px] text-slate-400 mt-6">
+        ระบบจะพาท่านออกจากระบบโดยอัตโนมัติ…
+      </p>
+    </div>
 
     <!-- ══════════════════════════════════════════════════════════
          Header (fixed)
