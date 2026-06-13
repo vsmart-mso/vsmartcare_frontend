@@ -406,11 +406,7 @@ function checkNotification() {
 }
 
 // ─── History collapse ──────────────────────────────────────────────────────────
-const historyOpen  = ref(true)
-const timelineRef  = ref<HTMLElement | null>(null)
-function scrollTimeline(dir: 'left' | 'right') {
-  timelineRef.value?.scrollBy({ left: dir === 'right' ? 140 : -140, behavior: 'smooth' })
-}
+const historyOpen = ref(true)
 
 async function handleLogout() {
   await logout()
@@ -587,143 +583,115 @@ async function handleLogout() {
 
         <!-- ── Timeline (สถานะ 1–4) ── -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="relative flex items-center px-2 py-4">
-
-            <!-- ลูกศรซ้าย -->
-            <button
-              type="button"
-              @click="scrollTimeline('left')"
-              class="flex-shrink-0 w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm z-10 active:scale-90 transition-all"
-              aria-label="เลื่อนซ้าย"
-            >
-              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-
-            <!-- Steps -->
+          <div class="px-4 py-5">
             <div
-              ref="timelineRef"
-              class="flex-1 overflow-x-auto px-1"
-              style="scrollbar-width: none; -ms-overflow-style: none;"
+              class="flex items-start"
+              :class="(isRejected || isEditData) ? 'justify-center' : ''"
             >
-              <div
-                class="flex py-1"
-                :class="(isRejected || isEditData) ? 'w-full justify-center' : 'items-start gap-0 min-w-max'"
-              >
 
-                <!-- ถ้า rejected แสดง step พิเศษ -->
-                <template v-if="isRejected">
-                  <div class="flex flex-col items-center w-[88px]">
-                    <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-500 shadow-md shadow-red-200">
-                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                      </svg>
-                    </div>
-                    <p class="text-[12px] text-center leading-tight max-w-[80px] text-red-600 font-semibold" style="margin-top: 10px">
-                      คุณสมบัติไม่ตรงตามหลักเกณฑ์
-                    </p>
+              <!-- ถ้า rejected แสดง step พิเศษ -->
+              <template v-if="isRejected">
+                <div class="flex flex-col items-center w-[88px]">
+                  <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-red-500 shadow-md shadow-red-200">
+                    <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
                   </div>
-                </template>
+                  <p class="text-[12px] text-center leading-tight max-w-[80px] text-red-600 font-semibold" style="margin-top: 10px">
+                    คุณสมบัติไม่ตรงตามหลักเกณฑ์
+                  </p>
+                </div>
+              </template>
 
-                <!-- ถ้า แก้ไขข้อมูล (status 8) แสดง step พิเศษ -->
-                <template v-else-if="isEditData">
-                  <div class="flex flex-col items-center w-[88px]">
-                    <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-500 shadow-md shadow-amber-200">
-                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-                      </svg>
-                    </div>
-                    <p class="text-[12px] text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
-                      แก้ไขข้อมูล
-                    </p>
+              <!-- ถ้า แก้ไขข้อมูล (status 8) แสดง step พิเศษ -->
+              <template v-else-if="isEditData">
+                <div class="flex flex-col items-center w-[88px]">
+                  <div class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-500 shadow-md shadow-amber-200">
+                    <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+                    </svg>
                   </div>
-                </template>
+                  <p class="text-[12px] text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
+                    แก้ไขข้อมูล
+                  </p>
+                </div>
+              </template>
 
-                <!-- สถานะปกติ 1–4 -->
-                <template v-else>
-                  <template v-for="(step, i) in TIMELINE_STEPS" :key="step.id">
-                    <div class="flex flex-col items-center w-[72px]">
+              <!-- สถานะปกติ 1–4 กระจายเต็มแถว ไม่ต้อง scroll -->
+              <template v-else>
+                <template v-for="(step, i) in TIMELINE_STEPS" :key="step.id">
+                  <!-- แต่ละ step ใช้ flex-1 เพื่อกระจายพื้นที่เท่ากัน -->
+                  <div class="flex flex-col items-center flex-1 min-w-0">
 
-                      <!-- step "อยู่ระหว่างการเบิก" ที่กำลัง active → donut แสดง % ความคืบหน้า (33/66) -->
-                      <div
-                        v-if="step.id === 3 && stepState(step.id) === 'active' && isDisbursementPhase"
-                        class="relative w-9 h-9 flex-shrink-0"
-                      >
-                        <!-- -rotate-90 ให้เส้น progress เริ่มจากด้านบน (12 นาฬิกา) -->
-                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                          <circle cx="18" cy="18" :r="DONUT_RADIUS" fill="none" stroke="#FEF3C7" stroke-width="4" />
-                          <circle
-                            cx="18" cy="18" :r="DONUT_RADIUS"
-                            fill="none" :stroke="donutColor" stroke-width="4" stroke-linecap="round"
-                            :stroke-dasharray="donutCircumference"
-                            :stroke-dashoffset="donutOffset"
-                            class="transition-all duration-700 ease-out"
-                          />
-                        </svg>
-                        <!-- ตัวเลข % กลางวง -->
-                        <span
-                          class="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold leading-none"
-                          :style="{ color: donutColor }"
-                        >{{ disbursementPercent }}%</span>
-                      </div>
-
-                      <!-- node ปกติ -->
-                      <div
-                        v-else
-                        class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
-                        :class="{
-                          'text-white shadow-md':                                stepState(step.id) === 'done',
-                          'bg-amber-500 text-white shadow-md shadow-amber-200': stepState(step.id) === 'active',
-                          'bg-slate-100 text-slate-400':                         stepState(step.id) === 'pending',
-                        }"
-                        :style="stepState(step.id) === 'done' ? { backgroundColor: '#009f75', boxShadow: '0 4px 6px -1px #009f7533' } : {}"
-                      >
-                        <svg v-if="stepState(step.id) === 'done'" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-                        </svg>
-                        <svg v-else-if="stepState(step.id) === 'active'" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <span v-else>{{ step.id }}</span>
-                      </div>
-                      <p
-                        class="text-[12px] text-center leading-tight max-w-[64px]"
-                        style="margin-top: 10px"
-                        :class="{
-                          'font-semibold': stepState(step.id) === 'done',
-                          'text-amber-600 font-semibold': stepState(step.id) === 'active',
-                          'text-slate-400':               stepState(step.id) === 'pending',
-                        }"
-                        :style="stepState(step.id) === 'done' ? { color: '#009f75' } : {}"
-                      >{{ step.label }}</p>
-                    </div>
+                    <!-- step "อยู่ระหว่างการเบิก" ที่กำลัง active → donut แสดง % ความคืบหน้า (33/66) -->
                     <div
-                      v-if="i < TIMELINE_STEPS.length - 1"
-                      class="h-px w-4 mt-[18px] flex-shrink-0"
+                      v-if="step.id === 3 && stepState(step.id) === 'active' && isDisbursementPhase"
+                      class="relative w-9 h-9 flex-shrink-0"
+                    >
+                      <!-- -rotate-90 ให้เส้น progress เริ่มจากด้านบน (12 นาฬิกา) -->
+                      <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" :r="DONUT_RADIUS" fill="none" stroke="#FEF3C7" stroke-width="4" />
+                        <circle
+                          cx="18" cy="18" :r="DONUT_RADIUS"
+                          fill="none" :stroke="donutColor" stroke-width="4" stroke-linecap="round"
+                          :stroke-dasharray="donutCircumference"
+                          :stroke-dashoffset="donutOffset"
+                          class="transition-all duration-700 ease-out"
+                        />
+                      </svg>
+                      <!-- ตัวเลข % กลางวง -->
+                      <span
+                        class="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold leading-none"
+                        :style="{ color: donutColor }"
+                      >{{ disbursementPercent }}%</span>
+                    </div>
+
+                    <!-- node ปกติ -->
+                    <div
+                      v-else
+                      class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
                       :class="{
-                        'bg-amber-300': stepState(step.id) === 'active',
-                        'bg-slate-200': stepState(step.id) === 'pending',
+                        'text-white shadow-md':                                stepState(step.id) === 'done',
+                        'bg-amber-500 text-white shadow-md shadow-amber-200': stepState(step.id) === 'active',
+                        'bg-slate-100 text-slate-400':                         stepState(step.id) === 'pending',
                       }"
-                      :style="stepState(step.id) === 'done' ? { backgroundColor: '#009f7566' } : {}"
-                    />
-                  </template>
+                      :style="stepState(step.id) === 'done' ? { backgroundColor: '#009f75', boxShadow: '0 4px 6px -1px #009f7533' } : {}"
+                    >
+                      <svg v-if="stepState(step.id) === 'done'" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                      </svg>
+                      <svg v-else-if="stepState(step.id) === 'active'" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <span v-else>{{ step.id }}</span>
+                    </div>
+
+                    <p
+                      class="text-[11px] text-center leading-tight w-full px-0.5"
+                      style="margin-top: 10px"
+                      :class="{
+                        'font-semibold': stepState(step.id) === 'done',
+                        'text-amber-600 font-semibold': stepState(step.id) === 'active',
+                        'text-slate-400':               stepState(step.id) === 'pending',
+                      }"
+                      :style="stepState(step.id) === 'done' ? { color: '#009f75' } : {}"
+                    >{{ step.label }}</p>
+                  </div>
+
+                  <!-- เส้นเชื่อมระหว่าง step -->
+                  <div
+                    v-if="i < TIMELINE_STEPS.length - 1"
+                    class="h-px w-5 mt-[18px] flex-shrink-0"
+                    :class="{
+                      'bg-amber-300': stepState(step.id) === 'active',
+                      'bg-slate-200': stepState(step.id) === 'pending',
+                    }"
+                    :style="stepState(step.id) === 'done' ? { backgroundColor: '#009f7566' } : {}"
+                  />
                 </template>
+              </template>
 
-              </div>
             </div>
-
-            <!-- ลูกศรขวา -->
-            <button
-              type="button"
-              @click="scrollTimeline('right')"
-              class="flex-shrink-0 w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm z-10 active:scale-90 transition-all"
-              aria-label="เลื่อนขวา"
-            >
-              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
           </div>
         </div>
 
