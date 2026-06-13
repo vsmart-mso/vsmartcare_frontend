@@ -11,6 +11,8 @@ const authStore = useAuthStore()
 
 const message = ref('กำลังเข้าสู่ระบบ…')
 const isError = ref(false)
+// จังหวัดยังไม่เปิดบริการ (TASK-v-care-12062026-01) — แสดงข้อความเฉพาะบนหน้านี้
+const isProvinceBlocked = ref(false)
 
 function resolveThaiDErrorMessage(_error: string, _description?: string | null): string {
   return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
@@ -22,8 +24,16 @@ onMounted(async () => {
   // ThaiD ส่ง error กลับมา (เช่น ผู้ใช้กดปฏิเสธในแอป) → พากลับหน้า login พร้อม error message
   const errorCode = params.get('error')?.trim()
   if (errorCode) {
-    const desc = params.get('error_description')?.trim() || null
     history.replaceState(null, '', window.location.pathname)
+
+    // จังหวัดยังไม่เปิดบริการ — แสดงข้อความมาตรฐานบนหน้านี้ (ไม่เด้งกลับ login)
+    if (errorCode === 'province_not_enabled') {
+      isProvinceBlocked.value = true
+      isError.value = true
+      return
+    }
+
+    const desc = params.get('error_description')?.trim() || null
     await router.replace({ name: 'login', query: { auth_error: resolveThaiDErrorMessage(errorCode, desc) } })
     return
   }
@@ -78,19 +88,42 @@ function goLogin() {
 
 <template>
   <div class="min-h-dvh flex flex-col items-center justify-center bg-[#F8FAFC] px-5">
-    <p
-      class="text-center text-[15px] leading-relaxed max-w-sm"
-      :class="isError ? 'text-red-800' : 'text-slate-600'"
-    >
-      {{ message }}
-    </p>
-    <button
-      v-if="isError"
-      type="button"
-      class="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-[14px] font-medium text-white hover:bg-blue-700"
-      @click="goLogin"
-    >
-      กลับหน้าเข้าสู่ระบบ
-    </button>
+    <!-- จังหวัดยังไม่เปิดบริการ — ข้อความมาตรฐาน -->
+    <template v-if="isProvinceBlocked">
+      <div class="text-center max-w-sm">
+        <p class="text-[17px] font-semibold text-slate-800 mb-2">
+          ยังไม่เปิดให้บริการในพื้นที่ของท่าน
+        </p>
+        <p class="text-[14px] text-slate-500 leading-relaxed">
+          ขออภัยในความไม่สะดวก ขณะนี้ระบบ พม. CARE
+          ยังไม่เปิดให้บริการบันทึกข้อมูลสำหรับจังหวัดของท่าน
+        </p>
+      </div>
+      <button
+        type="button"
+        class="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-[14px] font-medium text-white hover:bg-blue-700"
+        @click="goLogin"
+      >
+        กลับหน้าเข้าสู่ระบบ
+      </button>
+    </template>
+
+    <!-- สถานะปกติ / error อื่น ๆ -->
+    <template v-else>
+      <p
+        class="text-center text-[15px] leading-relaxed max-w-sm"
+        :class="isError ? 'text-red-800' : 'text-slate-600'"
+      >
+        {{ message }}
+      </p>
+      <button
+        v-if="isError"
+        type="button"
+        class="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-[14px] font-medium text-white hover:bg-blue-700"
+        @click="goLogin"
+      >
+        กลับหน้าเข้าสู่ระบบ
+      </button>
+    </template>
   </div>
 </template>

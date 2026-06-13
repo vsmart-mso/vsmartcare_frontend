@@ -21,7 +21,9 @@ export interface ThaIDLoginStartResponse {
 
 /** ตอบจาก `GET /v1/auth/thaid/status` — ใช้ poll หลังสแกน QR (โหมดเดสก์ท็อปแสดง QR แยก) */
 export interface ThaIDLoginStatusResponse {
-  status: 'pending' | 'complete' | 'gone'
+  status: 'pending' | 'complete' | 'gone' | 'error'
+  /** มีเมื่อ status === 'error' เช่น 'province_not_enabled' (จังหวัดยังไม่เปิดบริการ) */
+  error?: string
   access_token?: string
   token_type?: string
   expires_in?: number
