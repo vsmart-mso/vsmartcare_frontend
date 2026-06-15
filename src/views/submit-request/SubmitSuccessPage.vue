@@ -122,7 +122,7 @@ function skipSurvey() {
       style="padding-top: env(safe-area-inset-top)"
     >
       <div class="relative mx-auto w-full max-w-md flex items-center justify-center px-4 h-full">
-        <h1 class="text-white text-[16px] font-semibold">
+        <h1 class="text-white text-body font-semibold">
           ยื่นคำขอสำเร็จ
         </h1>
       </div>
@@ -140,7 +140,7 @@ function skipSurvey() {
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h2 class="text-[22px] font-bold text-green-600">ส่งคำขอเรียบร้อยแล้ว</h2>
+        <h2 class="text-h2-section font-bold text-green-600">ส่งคำขอเรียบร้อยแล้ว</h2>
       </div>
 
       <!-- ── Card: หมายเลขคำขอ + วันที่ + สถานะ ── -->
@@ -149,11 +149,11 @@ function skipSurvey() {
 
           <!-- หมายเลขคำขอ -->
           <div class="text-center">
-            <p class="text-[12px] text-slate-400 mb-1">หมายเลขคำขอ</p>
+            <p class="text-hint text-slate-400 mb-1">หมายเลขคำขอ</p>
             <div class="flex items-center justify-center gap-2">
               <!-- ระหว่างรอ API: โชว์ skeleton แทนหมายเลขคำขอ -->
               <Skeleton v-if="isLoadingCaseId" width="7rem" height="1.75rem" rounded="rounded-lg" />
-              <span v-else class="text-[22px] font-bold text-[#1A56DB] tracking-wide">{{ displayCaseId }}</span>
+              <span v-else class="text-h2-section font-bold text-[#1A56DB] tracking-wide">{{ displayCaseId }}</span>
               <button
                 type="button"
                 @click="copyCaseId"
@@ -169,13 +169,13 @@ function skipSurvey() {
                 </svg>
               </button>
             </div>
-            <p v-if="copied" class="text-[11px] text-green-500 mt-0.5">คัดลอกแล้ว</p>
+            <p v-if="copied" class="text-micro text-green-500 mt-0.5">คัดลอกแล้ว</p>
           </div>
 
           <div class="h-px bg-slate-200" />
 
           <!-- วันที่ยื่น -->
-          <p class="text-center text-[13px] text-slate-500">
+          <p class="text-center text-body-xs text-slate-500">
             วันที่ยื่น: <span class="font-medium text-slate-700">{{ submittedDate }}</span>
           </p>
 
@@ -196,8 +196,8 @@ function skipSurvey() {
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
           </div>
-          <p class="text-[15px] font-bold text-slate-800">ขอบคุณสำหรับการประเมิน</p>
-          <p class="text-[13px] text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาระบบ</p>
+          <p class="text-body font-bold text-slate-800">ขอบคุณสำหรับการประเมิน</p>
+          <p class="text-body-xs text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาระบบ</p>
         </div>
 
         สถานะ: ยังไม่ประเมิน / กำลังส่ง
@@ -210,13 +210,13 @@ function skipSurvey() {
               </svg>
             </div>
             <div>
-              <p class="text-[11px] font-semibold text-yellow-600 uppercase tracking-wider mb-0.5">แบบสอบถาม</p>
-              <p class="text-[15px] font-bold text-slate-900">ประเมินความพึงพอใจการใช้งาน</p>
+              <p class="text-micro font-semibold text-yellow-600 uppercase tracking-wider mb-0.5">แบบสอบถาม</p>
+              <p class="text-body font-bold text-slate-900">ประเมินความพึงพอใจการใช้งาน</p>
             </div>
           </div>
 
           <div class="px-4 pb-4 space-y-4">
-            <p class="text-[13px] text-slate-600">ท่านพึงพอใจกับระบบการยื่นคำขอรับความช่วยเหลือมากน้อยเพียงใด?</p>
+            <p class="text-body-xs text-slate-600">ท่านพึงพอใจกับระบบการยื่นคำขอรับความช่วยเหลือมากน้อยเพียงใด?</p>
 
             ดาว 1-5
             <div class="flex justify-center gap-3">
@@ -239,7 +239,7 @@ function skipSurvey() {
                 >
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
-                <span class="text-[10px] text-slate-400 leading-none">{{ starLabels[star] }}</span>
+                <span class="text-tiny text-slate-400 leading-none">{{ starLabels[star] }}</span>
               </button>
             </div>
 
@@ -249,18 +249,18 @@ function skipSurvey() {
               rows="2"
               placeholder="ความคิดเห็นเพิ่มเติม (ไม่บังคับ)"
               maxlength="500"
-              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-xs placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
             />
 
             error
-            <p v-if="surveyError" class="text-[12px] text-red-500 text-center">{{ surveyError }}</p>
+            <p v-if="surveyError" class="text-hint text-red-500 text-center">{{ surveyError }}</p>
 
             ปุ่ม
             <div class="flex gap-2">
               <button
                 type="button"
                 @click="skipSurvey"
-                class="flex-1 border border-slate-200 rounded-xl py-2.5 text-[14px] font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
+                class="flex-1 border border-slate-200 rounded-xl py-2.5 text-body-md font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
               >
                 ข้ามขั้นตอนนี้
               </button>
@@ -268,7 +268,7 @@ function skipSurvey() {
                 type="button"
                 @click="submitSurvey"
                 :disabled="!selectedRating || surveyState === 'submitting'"
-                class="flex-1 rounded-xl py-2.5 text-[14px] font-semibold transition-all active:scale-[0.98]"
+                class="flex-1 rounded-xl py-2.5 text-body-md font-semibold transition-all active:scale-[0.98]"
                 :class="selectedRating && surveyState !== 'submitting'
                   ? 'bg-[#1A56DB] text-white hover:bg-[#1648C4]'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
@@ -287,7 +287,7 @@ function skipSurvey() {
         <button
           type="button"
           @click="goToTracking"
-          class="w-full flex items-center justify-center gap-2 bg-[#1A56DB] text-white rounded-2xl py-3.5 text-[16px] font-semibold shadow-md shadow-blue-200 hover:bg-[#1648C4] active:scale-[0.98] transition-all"
+          class="w-full flex items-center justify-center gap-2 bg-[#1A56DB] text-white rounded-2xl py-3.5 text-body font-semibold shadow-md shadow-blue-200 hover:bg-[#1648C4] active:scale-[0.98] transition-all"
         >
           ติดตามสถานะคำขอ
         </button>

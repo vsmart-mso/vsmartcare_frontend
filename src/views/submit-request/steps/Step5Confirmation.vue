@@ -33,10 +33,10 @@ defineExpose({
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
       </div>
-      <h2 class="text-[20px] font-bold text-slate-800 leading-snug mb-2">
+      <h2 class="text-h2-section font-bold text-slate-800 leading-snug mb-2">
         การแจ้งเตือนและการยืนยันข้อมูล
       </h2>
-      <p class="text-[13px] text-slate-500 leading-relaxed max-w-xs">
+      <p class="text-body-xs text-slate-500 leading-relaxed max-w-xs">
         กรุณาอ่านและยืนยันข้อมูลก่อนดำเนินการบันทึกคำขอรับความช่วยเหลือ
       </p>
     </div>
@@ -56,22 +56,22 @@ defineExpose({
         </div>
         <div>
           <!-- label เล็กสีส้ม -->
-          <p class="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-0.5">
+          <p class="text-micro font-semibold text-amber-600 uppercase tracking-wider mb-0.5">
             ก่อนส่งข้อมูลเข้าระบบ
           </p>
-          <p class="text-[15px] font-bold text-slate-900">คำยืนยันก่อนส่งข้อมูล</p>
+          <p class="text-body font-bold text-slate-900">คำยืนยันก่อนส่งข้อมูล</p>
         </div>
       </div>
 
       <div class="px-4 pt-2 pb-4 space-y-3">
 
         <!-- ย่อหน้าที่ 1 -->
-        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+        <p class="text-body-md text-slate-700 leading-relaxed indent-6">
           ข้าพเจ้ารับรองว่า ข้อมูลและเอกสารข้างต้น<span class="text-[#1A56DB] font-semibold">ถูกต้องตรงตามความเป็นจริง</span>ทุกประการหากข้อมูลและเอกสารข้างต้นไม่ถูกต้องครบถ้วนตรงตามความเป็นจริง ข้าพเจ้าตกลงยินยอมให้<span class="text-[#1A56DB] font-semibold">ระงับสวัสดิการ</span>และประโยชน์อื่น
         </p>
 
         <!-- ย่อหน้าที่ 2 -->
-        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+        <p class="text-body-md text-slate-700 leading-relaxed indent-6">
           ข้าพเจ้ายินยอมให้<span class="text-[#1A56DB] font-semibold">เปิดเผยข้อมูลข่าวสาร</span> เพื่อประโยชน์ในการ<span class="text-[#1A56DB] font-semibold">พัฒนาคุณภาพชีวิต</span>ของข้าพเจ้าและครอบครัว
         </p>
 
@@ -89,7 +89,7 @@ defineExpose({
               <polyline points="1,5 4.5,9 11,1" />
             </svg>
           </div>
-          <span class="text-[14px] text-slate-700 leading-snug">
+          <span class="text-body-md text-slate-700 leading-snug">
             ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอยืนยันความถูกต้องของข้อมูลที่ส่งเข้าระบบโดยผู้บันทึกข้อมูลต้องกดยอมรับข้อตกลงก่อนดำเนินการบันทึกข้อมูลและส่งข้อมูลในระบบ
           </span>
         </label>
@@ -112,22 +112,22 @@ defineExpose({
         </div>
         <div>
           <!-- label เล็กสีน้ำเงิน -->
-          <p class="text-[11px] font-semibold text-[#1A56DB] uppercase tracking-wider mb-0.5">
+          <p class="text-micro font-semibold text-[#1A56DB] uppercase tracking-wider mb-0.5">
             การยินยอมเปิดเผยข้อมูล
           </p>
-          <p class="text-[15px] font-bold text-slate-900">คำยินยอมเปิดเผยข้อมูลส่วนบุคคล</p>
+          <p class="text-body font-bold text-slate-900">คำยินยอมเปิดเผยข้อมูลส่วนบุคคล</p>
         </div>
       </div>
 
       <div class="px-4 pt-2 pb-4 space-y-3">
 
         <!-- ย่อหน้าที่ 1 -->
-        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+        <p class="text-body-md text-slate-700 leading-relaxed indent-6">
           ข้าพเจ้ายินยอมให้<span class="text-[#1A56DB] font-semibold">เปิดเผยข้อมูลข่าวสารและข้อมูลส่วนบุคคล</span> เพื่อประโยชน์ในการ<span class="text-[#1A56DB] font-semibold">พัฒนาคุณภาพชีวิต</span> ของข้าพเจ้าและครอบครัว
         </p>
 
         <!-- ย่อหน้าที่ 2 -->
-        <p class="text-[14px] text-slate-700 leading-relaxed indent-6">
+        <p class="text-body-md text-slate-700 leading-relaxed indent-6">
           ข้าพเจ้ารับรองว่า ข้อมูลและเอกสารข้างต้นถูกต้องตรงตามความเป็นจริงทุกประการหากข้อมูลและเอกสารข้างต้นไม่ถูกต้องครบตรงตามความเป็นจริง ข้าพเจ้าตกลงยินยอมให้ระงับสวัสดิการและประโยชน์อื่น
         </p>
 
@@ -145,7 +145,7 @@ defineExpose({
               <polyline points="1,5 4.5,9 11,1" />
             </svg>
           </div>
-          <span class="text-[14px] text-slate-700 leading-snug">
+          <span class="text-body-md text-slate-700 leading-snug">
             ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอยืนยันความถูกต้องของข้อมูลที่ส่งเข้าระบบ
           </span>
         </label>

@@ -89,6 +89,13 @@ const fetchingImages = ref(false)
 
 // ─── Lightbox: แสดง preview เต็มจอสำหรับรูปสมุดบัญชี ──────────────────────────
 const showBankBookPreview = ref(false)
+const bankBookInputRef = ref<HTMLInputElement | null>(null)
+
+function clearBankBook() {
+  bankBook.clear()
+  app.clearExistingImage('bank_book')
+  ocrRef.value?.reset()
+}
 
 // ตรวจสอบว่า slot มีรูปอยู่ (local file หรือ server blob URL ใน store)
 function hasImg(uploader: ReturnType<typeof useImageUpload>, key: string): boolean {
@@ -271,19 +278,19 @@ defineExpose({
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
-          <span class="text-white text-[13px] font-bold">11</span>
+          <span class="text-white text-body-xs font-bold">11</span>
         </div>
-        <p class="text-[14px] font-bold text-[#1A56DB]">หลักฐานการเยี่ยมบ้าน</p>
+        <p class="text-h2-section font-bold text-[#1A56DB]">หลักฐานการเยี่ยมบ้าน</p>
       </div>
       <div class="p-4 space-y-3">
 
         <!-- 13.1 header -->
         <div>
           <div class="flex items-center gap-2 mb-0.5">
-            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">11.1</span>
-            <span class="text-[13px] font-medium text-slate-600">รูปภาพประกอบ (จำเป็น)</span>
+            <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">11.1</span>
+            <span class="text-body-xs font-medium text-slate-600">รูปภาพประกอบ (จำเป็น)</span>
           </div>
-          <p class="text-[12px] text-slate-500 ml-0.5">
+          <p class="text-hint text-slate-500 ml-0.5">
             ถ่ายภาพหรือเลือกจาก อัลบั้ม — รูปสำคัญสำหรับการพิจารณาช่วยเหลือ
           </p>
         </div>
@@ -292,6 +299,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('evidence_house_exterior')"
           upload-id="exterior"
+          :replace-mode="app.editMode"
           title="รูปสภาพบ้านภายนอก"
           subtitle="ถ่ายภาพจากด้านหน้าบ้าน"
           icon="house"
@@ -310,6 +318,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('evidence_house_interior')"
           upload-id="interior"
+          :replace-mode="app.editMode"
           title="รูปสภาพบ้านภายใน"
           subtitle="ภาพภายในบ้าน"
           icon="house"
@@ -328,6 +337,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('evidence_person_photo')"
           upload-id="person"
+          :replace-mode="app.editMode"
           title="รูปผู้ประสบปัญหาฯ"
           subtitle="ภาพผู้ขอรับความช่วยเหลือ"
           icon="person"
@@ -346,6 +356,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('evidence_problem_photo')"
           upload-id="problem"
+          :replace-mode="app.editMode"
           title="รูปสภาพปัญหาที่ต้องการให้ความช่วยเหลือ"
           subtitle="ภาพประกอบปัญหา"
           icon="warning"
@@ -364,6 +375,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('evidence_family_photo')"
           upload-id="family"
+          :replace-mode="app.editMode"
           title="รูปสมาชิกในครอบครัว"
           subtitle="ภาพรวมสมาชิกในครอบครัว"
           icon="people"
@@ -390,30 +402,30 @@ defineExpose({
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
-          <span class="text-white text-[13px] font-bold">12</span>
+          <span class="text-white text-body-xs font-bold">12</span>
         </div>
-        <p class="text-[14px] font-bold text-[#1A56DB]">เอกสารแนบเพิ่มเติม</p>
+        <p class="text-h2-section font-bold text-[#1A56DB]">เอกสารแนบเพิ่มเติม</p>
       </div>
       <div class="p-4 space-y-3">
 
         <!-- 12.1 header — แสดงเมื่อมี field เอกสารแนบ หรือรูปสมุดบัญชี -->
         <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
-            <span class="bg-blue-100 text-[#1A56DB] text-[11px] font-bold px-2 py-0.5 rounded-md">12.1</span>
-            <span class="text-[13px] font-medium text-slate-600">เอกสารประกอบ</span>
+            <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">12.1</span>
+            <span class="text-body-xs font-medium text-slate-600">เอกสารประกอบ</span>
           </div>
-          <p class="text-[12px] text-slate-500 ml-0.5">กรุณาแนบเอกสารที่จำเป็น (มีเครื่องหมาย *) ให้ครบ หากมีเอกสารอื่นเพิ่มเติมสามารถแนบได้</p>
+          <p class="text-hint text-slate-500 ml-0.5">กรุณาแนบเอกสารที่จำเป็น (มีเครื่องหมาย *) ให้ครบ หากมีเอกสารอื่นเพิ่มเติมสามารถแนบได้</p>
         </div>
 
         <!-- ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายจาก Step3 มา) — บังคับ + มี OCR ───────── -->
         <div v-if="show('bank_book_photo')">
-          <label class="flex items-center gap-1 text-[13px] text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body-xs text-slate-600 mb-1.5 font-medium">
             <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
           </label>
 
           <!-- error message -->
-          <p v-if="bankBook.error.value" class="mb-2 text-[12px] text-red-500">
+          <p v-if="bankBook.error.value" class="mb-2 text-hint text-red-500">
             {{ bankBook.error.value }}
           </p>
 
@@ -443,17 +455,26 @@ defineExpose({
             </div>
             <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
               <div class="flex flex-col min-w-0 max-w-[60%]">
-                <span class="text-[12px] text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
-                <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
+                <span class="text-hint text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
+                <span v-if="bankBook.file.value" class="text-micro text-slate-400">
                   {{ bankBook.file.value.size < 1024 * 1024
                     ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
                     : `${(bankBook.file.value.size / (1024 * 1024)).toFixed(2)} MB` }}
                 </span>
               </div>
               <button
+                v-if="app.editMode"
                 type="button"
-                @click="bankBook.clear(); app.clearExistingImage('bank_book'); ocrRef?.reset()"
-                class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
+                @click="bankBookInputRef?.click()"
+                class="text-body-xs font-medium text-[#1A56DB] hover:text-blue-700 active:scale-95 transition-all flex-shrink-0"
+              >
+                แก้ไข
+              </button>
+              <button
+                v-else
+                type="button"
+                @click="clearBankBook()"
+                class="text-body-xs font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
               >
                 ลบและถ่ายใหม่
               </button>
@@ -485,14 +506,14 @@ defineExpose({
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
               </svg>
-              <p class="text-[13px] font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingBankBook) ? 'text-[#1A56DB]' : 'text-slate-600'">
+              <p class="text-body-xs font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingBankBook) ? 'text-[#1A56DB]' : 'text-slate-600'">
                 {{ (bankBook.isLoading.value || fetchingBankBook) ? 'กำลังโหลดรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
               </p>
             </div>
 
             <label
               for="bank-book-input"
-              class="flex w-full items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+              class="flex w-full items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-body-xs font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
             >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -503,6 +524,7 @@ defineExpose({
           </div>
 
           <input
+            ref="bankBookInputRef"
             id="bank-book-input"
             type="file"
             accept="image/*"
@@ -515,6 +537,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('doc_house_registration_house')"
           upload-id="house-home"
+          :replace-mode="app.editMode"
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบ้าน)"
           subtitle="หน้าทะเบียนบ้าน"
           icon="document"
@@ -533,6 +556,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('doc_house_registration_person')"
           upload-id="house-person"
+          :replace-mode="app.editMode"
           title="รูปทะเบียนบ้าน (รายการเกี่ยวกับบุคคล)"
           subtitle="หน้าข้อมูลบุคคลในทะเบียนบ้าน"
           icon="document"
@@ -551,6 +575,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('doc_ktb_corporate')"
           upload-id="ktb-form"
+          :replace-mode="app.editMode"
           title="รูปแบบฟอร์ม KTB Corporate Online"
           subtitle="ถ่ายรูปแบบแจ้งข้อมูลการรับเงินโอนที่กรอกแล้ว"
           icon="document"
@@ -569,6 +594,7 @@ defineExpose({
         <PhotoUploadCard
           v-if="show('doc_other')"
           upload-id="other-doc"
+          :replace-mode="app.editMode"
           title="รูปอื่น ๆ"
           subtitle="เอกสารแนบเพิ่มเติม"
           icon="document"
@@ -588,13 +614,13 @@ defineExpose({
             maxlength="255"
             placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
             :class="[
-              'w-full border rounded-lg px-3 py-2 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+              'w-full border rounded-lg px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
               otherDocNameRequired
                 ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
                 : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
             ]"
           />
-          <p v-if="otherDocNameRequired" class="text-[11px] text-red-500 mt-1">
+          <p v-if="otherDocNameRequired" class="text-micro text-red-500 mt-1">
             กรุณาระบุชื่อเอกสาร
           </p>
         </PhotoUploadCard>
@@ -608,9 +634,9 @@ defineExpose({
     <div v-if="!props.filterFields" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
-          <span class="text-white text-[13px] font-bold">13</span>
+          <span class="text-white text-body-xs font-bold">13</span>
         </div>
-        <p class="text-[14px] font-bold text-[#1A56DB]">ตรวจสอบข้อมูลและยืนยัน</p>
+        <p class="text-h2-section font-bold text-[#1A56DB]">ตรวจสอบข้อมูลและยืนยัน</p>
       </div>
       <div class="p-4 space-y-3">
 
@@ -620,8 +646,8 @@ defineExpose({
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p class="text-[13px] font-semibold text-amber-700">โปรดตรวจสอบข้อมูลก่อนส่ง</p>
-            <p class="text-[12px] text-amber-600 mt-0.5">หลังส่งคำขอแล้ว จะไม่สามารถแก้ไขข้อมูลได้</p>
+            <p class="text-body-xs font-semibold text-amber-700">โปรดตรวจสอบข้อมูลก่อนส่ง</p>
+            <p class="text-hint text-amber-600 mt-0.5">หลังส่งคำขอแล้ว จะไม่สามารถแก้ไขข้อมูลได้</p>
           </div>
         </div>
 
@@ -636,13 +662,13 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[13px] font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
-              <p class="text-[12px] text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
+              <p class="text-body-xs font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
+              <p class="text-hint text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
             </div>
             <button
               type="button"
               @click="$emit('navigate-to-step', 1)"
-              class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
+              class="text-body-xs font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
             >
               แก้ไข
             </button>
@@ -656,13 +682,13 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[13px] font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
-              <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
+              <p class="text-body-xs font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
+              <p class="text-hint text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
             </div>
             <button
               type="button"
               @click="$emit('navigate-to-step', 2)"
-              class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
+              class="text-body-xs font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
             >
               แก้ไข
             </button>
@@ -676,13 +702,13 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[13px] font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
-              <p class="text-[12px] text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
+              <p class="text-body-xs font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
+              <p class="text-hint text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
             </div>
             <button
               type="button"
               @click="$emit('navigate-to-step', 3)"
-              class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
+              class="text-body-xs font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
             >
               แก้ไข
             </button>
@@ -696,13 +722,13 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[13px] font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
-              <p class="text-[12px] text-slate-500 mt-0.5">อัปโหลดแล้ว {{ totalUploaded }} ไฟล์</p>
+              <p class="text-body-xs font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
+              <p class="text-hint text-slate-500 mt-0.5">อัปโหลดแล้ว {{ totalUploaded }} ไฟล์</p>
             </div>
             <button
               type="button"
               @click="scrollToTop"
-              class="text-[13px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
+              class="text-body-xs font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0"
             >
               แก้ไข
             </button>
@@ -742,7 +768,7 @@ defineExpose({
 
         <!-- ป้ายชื่อด้านล่าง -->
         <div class="absolute bottom-4 left-0 right-0 flex justify-center">
-          <span class="bg-black/50 text-white text-[13px] px-4 py-1.5 rounded-full">
+          <span class="bg-black/50 text-white text-body-xs px-4 py-1.5 rounded-full">
             รูปหน้าสมุดบัญชีธนาคาร
           </span>
         </div>

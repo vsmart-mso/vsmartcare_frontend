@@ -5,9 +5,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
+import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 
-// import โลโก้จาก src/assets/ — Vite จะ optimize ไฟล์ให้อัตโนมัติ
-import logoMSDHS    from '@/assets/logo-msdhs.png'
+// import โลโก้ช่องทาง login
 import logoThaID    from '@/assets/logo-thaid.png'
 import logoThangrath from '@/assets/logo-thangrath.png'
 
@@ -69,32 +69,8 @@ function handleTangRath() {
            - มี gradient background สีชมพูอ่อน ทำให้เห็นชัดว่านี่คือ "header"
            - โลโก้ขนาดใหญ่ + ชื่อระบบ "พม. CARE" เด่นกว่า heading ด้านล่าง
            ═══════════════════════════════════════════════ -->
-      <div class="flex flex-col items-center px-5 pt-10 pb-8">
-        <!-- โลโก้: กรอบวงกลมสีขาว shadow สำหรับใส่รูป -->
-        <div class="mb-4">
-          <div
-            class="w-[104px] h-[104px] rounded-full bg-white shadow-lg border-2 border-[#BE185D]/20 overflow-hidden flex items-center justify-center"
-          >
-            <img
-              :src="logoMSDHS"
-              alt="โลโก้กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์"
-              class="w-[96px] h-[96px] object-contain"
-            />
-          </div>
-        </div>
-
-        <!--
-          ชื่อระบบ "พม. CARE"
-          text-[28px] = ตั้งใจให้ใหญ่กว่า heading (22px) เพื่อให้ hierarchy ถูกต้อง:
-          "พม. CARE" (ชื่อแอป) > "เลือกช่องทาง..." (คำสั่งหน้านั้น)
-        -->
-        <p class="text-[28px] font-bold tracking-wide leading-none mb-2">
-          <span class="text-[#BE185D]">พม.</span>
-          <span class="text-slate-800"> CARE</span>
-        </p>
-
-        <!-- คำอธิบาย: เล็กและเงียบกว่า ทำหน้าที่เสริม ไม่ดึงสายตา -->
-        <p class="text-[13px] text-slate-500">ระบบขอรับความช่วยเหลือด้วยตนเอง</p>
+      <div class="px-5 pt-10 pb-8">
+        <AppBrandHeader />
       </div>
 
       <!-- ═══════════════════════════════════════════════
@@ -104,14 +80,11 @@ function handleTangRath() {
 
         <!-- ส่วนที่ 2: Title -->
         <div class="text-center mb-7">
-          <!--
-            h1 ขนาด 22px — ตั้งใจให้เล็กกว่า "พม. CARE" (28px)
-            เพื่อให้ visual hierarchy ชัดเจน: Brand > Page title > Content
-          -->
-          <h1 class="text-[20px] font-bold text-slate-900 leading-snug mb-2">
+          <!-- h1 — token H2-section (1.25rem) ใต้ Display brand -->
+          <h1 class="text-h2-section font-bold text-slate-900 leading-snug mb-2">
             เลือกช่องทางยืนยันตัวตน
           </h1>
-          <p class="text-[14px] text-slate-500 leading-relaxed">
+          <p class="text-body-md text-slate-500 leading-relaxed">
             ยืนยันตัวตนเพื่อยื่นคำขอหรือติดตามสถานะ
           </p>
         </div>
@@ -138,10 +111,10 @@ function handleTangRath() {
 
             <!-- ข้อความ -->
             <div class="flex-1 min-w-0">
-              <p class="text-[15px] font-semibold text-slate-900 leading-snug">
+              <p class="text-body font-semibold text-slate-900 leading-snug">
                 เข้าสู่ระบบด้วย ThaID
               </p>
-              <p class="text-[13px] text-slate-500 mt-0.5 leading-snug">
+              <p class="text-body-xs text-slate-500 mt-0.5 leading-snug">
                 ยืนยันตัวตนด้วยระบบ ThaID
               </p>
             </div>
@@ -161,7 +134,7 @@ function handleTangRath() {
 
           <p
             v-if="thaidError"
-            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-body-xs text-red-800"
             role="alert"
           >
             {{ thaidError }}
@@ -170,7 +143,7 @@ function handleTangRath() {
           <!-- เส้นคั่น "หรือ" -->
           <div class="flex items-center gap-3 px-1" aria-hidden="true">
             <div class="flex-1 h-px bg-slate-200" />
-            <span class="text-[13px] text-slate-400 font-medium">หรือ</span>
+            <span class="text-body-xs text-slate-400 font-medium">หรือ</span>
             <div class="flex-1 h-px bg-slate-200" />
           </div>
 
@@ -187,10 +160,10 @@ function handleTangRath() {
 
             <!-- ข้อความ -->
             <div class="flex-1 min-w-0">
-              <p class="text-[15px] font-semibold text-slate-900 leading-snug">
+              <p class="text-body font-semibold text-slate-900 leading-snug">
                 เข้าสู่ระบบด้วย ทางรัฐ
               </p>
-              <p class="text-[13px] text-slate-500 mt-0.5 leading-snug">
+              <p class="text-body-xs text-slate-500 mt-0.5 leading-snug">
                 ยืนยันตัวตนด้วย Face Recognition (Liveness)
               </p>
             </div>
@@ -224,7 +197,7 @@ function handleTangRath() {
               clip-rule="evenodd"
             />
           </svg>
-          <p class="text-[13px] text-blue-700 leading-[1.65]">
+          <p class="text-body-xs text-blue-700 leading-[1.65]">
             ระบบจะตรวจสอบว่าท่านมีคำขอค้างอยู่หรือไม่
             และนำท่านไปยังหน้าที่เหมาะสมโดยอัตโนมัติ
           </p>
@@ -235,7 +208,7 @@ function handleTangRath() {
           <a
             href="/forms/ktb-corporate-online.pdf"
             download="แบบ-KTB-Corporate-Online.pdf"
-            class="inline-flex items-center gap-2 text-[13px] font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
+            class="inline-flex items-center gap-2 text-body-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
           >
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

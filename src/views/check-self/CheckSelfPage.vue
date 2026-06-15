@@ -247,7 +247,7 @@ function handleBack() {
           </svg>
         </button>
 
-        <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
+        <h1 class="absolute inset-x-0 text-center text-white text-body font-semibold pointer-events-none">
           ตรวจสอบสิทธิ์เบื้องต้น
         </h1>
       </div>
@@ -279,7 +279,7 @@ function handleBack() {
 
       <!-- ทักทายผู้ใช้ -->
       <div class="mb-4">
-        <p class="text-[15px] text-slate-700">
+        <p class="text-body text-slate-700">
           สวัสดี,
           <span class="font-semibold text-slate-900">{{ authUser?.title }}{{ authUser?.fname }} {{ authUser?.lname }}</span>
         </p>
@@ -290,22 +290,22 @@ function handleBack() {
         <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-[1px]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
         </svg>
-        <p class="text-[13px] text-blue-700 leading-relaxed">
+        <p class="text-body-xs text-blue-700 leading-relaxed">
           ระบบจะตรวจสอบเกณฑ์: อายุ อาชีพ และรายได้
         </p>
       </div>
 
       <!-- ─── Card: ข้อมูลอายุ ─────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-[12px] font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
+        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
 
         <!-- วันเกิด: read-only ถ้า ThaiID ส่งมา / date picker ถ้าไม่มีข้อมูล -->
         <div class="mb-3">
-          <label class="block text-[13px] text-slate-500 mb-1">วันเกิด</label>
+          <label class="block text-body-xs text-slate-500 mb-1">วันเกิด</label>
 
           <template v-if="dobFromThaiD">
             <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-              <span class="text-[15px] text-slate-700">{{ formatThaiDate(effectiveDob) }}</span>
+              <span class="text-body text-slate-700">{{ formatThaiDate(effectiveDob) }}</span>
               <!-- ไอคอนล็อค: ข้อมูลจาก ThaiD แก้ไขไม่ได้ -->
               <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -320,17 +320,17 @@ function handleBack() {
               :disabled="isSubmitting"
               type="date"
               :max="new Date().toISOString().slice(0, 10)"
-              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[15px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             />
-            <p class="text-[12px] text-slate-400 mt-1 px-1">ThaiID ไม่ส่งข้อมูลวันเกิดมา — กรุณากรอกวันเกิดของท่าน</p>
+            <p class="text-hint text-slate-400 mt-1 px-1">ThaiID ไม่ส่งข้อมูลวันเกิดมา — กรุณากรอกวันเกิดของท่าน</p>
           </template>
         </div>
 
         <!-- อายุที่คำนวณได้ -->
         <div>
-          <label class="block text-[13px] text-slate-500 mb-1">อายุปัจจุบัน</label>
+          <label class="block text-body-xs text-slate-500 mb-1">อายุปัจจุบัน</label>
           <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-            <span class="text-[15px] font-medium" :class="age !== null ? 'text-slate-900' : 'text-slate-400'">
+            <span class="text-body font-medium" :class="age !== null ? 'text-slate-900' : 'text-slate-400'">
               {{ age !== null ? `${age} ปี` : '—' }}
             </span>
           </div>
@@ -339,10 +339,10 @@ function handleBack() {
 
       <!-- ─── Card: อาชีพ ──────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-[12px] font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
+        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
 
         <div>
-          <label for="occupation" class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+          <label for="occupation" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
             อาชีพปัจจุบัน <span class="text-red-500">*</span>
           </label>
           <input
@@ -353,19 +353,19 @@ function handleBack() {
             type="text"
             maxlength="255"
             placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
-            class="w-full bg-white border rounded-xl px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+            class="w-full bg-white border rounded-xl px-4 py-3 text-body text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             :class="occupationError ? 'border-red-300' : selectedOccupation ? 'border-slate-300' : 'border-slate-200'"
           />
-          <p v-if="occupationError" class="text-[12px] text-red-500 mt-1 px-1">{{ occupationError }}</p>
+          <p v-if="occupationError" class="text-hint text-red-500 mt-1 px-1">{{ occupationError }}</p>
         </div>
       </div>
 
       <!-- ─── Card: รายได้ ─────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-[12px] font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
+        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
 
         <div>
-          <label for="income" class="block text-[13px] text-slate-600 mb-1.5 font-medium">
+          <label for="income" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
             รายได้รวมต่อปี (บาท) <span class="text-red-500">*</span>
           </label>
           <div class="relative">
@@ -380,9 +380,9 @@ function handleBack() {
               inputmode="numeric"
               pattern="[0-9]*"
               placeholder="0"
-              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-16 text-[15px] text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-16 text-body text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
             />
-            <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">
+            <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-body-xs text-slate-400">
               บาท/ปี
             </span>
           </div>
@@ -404,10 +404,10 @@ function handleBack() {
         </div>
         <!-- ข้อความทั้งหมดอยู่ด้วยกัน -->
         <div class="flex-1 min-w-0">
-          <p class="text-[15px] font-bold text-red-700 leading-snug mb-1">
+          <p class="text-body font-bold text-red-700 leading-snug mb-1">
             คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
           </p>
-          <p class="text-[14px] text-red-800 leading-relaxed">
+          <p class="text-body-md text-red-800 leading-relaxed">
             ระบบไม่สามารถดำเนินการต่อได้
             หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
               href="tel:1300"
@@ -419,7 +419,7 @@ function handleBack() {
       </div>
 
       <!-- Error: ข้อผิดพลาดจาก API -->
-      <p v-if="submitError" class="text-[13px] text-red-500 text-center mb-4">{{ submitError }}</p>
+      <p v-if="submitError" class="text-body-xs text-red-500 text-center mb-4">{{ submitError }}</p>
 
       </template>
 
@@ -436,7 +436,7 @@ function handleBack() {
         <button
           @click="handleSubmit"
           :disabled="!formReady || isSubmitting || isChecking"
-          class="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
+          class="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
           :class="formReady && !isSubmitting
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
             : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
