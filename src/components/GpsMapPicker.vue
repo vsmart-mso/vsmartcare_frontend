@@ -321,13 +321,13 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
     <div class="px-4 pt-4 pb-3">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <p class="text-[14px] font-semibold text-slate-700">พิกัด GPS (ที่อยู่อาศัยปัจจุบัน)</p>
-          <p class="text-[12px] text-slate-400 mt-0.5">
+          <p class="text-body-md font-semibold text-slate-700">พิกัด GPS (ที่อยู่อาศัยปัจจุบัน)</p>
+          <p class="text-hint text-slate-400 mt-0.5">
             {{ inputMode === 'map' ? 'ค้นหาที่อยู่หรือเลือกจุดบนแผนที่' : 'กดรับพิกัดอัตโนมัติหรือกรอกพิกัดด้วยตนเอง' }}
           </p>
         </div>
         <!-- Toggle กรอกพิกัด / แผนที่ — เรียง "กรอกพิกัด" ไว้ซ้ายให้ตรงกับโหมดเริ่มต้น -->
-        <div class="flex rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 text-[12px] font-semibold">
+        <div class="flex rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 text-hint font-semibold">
           <button
             type="button"
             @click="inputMode = 'manual'"
@@ -358,7 +358,7 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
             @input="handleSearchInput"
             type="text"
             placeholder="ค้นหาสถานที่ เช่น โรงพยาบาล, ตำบล, สถานีรถไฟ"
-            class="flex-1 bg-transparent text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            class="flex-1 bg-transparent text-body-xs text-slate-700 placeholder:text-slate-400 focus:outline-none"
           />
           <svg v-if="isSearching" class="w-4 h-4 text-[#1A56DB] animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -383,13 +383,13 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
                 <path fill-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clip-rule="evenodd" />
               </svg>
               <div class="min-w-0">
-                <p class="text-[13px] font-medium text-slate-700 truncate">
+                <p class="text-body-xs font-medium text-slate-700 truncate">
                   {{ result.display_name.split(',')[0] }}
                 </p>
-                <p v-if="formatAddressHint(result)" class="text-[11px] text-[#1A56DB] mt-0.5 truncate">
+                <p v-if="formatAddressHint(result)" class="text-micro text-[#1A56DB] mt-0.5 truncate">
                   {{ formatAddressHint(result) }}
                 </p>
-                <p v-else class="text-[11px] text-slate-400 mt-0.5">
+                <p v-else class="text-micro text-slate-400 mt-0.5">
                   {{ parseFloat(result.lat).toFixed(4) }}, {{ parseFloat(result.lon).toFixed(4) }}
                 </p>
               </div>
@@ -404,20 +404,20 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
         <!-- loading overlay — แสดงขณะ Leaflet กำลัง import (เน็ตช้าอาจใช้เวลาหลายวิ) -->
         <div v-if="isMapLoading" class="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center gap-2 z-10">
           <div class="w-6 h-6 rounded-full border-2 border-[#1A56DB] border-t-transparent animate-spin" />
-          <p class="text-[12px] text-slate-400">กำลังโหลดแผนที่...</p>
+          <p class="text-hint text-slate-400">กำลังโหลดแผนที่...</p>
         </div>
         <!-- ปุ่มสลับ แผนที่ / ดาวเทียม -->
         <div class="absolute top-2 right-2 z-[1000] flex rounded-lg overflow-hidden shadow border border-white/30">
           <button
             type="button"
             @click="toggleMapMode"
-            class="px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            class="px-2.5 py-1 text-micro font-semibold transition-colors"
             :class="mapMode === 'street' ? 'bg-[#1A56DB] text-white' : 'bg-white/80 text-slate-600 hover:bg-white'"
           >แผนที่</button>
           <button
             type="button"
             @click="toggleMapMode"
-            class="px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            class="px-2.5 py-1 text-micro font-semibold transition-colors"
             :class="mapMode === 'satellite' ? 'bg-[#1A56DB] text-white' : 'bg-white/80 text-slate-600 hover:bg-white'"
           >ดาวเทียม</button>
         </div>
@@ -433,7 +433,7 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
         type="button"
         @click="handleGetGPS"
         :disabled="isGettingLocation"
-        class="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold transition-all active:scale-[0.98] disabled:opacity-60 mb-3"
+        class="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-body-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-60 mb-3"
         :class="isGettingLocation ? 'bg-slate-100 text-slate-400' : 'bg-rose-500 hover:bg-rose-600 text-white'"
       >
         <!-- spinner ขณะดึง GPS -->
@@ -449,30 +449,30 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
       </button>
 
       <!-- error จาก geolocation -->
-      <p v-if="geoError" class="text-[11px] text-red-500 mb-3 px-1">{{ geoError }}</p>
+      <p v-if="geoError" class="text-micro text-red-500 mb-3 px-1">{{ geoError }}</p>
 
       <!-- Input Latitude + Longitude -->
       <div class="flex gap-3">
         <div class="flex-1">
-          <label class="block text-[12px] text-slate-500 mb-1.5">ละติจูด</label>
+          <label class="block text-hint text-slate-500 mb-1.5">ละติจูด</label>
           <input
             :value="pendingLat"
             @input="(e) => handleCoordInput(e, v => pendingLat = v)"
             type="text"
             inputmode="decimal"
             placeholder="เช่น 16.8211"
-            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
         <div class="flex-1">
-          <label class="block text-[12px] text-slate-500 mb-1.5">ลองจิจูด</label>
+          <label class="block text-hint text-slate-500 mb-1.5">ลองจิจูด</label>
           <input
             :value="pendingLng"
             @input="(e) => handleCoordInput(e, v => pendingLng = v)"
             type="text"
             inputmode="decimal"
             placeholder="เช่น 100.2659"
-            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[14px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
       </div>
@@ -485,15 +485,15 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
     >
       <div class="flex gap-4 mb-2">
         <div class="flex-1">
-          <p class="text-[11px] text-slate-500 mb-0.5">ละติจูด</p>
-          <p class="text-[14px] font-semibold transition-colors duration-300"
+          <p class="text-micro text-slate-500 mb-0.5">ละติจูด</p>
+          <p class="text-body-md font-semibold transition-colors duration-300"
             :class="isConfirmed ? 'text-green-700' : 'text-slate-700'">
             {{ pendingLat || '—' }}
           </p>
         </div>
         <div class="flex-1">
-          <p class="text-[11px] text-slate-500 mb-0.5">ลองจิจูด</p>
-          <p class="text-[14px] font-semibold transition-colors duration-300"
+          <p class="text-micro text-slate-500 mb-0.5">ลองจิจูด</p>
+          <p class="text-body-md font-semibold transition-colors duration-300"
             :class="isConfirmed ? 'text-green-700' : 'text-slate-700'">
             {{ pendingLng || '—' }}
           </p>
@@ -502,7 +502,7 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
           <svg class="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
           </svg>
-          <span class="text-[11px] font-semibold text-green-700 whitespace-nowrap">บันทึกแล้ว</span>
+          <span class="text-micro font-semibold text-green-700 whitespace-nowrap">บันทึกแล้ว</span>
         </div>
       </div>
 
@@ -512,14 +512,14 @@ watch(() => [props.lat, props.lng], ([lat, lng]) => {
           viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.584a13.731 13.731 0 002.273 1.765 11.842 11.842 0 00.976.544l.062.029.018.008.006.003zM10 11.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clip-rule="evenodd" />
         </svg>
-        <p class="text-[12px] text-slate-600 truncate">{{ selectedName.split(',')[0] }}</p>
+        <p class="text-hint text-slate-600 truncate">{{ selectedName.split(',')[0] }}</p>
       </div>
 
       <button
         type="button"
         @click="handleConfirm"
         :disabled="!pendingLat || !pendingLng"
-        class="w-full flex items-center justify-center gap-2 text-white text-[13px] font-semibold py-2.5 rounded-xl active:scale-[0.98] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
+        class="w-full flex items-center justify-center gap-2 text-white text-body-xs font-semibold py-2.5 rounded-xl active:scale-[0.98] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
         :class="isConfirmed ? 'bg-green-600 hover:bg-green-700' : 'bg-[#1A56DB] hover:bg-[#1648C4]'"
       >
         <svg v-if="isConfirmed" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

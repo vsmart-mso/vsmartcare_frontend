@@ -82,8 +82,8 @@ onBeforeUnmount(() => {
           :style="popStyle"
           class="fixed z-[9999] w-60 max-w-[calc(100vw-1rem)] bg-amber-50 border border-amber-300 rounded-xl shadow-lg px-3 py-2.5 origin-bottom-left"
         >
-          <p class="text-[11px] font-semibold text-amber-700 mb-1">หมายเหตุจากเจ้าหน้าที่</p>
-          <p class="text-[12px] text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{{ reason }}</p>
+          <p class="text-micro font-semibold text-amber-700 mb-1">หมายเหตุจากเจ้าหน้าที่</p>
+          <p class="text-hint text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{{ reason }}</p>
           <div :style="arrowStyle" class="absolute -bottom-1.5 w-3 h-3 bg-amber-50 border-r border-b border-amber-300 rotate-45"></div>
         </div>
       </Transition>
