@@ -78,7 +78,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', handleOutside))
       type="button"
       :disabled="disabled"
       @click="open"
-      class="w-full text-left border rounded-xl px-3 py-2.5 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:cursor-not-allowed"
+      class="w-full text-left border rounded-xl px-3 py-2.5 text-body-md bg-white focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors disabled:bg-slate-50 disabled:cursor-not-allowed"
       :class="hasError ? 'border-red-300' : 'border-slate-200'"
     >
       <span :class="modelValue ? 'text-slate-900' : 'text-slate-400'">
@@ -116,7 +116,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', handleOutside))
             v-model="searchText"
             type="text"
             placeholder="ค้นหา..."
-            class="w-full pl-8 pr-3 py-1.5 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A56DB]"
+            class="w-full pl-8 pr-3 py-1.5 text-body-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1A56DB]"
           />
         </div>
       </div>
@@ -125,7 +125,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', handleOutside))
       <ul class="max-h-52 overflow-y-auto">
         <li
           v-if="filtered.length === 0"
-          class="px-4 py-3 text-[13px] text-slate-400 text-center"
+          class="px-4 py-3 text-body-xs text-slate-400 text-center"
         >
           ไม่พบข้อมูล
         </li>
@@ -133,7 +133,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', handleOutside))
           v-for="opt in filtered"
           :key="opt.value"
           @mousedown.prevent="select(opt)"
-          class="px-4 py-2.5 text-[14px] cursor-pointer transition-colors"
+          class="px-4 py-2.5 text-body-md cursor-pointer transition-colors"
           :class="opt.value === modelValue
             ? 'bg-blue-50 text-[#1A56DB] font-medium'
             : 'text-slate-700 hover:bg-slate-50'"

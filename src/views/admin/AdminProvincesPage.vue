@@ -172,14 +172,14 @@ onMounted(loadProvinces)
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
       <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
         <div>
-          <p class="text-[15px] font-bold text-slate-900">จัดการบริการรายจังหวัด</p>
-          <p class="text-[12px] text-slate-500">
+          <p class="text-body font-bold text-slate-900">จัดการบริการรายจังหวัด</p>
+          <p class="text-hint text-slate-500">
             {{ adminAuth.username ? `ผู้ดูแล: ${adminAuth.username}` : 'พม. CARE Admin' }}
           </p>
         </div>
         <button
           type="button"
-          class="text-[13px] font-medium text-slate-600 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+          class="text-body-xs font-medium text-slate-600 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50"
           @click="logout"
         >
           ออกจากระบบ
@@ -190,7 +190,7 @@ onMounted(loadProvinces)
     <main class="max-w-3xl mx-auto px-4 py-5">
       <!-- สรุป + ปุ่มเปิด/ปิดทั้งหมด -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <p class="text-[13px] text-slate-600">
+        <p class="text-body-xs text-slate-600">
           เปิดให้บริการ
           <span class="font-semibold text-green-700">{{ enabledCount }}</span>
           /
@@ -200,7 +200,7 @@ onMounted(loadProvinces)
           <button
             type="button"
             :disabled="loading || provinces.length === 0"
-            class="text-[13px] font-medium text-green-700 border border-green-300 rounded-lg px-3 py-1.5 bg-white hover:bg-green-50 disabled:opacity-50 disabled:pointer-events-none"
+            class="text-body-xs font-medium text-green-700 border border-green-300 rounded-lg px-3 py-1.5 bg-white hover:bg-green-50 disabled:opacity-50 disabled:pointer-events-none"
             @click="requestAll(true)"
           >
             เปิดทั้งหมด
@@ -208,7 +208,7 @@ onMounted(loadProvinces)
           <button
             type="button"
             :disabled="loading || provinces.length === 0"
-            class="text-[13px] font-medium text-red-700 border border-red-300 rounded-lg px-3 py-1.5 bg-white hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none"
+            class="text-body-xs font-medium text-red-700 border border-red-300 rounded-lg px-3 py-1.5 bg-white hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none"
             @click="requestAll(false)"
           >
             ปิดทั้งหมด
@@ -222,19 +222,19 @@ onMounted(loadProvinces)
           v-model="search"
           type="search"
           placeholder="ค้นหาจังหวัด…"
-          class="w-full sm:w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-[14px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          class="w-full sm:w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-body-md focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="py-16 text-center text-[14px] text-slate-500">
+      <div v-if="loading" class="py-16 text-center text-body-md text-slate-500">
         กำลังโหลดข้อมูล…
       </div>
 
       <!-- Error -->
       <div
         v-else-if="loadError"
-        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-800"
+        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-body-md text-red-800"
       >
         {{ loadError }}
         <button class="ml-2 underline" @click="loadProvinces">ลองใหม่</button>
@@ -251,15 +251,15 @@ onMounted(loadProvinces)
           class="flex items-center justify-between gap-3 px-4 py-3"
         >
           <div class="min-w-0">
-            <p class="text-[15px] text-slate-900 truncate">{{ p.province_name }}</p>
-            <p class="text-[12px] text-slate-400">
+            <p class="text-body text-slate-900 truncate">{{ p.province_name }}</p>
+            <p class="text-hint text-slate-400">
               อัปเดต: {{ formatDate(p.updated_at) }}
             </p>
           </div>
 
           <div class="flex items-center gap-3 flex-shrink-0">
             <span
-              class="text-[12px] font-medium w-9 text-right"
+              class="text-hint font-medium w-9 text-right"
               :class="p.is_enabled ? 'text-green-700' : 'text-slate-400'"
             >
               {{ p.is_enabled ? 'เปิด' : 'ปิด' }}
@@ -283,7 +283,7 @@ onMounted(loadProvinces)
 
         <div
           v-if="filtered.length === 0"
-          class="px-4 py-10 text-center text-[14px] text-slate-400"
+          class="px-4 py-10 text-center text-body-md text-slate-400"
         >
           ไม่พบจังหวัดที่ค้นหา
         </div>
@@ -297,17 +297,17 @@ onMounted(loadProvinces)
       @click.self="cancelConfirm"
     >
       <div class="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-        <p class="text-[16px] font-semibold text-slate-900 mb-2">
+        <p class="text-body font-semibold text-slate-900 mb-2">
           {{ confirmText.title }}
         </p>
-        <p class="text-[14px] text-slate-500 leading-relaxed mb-6">
+        <p class="text-body-md text-slate-500 leading-relaxed mb-6">
           {{ confirmText.detail }}
         </p>
         <div class="flex gap-3">
           <button
             type="button"
             :disabled="confirmSaving"
-            class="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-[14px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            class="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-body-md font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             @click="cancelConfirm"
           >
             ยกเลิก
@@ -315,7 +315,7 @@ onMounted(loadProvinces)
           <button
             type="button"
             :disabled="confirmSaving"
-            class="flex-1 rounded-lg px-4 py-2.5 text-[14px] font-semibold text-white transition-colors disabled:opacity-60"
+            class="flex-1 rounded-lg px-4 py-2.5 text-body-md font-semibold text-white transition-colors disabled:opacity-60"
             :class="confirmText.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
             @click="executeConfirm"
           >
@@ -328,7 +328,7 @@ onMounted(loadProvinces)
     <!-- Toast -->
     <div
       v-if="toast"
-      class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[13px] px-4 py-2 rounded-full shadow-lg z-[60]"
+      class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-body-xs px-4 py-2 rounded-full shadow-lg z-[60]"
     >
       {{ toast }}
     </div>

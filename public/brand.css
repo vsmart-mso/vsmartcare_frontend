@@ -1,0 +1,60 @@
+/* Brand tokens + components — ใช้ร่วม index.html (boot) และ Vue (import ผ่าน style.css) */
+
+:root {
+  --color-brand: #be185d;
+  --color-bg: #f8fafc;
+  --brand-logo-width: 17rem;
+  --brand-logo-height: 8rem;
+}
+
+.brand-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.brand-logo {
+  box-sizing: border-box;
+  width: min(var(--brand-logo-width), 90vw);
+  height: auto;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--color-bg);
+}
+
+.brand-logo img {
+  width: 100%;
+  height: auto;
+  max-height: var(--brand-logo-height);
+  object-fit: contain;
+  object-position: center top;
+  display: block;
+  mix-blend-mode: multiply;
+}
+
+.brand-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--font-size-display, 2rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.brand-title-accent {
+  color: var(--color-brand);
+}
+
+.brand-title-main {
+  color: #1e293b;
+}
+
+.brand-tagline {
+  margin: -0.35rem 0 0;
+  font-size: var(--font-size-body-xs, 0.82rem);
+  line-height: 1.4;
+  color: var(--color-text-muted, #64748b);
+}

@@ -2,15 +2,30 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo-msdhs.png" />
+    <link rel="icon" type="image/jpeg" href="/logo-vcare.jpg" />
+    <link rel="apple-touch-icon" href="/logo-vcare.jpg" />
+    <link rel="stylesheet" href="/brand-boot.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#BE185D" />
     <title>พม. CARE — ระบบขอรับความช่วยเหลือด้วยตนเอง</title>
     <!-- Font โหลดจาก @fontsource/sarabun ใน main.ts แทน CDN -->
-    <!-- ไม่มีการเรียก Google Fonts หรือ CDN ภายนอกอีกต่อไป -->
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="app-boot" role="status" aria-live="polite" aria-label="กำลังโหลดระบบ">
+        <div class="app-boot__card brand-header">
+          <div class="brand-logo">
+            <img src="/logo-vcare.jpg" alt="โลโก้ พม. CARE" width="272" height="128" />
+          </div>
+          <p class="brand-tagline">ระบบขอรับความช่วยเหลือด้วยตนเอง</p>
+          <div class="app-boot__loader" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

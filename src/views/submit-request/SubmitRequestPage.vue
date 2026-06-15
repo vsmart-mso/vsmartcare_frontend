@@ -328,14 +328,14 @@ async function handleSubmit() {
       role="alertdialog"
       aria-live="assertive"
     >
-      <p class="text-[18px] font-semibold text-slate-800 mb-3">
+      <p class="text-h3-legend font-semibold text-slate-800 mb-3">
         ยังไม่เปิดให้บริการในพื้นที่ของท่าน
       </p>
-      <p class="text-[14px] text-slate-500 leading-relaxed max-w-sm">
+      <p class="text-body-md text-slate-500 leading-relaxed max-w-sm">
         ขออภัยในความไม่สะดวก ขณะนี้ระบบ พม. CARE
         ยังไม่เปิดให้บริการบันทึกข้อมูลสำหรับจังหวัดของท่าน
       </p>
-      <p class="text-[13px] text-slate-400 mt-6">
+      <p class="text-body-xs text-slate-400 mt-6">
         ระบบจะพาท่านออกจากระบบโดยอัตโนมัติ…
       </p>
     </div>
@@ -348,7 +348,7 @@ async function handleSubmit() {
       style="padding-top: env(safe-area-inset-top)"
     >
       <div class="relative mx-auto w-full max-w-md flex items-center px-4 h-full">
-        <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
+        <h1 class="absolute inset-x-0 text-center text-white text-body font-semibold pointer-events-none">
           ยื่นคำขอรับความช่วยเหลือ
         </h1>
       </div>
@@ -396,7 +396,7 @@ async function handleSubmit() {
                 <!-- ปกติ (OCR ok หรือยังไม่มีผล) -->
                 <div
                   v-else
-                  class="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors"
+                  class="w-7 h-7 rounded-full flex items-center justify-center text-hint font-bold transition-colors"
                   :class="step.id === currentStep
                     ? 'bg-[#1A56DB] text-white'
                     : step.id < currentStep
@@ -413,7 +413,7 @@ async function handleSubmit() {
               <!-- ═══ Step อื่นๆ: ปกติ ═══ -->
               <div
                 v-else
-                class="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors"
+                class="w-7 h-7 rounded-full flex items-center justify-center text-hint font-bold transition-colors"
                 :class="step.id === currentStep
                   ? 'bg-[#1A56DB] text-white'
                   : step.id < currentStep
@@ -428,7 +428,7 @@ async function handleSubmit() {
               </div>
 
               <p
-                class="text-[10px] mt-1 text-center leading-tight max-w-[3.5rem]"
+                class="text-tiny mt-1 text-center leading-tight max-w-[3.5rem]"
                 :class="step.id === currentStep ? 'text-[#1A56DB] font-semibold' : 'text-slate-400'"
               >
                 {{ step.label }}
@@ -491,7 +491,7 @@ async function handleSubmit() {
     >
       <div class="mx-auto w-full max-w-md px-4 pt-3 pb-1">
         <!-- hint text บน step 5 -->
-        <p v-if="currentStep === 5" class="text-center text-[12px] text-slate-400 mb-2">
+        <p v-if="currentStep === 5" class="text-center text-hint text-slate-400 mb-2">
           กรุณายืนยันรายการทั้งหมดก่อนดำเนินการต่อ
         </p>
 
@@ -503,7 +503,7 @@ async function handleSubmit() {
           <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
           </svg>
-          <p class="text-[12px] text-red-700 leading-snug">{{ submitError }}</p>
+          <p class="text-hint text-red-700 leading-snug">{{ submitError }}</p>
         </div>
 
         <div class="flex gap-3">
@@ -512,7 +512,7 @@ async function handleSubmit() {
             v-if="currentStep > 1 || app.editMode"
             @click="handleBack"
             :disabled="isSubmitting || stepLoading"
-            class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-[15px] font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"
+            class="flex items-center justify-center gap-1.5 rounded-2xl px-5 py-3.5 text-body font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-all duration-150 active:scale-[0.98] flex-shrink-0 disabled:opacity-50"
             aria-label="ย้อนกลับ"
           >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -526,7 +526,7 @@ async function handleSubmit() {
             v-if="currentStep < 5"
             @click="handleNext"
             :disabled="stepLoading || nextBlocked"
-            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
+            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
             :class="stepReady && !stepLoading && !nextBlocked
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
@@ -556,7 +556,7 @@ async function handleSubmit() {
             v-else
             @click="handleSubmit"
             :disabled="!stepReady || isSubmitting || stepLoading"
-            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-[16px] font-semibold transition-all duration-150 active:scale-[0.98]"
+            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
             :class="stepReady && !isSubmitting && !stepLoading
               ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed'"

@@ -424,7 +424,7 @@ async function handleLogout() {
       style="padding-top: env(safe-area-inset-top)"
     >
       <div class="relative mx-auto w-full max-w-md flex items-center justify-center px-4 h-full">
-        <h1 class="text-white text-[16px] font-semibold">
+        <h1 class="text-white text-body font-semibold">
           ติดตามสถานะคำขอ
         </h1>
       </div>
@@ -446,10 +446,10 @@ async function handleLogout() {
         <svg class="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
         </svg>
-        <p class="text-[15px] font-semibold text-slate-700">{{ loadError }}</p>
+        <p class="text-body font-semibold text-slate-700">{{ loadError }}</p>
         <button
           @click="router.back()"
-          class="mt-1 px-4 py-2 text-[14px] text-[#1A56DB] border border-[#1A56DB] rounded-lg"
+          class="mt-1 px-4 py-2 text-body-md text-[#1A56DB] border border-[#1A56DB] rounded-lg"
         >ย้อนกลับ</button>
       </div>
 
@@ -504,10 +504,10 @@ async function handleLogout() {
                   class="w-1.5 h-1.5 rounded-full flex-shrink-0 notif-dot"
                   :style="{ backgroundColor: currentStatusColor }"
                 ></span>
-                <p class="text-[12px] font-medium text-slate-500">อัปเดตสถานะคำขอ</p>
+                <p class="text-hint font-medium text-slate-500">อัปเดตสถานะคำขอ</p>
               </div>
               <p
-                class="text-[15px] font-bold leading-snug"
+                class="text-body font-bold leading-snug"
                 :style="{ color: currentStatusColor }"
               >{{ currentStatusLabel }}</p>
             </div>
@@ -529,12 +529,12 @@ async function handleLogout() {
         <!-- ── User Card ── -->
         <div class="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-center gap-3">
           <div class="w-10 h-10 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
-            <span class="text-white text-[15px] font-bold">{{ avatarLetter }}</span>
+            <span class="text-white text-body font-bold">{{ avatarLetter }}</span>
           </div>
           <div class="min-w-0">
-            <p class="text-[15px] font-semibold text-slate-800 truncate">{{ fullName }}</p>
+            <p class="text-body font-semibold text-slate-800 truncate">{{ fullName }}</p>
             <div class="flex items-center gap-1.5">
-              <p class="text-[13px] text-slate-500 font-mono">{{ nationalId }}</p>
+              <p class="text-body-xs text-slate-500 font-mono">{{ nationalId }}</p>
               <button
                 v-if="thaiDUser?.pid"
                 type="button"
@@ -558,15 +558,15 @@ async function handleLogout() {
 
         <!-- ── Case Info ── -->
         <div class="px-1">
-          <p class="text-[15px] text-slate-700">
+          <p class="text-body text-slate-700">
             หมายเลขคำขอ: <span class="font-bold text-slate-900">{{ caseNumber }}</span>
           </p>
-          <p class="text-[14px] text-slate-500 mt-0.5">วันที่ยื่น: {{ submittedDate }}</p>
+          <p class="text-body-md text-slate-500 mt-0.5">วันที่ยื่น: {{ submittedDate }}</p>
         </div>
 
         <!-- ── สถานะปัจจุบัน ── -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-4">
-          <p class="text-[13px] font-semibold text-slate-400 mb-3">สถานะปัจจุบัน</p>
+          <p class="text-body-xs font-semibold text-slate-400 mb-3">สถานะปัจจุบัน</p>
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-start gap-3">
               <span
@@ -574,7 +574,7 @@ async function handleLogout() {
                 :style="{ backgroundColor: currentStatusColor }"
               ></span>
               <p
-                class="text-[15px] font-bold"
+                class="text-body font-bold"
                 :style="{ color: currentStatusColor }"
               >{{ currentStatusLabel }}</p>
             </div>
@@ -597,7 +597,7 @@ async function handleLogout() {
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                   </div>
-                  <p class="text-[12px] text-center leading-tight max-w-[80px] text-red-600 font-semibold" style="margin-top: 10px">
+                  <p class="text-hint text-center leading-tight max-w-[80px] text-red-600 font-semibold" style="margin-top: 10px">
                     คุณสมบัติไม่ตรงตามหลักเกณฑ์
                   </p>
                 </div>
@@ -611,7 +611,7 @@ async function handleLogout() {
                       <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
                     </svg>
                   </div>
-                  <p class="text-[12px] text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
+                  <p class="text-hint text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
                     แก้ไขข้อมูล
                   </p>
                 </div>
@@ -641,7 +641,7 @@ async function handleLogout() {
                       </svg>
                       <!-- ตัวเลข % กลางวง -->
                       <span
-                        class="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold leading-none"
+                        class="absolute inset-0 flex items-center justify-center text-tiny font-extrabold leading-none"
                         :style="{ color: donutColor }"
                       >{{ disbursementPercent }}%</span>
                     </div>
@@ -649,7 +649,7 @@ async function handleLogout() {
                     <!-- node ปกติ -->
                     <div
                       v-else
-                      class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] flex-shrink-0 transition-colors"
+                      class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-body-xs flex-shrink-0 transition-colors"
                       :class="{
                         'text-white shadow-md':                                stepState(step.id) === 'done',
                         'bg-amber-500 text-white shadow-md shadow-amber-200': stepState(step.id) === 'active',
@@ -667,7 +667,7 @@ async function handleLogout() {
                     </div>
 
                     <p
-                      class="text-[11px] text-center leading-tight w-full px-0.5"
+                      class="text-micro text-center leading-tight w-full px-0.5"
                       style="margin-top: 10px"
                       :class="{
                         'font-semibold': stepState(step.id) === 'done',
@@ -705,7 +705,7 @@ async function handleLogout() {
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
             </svg>
           </div>
-          <p class="flex-1 min-w-0 text-[14px] text-amber-900 leading-relaxed">
+          <p class="flex-1 min-w-0 text-body-md text-amber-900 leading-relaxed">
             ท่านจะสามารถยื่นขอรับสวัสดิการครั้งถัดไปได้ตั้งแต่วันที่ <br>
             <span class="font-bold text-[#1A56DB]">{{ cooldownEligibleAt }}</span>
           </p>
@@ -725,10 +725,10 @@ async function handleLogout() {
           </div>
           <!-- ข้อความทั้งหมดอยู่ด้วยกัน -->
           <div class="flex-1 min-w-0">
-            <p class="text-[15px] font-bold text-red-700 leading-snug mb-1">
+            <p class="text-body font-bold text-red-700 leading-snug mb-1">
               คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
             </p>
-            <p class="text-[14px] text-red-800 leading-relaxed">
+            <p class="text-body-md text-red-800 leading-relaxed">
               ระบบไม่สามารถดำเนินการต่อได้
               หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
                 href="tel:1300"
@@ -753,8 +753,8 @@ async function handleLogout() {
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
             </div>
-            <p class="text-[15px] font-bold text-slate-800">ขอบคุณสำหรับการประเมิน</p>
-            <p class="text-[13px] text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาการให้บริการ</p>
+            <p class="text-body font-bold text-slate-800">ขอบคุณสำหรับการประเมิน</p>
+            <p class="text-body-xs text-slate-500 text-center">ความคิดเห็นของท่านมีคุณค่าต่อการพัฒนาการให้บริการ</p>
           </div>
 
           ยังไม่ประเมิน / กำลังส่ง
@@ -767,13 +767,13 @@ async function handleLogout() {
                 </svg>
               </div>
               <div>
-                <p class="text-[12px] font-semibold text-yellow-600 uppercase tracking-wider mb-0.5">แบบสอบถาม</p>
-                <p class="text-[15px] font-bold text-slate-900">ประเมินความพึงพอใจการช่วยเหลือ</p>
+                <p class="text-hint font-semibold text-yellow-600 uppercase tracking-wider mb-0.5">แบบสอบถาม</p>
+                <p class="text-body font-bold text-slate-900">ประเมินความพึงพอใจการช่วยเหลือ</p>
               </div>
             </div>
 
             <div class="px-4 pb-4 space-y-4">
-              <p class="text-[13px] text-slate-600">ท่านพึงพอใจกับการได้รับความช่วยเหลือครั้งนี้มากน้อยเพียงใด?</p>
+              <p class="text-body-xs text-slate-600">ท่านพึงพอใจกับการได้รับความช่วยเหลือครั้งนี้มากน้อยเพียงใด?</p>
 
               ดาว 1-5
               <div class="flex justify-center gap-3">
@@ -796,7 +796,7 @@ async function handleLogout() {
                   >
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
-                  <span class="text-[12px] text-slate-400 leading-none">{{ starLabels[star] }}</span>
+                  <span class="text-hint text-slate-400 leading-none">{{ starLabels[star] }}</span>
                 </button>
               </div>
 
@@ -806,18 +806,18 @@ async function handleLogout() {
                 rows="2"
                 placeholder="ความคิดเห็นเพิ่มเติม (ไม่บังคับ)"
                 maxlength="500"
-                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
+                class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-xs placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none"
               />
 
               error
-              <p v-if="surveyError" class="text-[13px] text-red-500 text-center">{{ surveyError }}</p>
+              <p v-if="surveyError" class="text-body-xs text-red-500 text-center">{{ surveyError }}</p>
 
               ปุ่ม
               <div class="flex gap-2">
                 <button
                   type="button"
                   @click="skipAidSurvey"
-                  class="flex-1 border border-slate-200 rounded-xl py-2.5 text-[14px] font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
+                  class="flex-1 border border-slate-200 rounded-xl py-2.5 text-body-md font-medium text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
                 >
                   ข้ามขั้นตอนนี้
                 </button>
@@ -825,7 +825,7 @@ async function handleLogout() {
                   type="button"
                   @click="submitAidSurvey"
                   :disabled="!selectedRating || surveyState === 'submitting'"
-                  class="flex-1 rounded-xl py-2.5 text-[14px] font-semibold transition-all active:scale-[0.98]"
+                  class="flex-1 rounded-xl py-2.5 text-body-md font-semibold transition-all active:scale-[0.98]"
                   :class="selectedRating && surveyState !== 'submitting'
                     ? 'bg-[#1A56DB] text-white hover:bg-[#1648C4]'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
@@ -850,8 +850,8 @@ async function handleLogout() {
               </svg>
             </div>
             <div>
-              <p class="text-[16px] font-bold text-red-700">กรุณาแก้ไขข้อมูล</p>
-              <p class="text-[13px] text-red-600 mt-0.5">เลือกหัวข้อที่ต้องการแก้ไขด้านล่าง</p>
+              <p class="text-body font-bold text-red-700">กรุณาแก้ไขข้อมูล</p>
+              <p class="text-body-xs text-red-600 mt-0.5">เลือกหัวข้อที่ต้องการแก้ไขด้านล่าง</p>
             </div>
           </div>
 
@@ -867,8 +867,8 @@ async function handleLogout() {
                 </svg>
               </div>
               <div>
-                <p class="text-[15px] font-semibold text-red-700">โปรดตรวจสอบและแก้ไขข้อมูล</p>
-                <p class="text-[13px] text-red-600 mt-0.5">เจ้าหน้าที่ขอให้แก้ไขข้อมูลก่อนดำเนินการต่อ</p>
+                <p class="text-body font-semibold text-red-700">โปรดตรวจสอบและแก้ไขข้อมูล</p>
+                <p class="text-body-xs text-red-600 mt-0.5">เจ้าหน้าที่ขอให้แก้ไขข้อมูลก่อนดำเนินการต่อ</p>
               </div>
             </div>
 
@@ -883,19 +883,19 @@ async function handleLogout() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                   </svg>
                 </div>
-                <p class="flex-1 min-w-0 text-[15px] font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
+                <p class="flex-1 min-w-0 text-body font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
                 <button
                   type="button"
                   :disabled="editLoading"
                   @click="handleEdit()"
-                  class="text-[14px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                  class="text-body-md font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
                 >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
               <ul class="mt-2.5 space-y-1.5">
                 <li
                   v-for="c in commentsByStep[1]"
                   :key="c.review_field_id"
-                  class="text-[13px] text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                  class="text-body-xs text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
                 >
                   <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
                 </li>
@@ -913,19 +913,19 @@ async function handleLogout() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
                   </svg>
                 </div>
-                <p class="flex-1 min-w-0 text-[15px] font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
+                <p class="flex-1 min-w-0 text-body font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
                 <button
                   type="button"
                   :disabled="editLoading"
                   @click="handleEdit()"
-                  class="text-[14px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                  class="text-body-md font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
                 >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
               <ul class="mt-2.5 space-y-1.5">
                 <li
                   v-for="c in commentsByStep[2]"
                   :key="c.review_field_id"
-                  class="text-[13px] text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                  class="text-body-xs text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
                 >
                   <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
                 </li>
@@ -943,19 +943,19 @@ async function handleLogout() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
-                <p class="flex-1 min-w-0 text-[15px] font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
+                <p class="flex-1 min-w-0 text-body font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
                 <button
                   type="button"
                   :disabled="editLoading"
                   @click="handleEdit()"
-                  class="text-[14px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                  class="text-body-md font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
                 >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
               <ul class="mt-2.5 space-y-1.5">
                 <li
                   v-for="c in commentsByStep[3]"
                   :key="c.review_field_id"
-                  class="text-[13px] text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                  class="text-body-xs text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
                 >
                   <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
                 </li>
@@ -973,19 +973,19 @@ async function handleLogout() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>
                 </div>
-                <p class="flex-1 min-w-0 text-[15px] font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
+                <p class="flex-1 min-w-0 text-body font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
                 <button
                   type="button"
                   :disabled="editLoading"
                   @click="handleEdit()"
-                  class="text-[14px] font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
+                  class="text-body-md font-medium text-[#1A56DB] hover:underline active:opacity-70 flex-shrink-0 disabled:opacity-40"
                 >{{ editLoading ? '...' : 'แก้ไข' }}</button>
               </div>
               <ul class="mt-2.5 space-y-1.5">
                 <li
                   v-for="c in commentsByStep[4]"
                   :key="c.review_field_id"
-                  class="text-[13px] text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
+                  class="text-body-xs text-red-800 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 leading-snug"
                 >
                   <span class="font-semibold">{{ c.label }}:</span> {{ c.reason }}
                 </li>
@@ -1001,8 +1001,8 @@ async function handleLogout() {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
               </svg>
               <div>
-                <p class="text-[13px] font-semibold text-slate-600">หมายเหตุเพิ่มเติมจากเจ้าหน้าที่</p>
-                <p class="text-[13px] text-slate-700 mt-0.5 whitespace-pre-wrap">{{ remarksComment.reason }}</p>
+                <p class="text-body-xs font-semibold text-slate-600">หมายเหตุเพิ่มเติมจากเจ้าหน้าที่</p>
+                <p class="text-body-xs text-slate-700 mt-0.5 whitespace-pre-wrap">{{ remarksComment.reason }}</p>
               </div>
             </div>
 
@@ -1017,9 +1017,9 @@ async function handleLogout() {
             class="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
             @click="historyOpen = !historyOpen"
           >
-            <span class="text-[15px] font-semibold text-slate-800">
+            <span class="text-body font-semibold text-slate-800">
               ประวัติการเปลี่ยนสถานะ
-              <span class="text-[13px] text-slate-400 font-normal ml-1">
+              <span class="text-body-xs text-slate-400 font-normal ml-1">
                 ({{ filteredStatusLogs.length || 1 }})
               </span>
             </span>
@@ -1063,7 +1063,7 @@ async function handleLogout() {
                     ></span>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[13px] text-slate-400 mb-1.5">
+                    <p class="text-body-xs text-slate-400 mb-1.5">
                       {{ toThaiDateTime(log.updated_at) }}
                     </p>
                     <div
@@ -1078,7 +1078,7 @@ async function handleLogout() {
                         :style="{ backgroundColor: log.current_status.color }"
                       ></span>
                       <p
-                        class="text-[13px] font-bold leading-tight"
+                        class="text-body-xs font-bold leading-tight"
                         :style="{ color: log.current_status.color }"
                       >{{ log.current_status.description_public }}</p>
                     </div>
@@ -1091,10 +1091,10 @@ async function handleLogout() {
                 <div class="px-4 py-4 flex items-start gap-3">
                   <span class="w-2.5 h-2.5 rounded-full bg-[#1A56DB] mt-1 flex-shrink-0"></span>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[13px] text-slate-400 mb-1.5">{{ submittedDate }}</p>
+                    <p class="text-body-xs text-slate-400 mb-1.5">{{ submittedDate }}</p>
                     <div class="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5">
                       <span class="w-2 h-2 rounded-full bg-[#1A56DB] flex-shrink-0"></span>
-                      <p class="text-[13px] font-bold text-[#1A56DB] leading-tight">ยื่นคำขอเข้าระบบ</p>
+                      <p class="text-body-xs font-bold text-[#1A56DB] leading-tight">ยื่นคำขอเข้าระบบ</p>
                     </div>
                   </div>
                 </div>
@@ -1117,7 +1117,7 @@ async function handleLogout() {
       <div class="mx-auto max-w-md px-4 pt-3">
         <button
           type="button"
-          class="w-full py-3 rounded-xl bg-[#1A56DB] text-white text-[14px] font-bold shadow-md shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all"
+          class="w-full py-3 rounded-xl bg-[#1A56DB] text-white text-body-md font-bold shadow-md shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all"
           @click="handleLogout"
         >
           ออกจากระบบ

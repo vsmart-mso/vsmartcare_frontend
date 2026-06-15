@@ -162,7 +162,7 @@ defineExpose({
 <template>
   <div>
     <!-- error from useImageUpload (compress fail) -->
-    <p v-if="bankBook.error.value" class="mb-2 text-[12px] text-red-500">
+    <p v-if="bankBook.error.value" class="mb-2 text-hint text-red-500">
       {{ bankBook.error.value }}
     </p>
 
@@ -187,10 +187,10 @@ defineExpose({
       </div>
       <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
         <div class="flex flex-col min-w-0 max-w-[60%]">
-          <span class="text-[12px] text-slate-500 truncate">
+          <span class="text-hint text-slate-500 truncate">
             {{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}
           </span>
-          <span v-if="bankBook.file.value" class="text-[11px] text-slate-400">
+          <span v-if="bankBook.file.value" class="text-micro text-slate-400">
             {{ bankBook.file.value.size < 1024 * 1024
               ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
               : `${(bankBook.file.value.size / (1024 * 1024)).toFixed(2)} MB` }}
@@ -199,7 +199,7 @@ defineExpose({
         <button
           type="button"
           @click="handleClear"
-          class="text-[13px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
+          class="text-body-xs font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
         >
           ลบและถ่ายใหม่
         </button>
@@ -214,7 +214,7 @@ defineExpose({
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
       </svg>
-      <p class="text-[13px] text-[#1A56DB] font-medium">กำลังตรวจสอบข้อมูลสมุดบัญชี...</p>
+      <p class="text-body-xs text-[#1A56DB] font-medium">กำลังตรวจสอบข้อมูลสมุดบัญชี...</p>
     </div>
 
     <!-- Error (รวม blurry / no_text) -->
@@ -222,7 +222,7 @@ defineExpose({
       <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
       </svg>
-      <p class="text-[12px] text-red-700 leading-snug">{{ ocrError }}</p>
+      <p class="text-hint text-red-700 leading-snug">{{ ocrError }}</p>
     </div>
 
     <!-- Match ✓ -->
@@ -231,13 +231,13 @@ defineExpose({
         <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p class="text-[13px] font-semibold text-emerald-700">ตรวจสอบสมุดบัญชีสำเร็จ ✓</p>
+        <p class="text-body-xs font-semibold text-emerald-700">ตรวจสอบสมุดบัญชีสำเร็จ ✓</p>
       </div>
-      <div class="text-[12px] text-emerald-700 space-y-0.5 ml-6">
+      <div class="text-hint text-emerald-700 space-y-0.5 ml-6">
         <p v-if="ocrResult.bank_info.bank_name"><strong>ธนาคาร:</strong> {{ ocrResult.bank_info.bank_name }}</p>
         <p v-if="ocrResult.bank_info.account_number"><strong>เลขที่บัญชี:</strong> {{ ocrResult.bank_info.account_number }}</p>
         <p v-if="ocrResult.bank_info.account_name"><strong>ชื่อบัญชี:</strong> {{ ocrResult.bank_info.account_name }}</p>
-        <p class="text-[11px] text-emerald-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}%</p>
+        <p class="text-micro text-emerald-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}%</p>
       </div>
     </div>
 
@@ -247,13 +247,13 @@ defineExpose({
         <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
         </svg>
-        <p class="text-[13px] font-semibold text-amber-700">กรุณาตรวจสอบข้อมูลอีกครั้ง</p>
+        <p class="text-body-xs font-semibold text-amber-700">กรุณาตรวจสอบข้อมูลอีกครั้ง</p>
       </div>
-      <div class="text-[12px] text-amber-700 space-y-0.5 ml-6">
+      <div class="text-hint text-amber-700 space-y-0.5 ml-6">
         <p v-if="ocrResult.bank_info.bank_name"><strong>ธนาคาร:</strong> {{ ocrResult.bank_info.bank_name }}</p>
         <p v-if="ocrResult.bank_info.account_number"><strong>เลขที่บัญชี:</strong> {{ ocrResult.bank_info.account_number }}</p>
         <p v-if="ocrResult.bank_info.account_name"><strong>ชื่อบัญชี:</strong> {{ ocrResult.bank_info.account_name }}</p>
-        <p class="text-[11px] text-amber-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}% — อาจมีบางส่วนไม่ตรง</p>
+        <p class="text-micro text-amber-500 mt-1">คะแนนความตรงกัน {{ ocrResult.bank_info.fuzzy_score.toFixed(1) }}% — อาจมีบางส่วนไม่ตรง</p>
       </div>
     </div>
 
@@ -263,9 +263,9 @@ defineExpose({
         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
       </svg>
       <div>
-        <p class="text-[13px] font-semibold text-red-700">ชื่อเจ้าของบัญชีไม่ตรงกับผู้ยื่นคำขอ</p>
-        <p class="text-[12px] text-red-600 mt-0.5">กรุณาตรวจสอบรูปสมุดบัญชีหรืออัปโหลดใหม่</p>
-        <p v-if="ocrResult.bank_info.account_name" class="text-[11px] text-red-500 mt-0.5">ชื่อในบัญชี: {{ ocrResult.bank_info.account_name }}</p>
+        <p class="text-body-xs font-semibold text-red-700">ชื่อเจ้าของบัญชีไม่ตรงกับผู้ยื่นคำขอ</p>
+        <p class="text-hint text-red-600 mt-0.5">กรุณาตรวจสอบรูปสมุดบัญชีหรืออัปโหลดใหม่</p>
+        <p v-if="ocrResult.bank_info.account_name" class="text-micro text-red-500 mt-0.5">ชื่อในบัญชี: {{ ocrResult.bank_info.account_name }}</p>
       </div>
     </div>
 
@@ -283,7 +283,7 @@ defineExpose({
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
         </svg>
-        <p class="text-[13px] font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingImage) ? 'text-[#1A56DB]' : 'text-slate-600'">
+        <p class="text-body-xs font-medium leading-snug transition-colors" :class="(bankBook.isLoading.value || fetchingImage) ? 'text-[#1A56DB]' : 'text-slate-600'">
           {{ (bankBook.isLoading.value || fetchingImage) ? 'กำลังโหลดรูปภาพ...' : 'ถ่ายหรืออัปโหลดรูปหน้าสมุดบัญชีธนาคาร' }}
         </p>
       </div>
@@ -291,7 +291,7 @@ defineExpose({
       <div class="flex gap-3">
         <label
           for="camera-input"
-          class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+          class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-body-xs font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -301,7 +301,7 @@ defineExpose({
         </label>
         <label
           for="gallery-input"
-          class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
+          class="flex-1 flex items-center justify-center gap-2 border border-slate-200 rounded-xl py-2.5 text-body-xs font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all cursor-pointer select-none"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />

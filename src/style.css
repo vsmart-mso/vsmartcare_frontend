@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../public/brand.css";
 
 :root {
   --font-sans: 'Sarabun', system-ui, sans-serif;
@@ -17,6 +18,25 @@
   --color-success: #166534;
   --color-success-light: #F0FDF4;
   --color-success-border: #BBF7D0;
+
+  /* Typography tokens — aligned with VSmart (TASK_v_smart_08062026_01) */
+  --font-size-display: 2rem;
+  --font-size-h1-page: 1.5rem;
+  --font-size-h2-section: 1.25rem;
+  --font-size-h3-legend: 1.15rem;
+  --font-size-h4-default: 1.5rem;
+  --font-size-body: 1rem;
+  --font-size-body-lg: 0.9rem;
+  --font-size-body-md: 0.875rem;
+  --font-size-body-sm: 0.85rem;
+  --font-size-body-xs: 0.82rem;
+  --font-size-caption: 0.8125rem;
+  --font-size-meta: 0.8rem;
+  --font-size-meta-sm: 0.78rem;
+  --font-size-hint: 0.75rem;
+  --font-size-micro: 0.72rem;
+  --font-size-nano: 0.7rem;
+  --font-size-tiny: 0.625rem;
 
   font-family: var(--font-sans);
   font-size: 16px;
@@ -61,4 +81,22 @@ p {
   .app-card {
     @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
   }
+
+  .text-display    { font-size: var(--font-size-display); }
+  .text-h1-page    { font-size: var(--font-size-h1-page); }
+  .text-h2-section { font-size: var(--font-size-h2-section); }
+  .text-h3-legend  { font-size: var(--font-size-h3-legend); }
+  .text-h4-default { font-size: var(--font-size-h4-default); }
+  .text-body       { font-size: var(--font-size-body); }
+  .text-body-lg    { font-size: var(--font-size-body-lg); }
+  .text-body-md    { font-size: var(--font-size-body-md); }
+  .text-body-sm    { font-size: var(--font-size-body-sm); }
+  .text-body-xs    { font-size: var(--font-size-body-xs); }
+  .text-caption    { font-size: var(--font-size-caption); }
+  .text-meta       { font-size: var(--font-size-meta); }
+  .text-meta-sm    { font-size: var(--font-size-meta-sm); }
+  .text-hint       { font-size: var(--font-size-hint); }
+  .text-micro      { font-size: var(--font-size-micro); }
+  .text-nano       { font-size: var(--font-size-nano); }
+  .text-tiny       { font-size: var(--font-size-tiny); }
 }

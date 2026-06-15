@@ -7,6 +7,7 @@ import FieldAlert from '@/components/ui/FieldAlert.vue'
 
 // สถานะแสดง/ซ่อน lightbox preview เต็มจอ
 const showPreview = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 defineProps<{
   uploadId: string      // prefix ไม่ซ้ำกัน เช่น 'exterior', 'person' — ใช้สร้าง input id
@@ -20,6 +21,7 @@ defineProps<{
   isLoading?: boolean
   error?: string
   alertReason?: string  // comment จากเจ้าหน้าที่ — แสดง FieldAlert ข้าง title
+  replaceMode?: boolean // edit-request: ปุ่มแก้ไขแทนลบ — เปิด file picker โดยไม่ล้างรูปเดิม
 }>()
 
 defineEmits<{
@@ -67,11 +69,11 @@ function formatBytes(bytes: number): string {
 
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-[13px] font-semibold text-slate-800 leading-snug flex items-center gap-1">
+        <p class="text-body-xs font-semibold text-slate-800 leading-snug flex items-center gap-1">
           <span>{{ title }}<span v-if="required" class="text-red-500"> *</span></span>
           <FieldAlert v-if="alertReason" :reason="alertReason" />
         </p>
-        <p v-if="subtitle" class="text-[12px] text-slate-500 mt-0.5">{{ subtitle }}</p>
+        <p v-if="subtitle" class="text-hint text-slate-500 mt-0.5">{{ subtitle }}</p>
       </div>
     </div>
 
@@ -81,7 +83,7 @@ function formatBytes(bytes: number): string {
     </div>
 
     <!-- กำลัง compress -->
-    <div v-if="isLoading" class="px-3 pb-3 flex items-center gap-2 text-[13px] text-[#1A56DB]">
+    <div v-if="isLoading" class="px-3 pb-3 flex items-center gap-2 text-body-xs text-[#1A56DB]">
       <svg class="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
@@ -108,13 +110,22 @@ function formatBytes(bytes: number): string {
       </div>
       <div class="flex items-center justify-between">
         <div class="flex flex-col min-w-0 max-w-[75%]">
-          <span class="text-[12px] text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
-          <span v-if="fileSize" class="text-[11px] text-slate-400">{{ formatBytes(fileSize) }}</span>
+          <span class="text-hint text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
+          <span v-if="fileSize" class="text-micro text-slate-400">{{ formatBytes(fileSize) }}</span>
         </div>
         <button
+          v-if="replaceMode"
+          type="button"
+          @click="fileInputRef?.click()"
+          class="text-hint font-medium text-[#1A56DB] hover:text-blue-700 active:scale-95 transition-all flex-shrink-0"
+        >
+          แก้ไข
+        </button>
+        <button
+          v-else
           type="button"
           @click="$emit('clear')"
-          class="text-[12px] font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
+          class="text-hint font-medium text-red-500 hover:text-red-600 active:scale-95 transition-all flex-shrink-0"
         >
           ลบ
         </button>
@@ -125,7 +136,7 @@ function formatBytes(bytes: number): string {
     <div v-else class="px-3 pb-3">
       <label
         :for="`${uploadId}-pick`"
-        class="flex w-full items-center justify-center gap-1.5 border border-slate-200 rounded-lg py-2 text-[13px] font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] cursor-pointer select-none transition-all active:scale-[0.98]"
+        class="flex w-full items-center justify-center gap-1.5 border border-slate-200 rounded-lg py-2 text-body-xs font-medium text-slate-700 bg-white hover:border-[#1A56DB] hover:text-[#1A56DB] cursor-pointer select-none transition-all active:scale-[0.98]"
       >
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -136,10 +147,11 @@ function formatBytes(bytes: number): string {
     </div>
 
     <!-- error -->
-    <p v-if="error" class="px-3 pb-3 text-[12px] text-red-500">{{ error }}</p>
+    <p v-if="error" class="px-3 pb-3 text-hint text-red-500">{{ error }}</p>
 
     <!-- input ซ่อน: ไม่มี capture → OS แสดง native sheet ให้เลือกกล้องหรืออัลบัมเอง -->
     <input
+      ref="fileInputRef"
       :id="`${uploadId}-pick`"
       type="file"
       accept="image/*"
@@ -176,7 +188,7 @@ function formatBytes(bytes: number): string {
 
         <!-- ชื่อรูปด้านล่าง -->
         <div class="absolute bottom-4 left-0 right-0 flex justify-center">
-          <span class="bg-black/50 text-white text-[13px] px-4 py-1.5 rounded-full">
+          <span class="bg-black/50 text-white text-body-xs px-4 py-1.5 rounded-full">
             {{ title }}
           </span>
         </div>

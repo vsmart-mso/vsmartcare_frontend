@@ -84,7 +84,7 @@ async function handleProceed() {
       <div class="relative mx-auto h-full flex items-center max-w-md px-4">
 
         <!-- Title -->
-        <h1 class="absolute inset-x-0 text-center text-white text-[16px] font-semibold pointer-events-none">
+        <h1 class="absolute inset-x-0 text-center text-white text-body font-semibold pointer-events-none">
           ความยินยอม (PDPA)
         </h1>
       </div>
@@ -108,10 +108,10 @@ async function handleProceed() {
           </svg>
         </div>
 
-        <h2 class="text-[18px] font-bold text-slate-900 leading-snug mb-1">
+        <h2 class="text-h3-legend font-bold text-slate-900 leading-snug mb-1">
           การแจ้งเตือนและการยืนยันข้อมูล
         </h2>
-        <p class="text-[12px] text-slate-500 leading-relaxed">
+        <p class="text-hint text-slate-500 leading-relaxed">
           กรุณาอ่านและยืนยันข้อมูลก่อนดำเนินการบันทึกคำขอรับความช่วยเหลือ
         </p>
       </div>
@@ -132,8 +132,8 @@ async function handleProceed() {
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[14px] font-semibold text-slate-900 mb-0.5">วัตถุประสงค์การเก็บข้อมูล</p>
-              <p class="text-[13px] text-slate-500 leading-relaxed">
+              <p class="text-body-md font-semibold text-slate-900 mb-0.5">วัตถุประสงค์การเก็บข้อมูล</p>
+              <p class="text-body-xs text-slate-500 leading-relaxed">
                 เพื่อพิจารณาให้ความช่วยเหลือทางสังคมตามภารกิจของกระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์
               </p>
             </div>
@@ -150,8 +150,8 @@ async function handleProceed() {
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[14px] font-semibold text-slate-900 mb-0.5">ข้อมูลที่จัดเก็บ</p>
-              <p class="text-[13px] text-slate-500 leading-relaxed">
+              <p class="text-body-md font-semibold text-slate-900 mb-0.5">ข้อมูลที่จัดเก็บ</p>
+              <p class="text-body-xs text-slate-500 leading-relaxed">
                 ชื่อ-สกุล, เลขบัตร ปชช., ที่อยู่, รายได้, สภาพปัญหา, เอกสารแนบและข้อมูลธนาคาร/พร้อมเพย์
               </p>
             </div>
@@ -167,8 +167,8 @@ async function handleProceed() {
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-[14px] font-semibold text-slate-900 mb-0.5">การเปิดเผยต่อหน่วยงาน</p>
-              <p class="text-[13px] text-slate-500 leading-relaxed">
+              <p class="text-body-md font-semibold text-slate-900 mb-0.5">การเปิดเผยต่อหน่วยงาน</p>
+              <p class="text-body-xs text-slate-500 leading-relaxed">
                 ข้อมูลจะถูกส่งต่อให้ นสค., คณะกรรมการ, พมจ. และหน่วยงานการเงิน เพื่อพิจารณาเบิกจ่าย
               </p>
             </div>
@@ -201,7 +201,7 @@ async function handleProceed() {
                 <polyline points="1,5 4.5,9 11,1" />
               </svg>
             </div>
-            <span class="text-[14px] text-slate-700 leading-snug">
+            <span class="text-body-md text-slate-700 leading-snug">
               ผู้ยื่นขอรับความช่วยเหลือยินยอมให้จัดเก็บและใช้ข้อมูลส่วนบุคคลตาม PDPA
             </span>
           </label>
@@ -222,7 +222,7 @@ async function handleProceed() {
                 <polyline points="1,5 4.5,9 11,1" />
               </svg>
             </div>
-            <span class="text-[14px] text-slate-700 leading-snug">
+            <span class="text-body-md text-slate-700 leading-snug">
               ผู้ยื่นขอรับความช่วยเหลือรับทราบเงื่อนไขการใช้บริการของระบบ พม. CARE
             </span>
           </label>
@@ -243,15 +243,15 @@ async function handleProceed() {
           </div>
           <div>
             <!-- label เล็กสีส้ม -->
-            <p class="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-0.5">
+            <p class="text-micro font-semibold text-amber-600 uppercase tracking-wider mb-0.5">
               ก่อนบันทึกข้อมูล
             </p>
-            <p class="text-[15px] font-bold text-slate-900">คำเตือนก่อนบันทึกข้อมูล</p>
+            <p class="text-body font-bold text-slate-900">คำเตือนก่อนบันทึกข้อมูล</p>
           </div>
         </div>
 
         <!-- เนื้อหาคำเตือน พร้อม highlighted text สีน้ำเงิน -->
-        <p class="text-[13px] text-slate-700 leading-relaxed mb-3 indent-5">
+        <p class="text-body-xs text-slate-700 leading-relaxed mb-3 indent-5">
           ข้าพเจ้าผู้ยื่นขอรับความช่วยเหลือขอรับรองว่า จะให้หรือแจ้งข้อมูลและเอกสารที่<span class="text-[#1A56DB] font-medium">ถูกต้องตามความเป็นจริง</span>
           และรับทราบว่าการให้หรือแจ้งข้อมูลและเอกสารอันเป็นเท็จอาจต้อง<span class="text-[#1A56DB] font-medium">รับผิดตามกฎหมาย</span>ทั้ง<span class="text-[#1A56DB] font-medium">ทางแพ่งและทางอาญา</span>
         </p>
@@ -272,7 +272,7 @@ async function handleProceed() {
               <polyline points="1,5 4.5,9 11,1" />
             </svg>
           </div>
-          <span class="text-[14px] text-slate-700 leading-snug">
+          <span class="text-body-md text-slate-700 leading-snug">
             ผู้ยื่นขอรับความช่วยเหลือรับทราบคำเตือนข้างต้น
           </span>
         </label>
@@ -291,10 +291,10 @@ async function handleProceed() {
       <div class="mx-auto max-w-md px-4 pt-3">
 
         <!-- hint text -->
-        <p v-if="submitError" class="text-center text-[12px] text-red-500 mb-2">
+        <p v-if="submitError" class="text-center text-hint text-red-500 mb-2">
           {{ submitError }}
         </p>
-        <p v-else-if="!canProceed" class="text-center text-[12px] text-slate-400 mb-2">
+        <p v-else-if="!canProceed" class="text-center text-hint text-slate-400 mb-2">
           กรุณายืนยันรายการทั้งหมดก่อนดำเนินการต่อ
         </p>
 
@@ -305,7 +305,7 @@ async function handleProceed() {
           <button
             @click="handleReject"
             :disabled="isSubmitting"
-            class="flex-1 h-12 rounded-xl border-2 border-slate-300 bg-white text-[15px] font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+            class="flex-1 h-12 rounded-xl border-2 border-slate-300 bg-white text-body font-semibold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
           >
             ปฏิเสธ
           </button>
@@ -319,7 +319,7 @@ async function handleProceed() {
             @click="handleProceed"
             :disabled="!canProceed || isSubmitting"
             :class="[
-              'flex-1 h-12 rounded-xl text-[15px] font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2',
+              'flex-1 h-12 rounded-xl text-body font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2',
               canProceed && !isSubmitting
                 ? 'bg-[#1A56DB] hover:bg-blue-700 active:bg-blue-800 shadow-sm'
                 : 'bg-slate-300 cursor-not-allowed'

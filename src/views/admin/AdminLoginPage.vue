@@ -6,6 +6,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminApi } from '@/api/admin'
 import { useAdminAuthStore } from '@/stores/adminAuth'
+import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 
 const router = useRouter()
 const adminAuth = useAdminAuthStore()
@@ -45,15 +46,10 @@ async function handleSubmit() {
 <template>
   <div class="min-h-dvh flex flex-col items-center justify-center bg-[#F8FAFC] px-5">
     <div class="w-full max-w-sm">
-      <!-- หัวข้อ -->
-      <div class="text-center mb-8">
-        <p class="text-[26px] font-bold tracking-wide leading-none mb-2">
-          <span class="text-[#BE185D]">พม.</span>
-          <span class="text-slate-800"> CARE</span>
-        </p>
-        <h1 class="text-[18px] font-bold text-slate-900">ระบบจัดการ (Admin)</h1>
-        <p class="text-[13px] text-slate-500 mt-1">เข้าสู่ระบบสำหรับผู้ดูแลระบบ</p>
-      </div>
+      <AppBrandHeader :show-tagline="false" class="mb-8">
+        <h1 class="text-h3-legend font-bold text-slate-900 mt-3">ระบบจัดการ (Admin)</h1>
+        <p class="text-body-xs text-slate-500 mt-1">เข้าสู่ระบบสำหรับผู้ดูแลระบบ</p>
+      </AppBrandHeader>
 
       <!-- ฟอร์ม -->
       <form
@@ -61,7 +57,7 @@ async function handleSubmit() {
         @submit.prevent="handleSubmit"
       >
         <div>
-          <label class="block text-[14px] font-medium text-slate-700 mb-1.5">
+          <label class="block text-body-md font-medium text-slate-700 mb-1.5">
             ชื่อผู้ใช้งาน
           </label>
           <input
@@ -69,13 +65,13 @@ async function handleSubmit() {
             type="text"
             autocomplete="username"
             :disabled="loading"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-[15px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-body text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50"
             placeholder="username"
           />
         </div>
 
         <div>
-          <label class="block text-[14px] font-medium text-slate-700 mb-1.5">
+          <label class="block text-body-md font-medium text-slate-700 mb-1.5">
             รหัสผ่าน
           </label>
           <input
@@ -83,14 +79,14 @@ async function handleSubmit() {
             type="password"
             autocomplete="current-password"
             :disabled="loading"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-[15px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-body text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50"
             placeholder="••••••••"
           />
         </div>
 
         <p
           v-if="error"
-          class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800"
+          class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-body-xs text-red-800"
           role="alert"
         >
           {{ error }}
@@ -99,7 +95,7 @@ async function handleSubmit() {
         <button
           type="submit"
           :disabled="loading"
-          class="w-full rounded-lg bg-[#1A56DB] px-4 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-blue-700 active:scale-[0.99] disabled:opacity-60 disabled:pointer-events-none"
+          class="w-full rounded-lg bg-[#1A56DB] px-4 py-2.5 text-body font-semibold text-white transition-colors hover:bg-blue-700 active:scale-[0.99] disabled:opacity-60 disabled:pointer-events-none"
         >
           {{ loading ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}
         </button>

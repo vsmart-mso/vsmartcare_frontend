@@ -384,7 +384,7 @@ const STEP_LABELS: Record<number, string> = {
 
     <!-- Header -->
     <header class="fixed inset-x-0 top-0 z-20 bg-[#1A56DB] px-4 py-3.5 flex items-center justify-center shadow">
-      <p class="text-[17px] font-bold text-white">แก้ไขข้อมูล</p>
+      <p class="text-h1-page font-bold text-white">แก้ไขข้อมูล</p>
     </header>
 
     <!-- overlay ปิดกั้น interaction ทั้งหน้าขณะกำลังบันทึก (z-10: ต่ำกว่า header/footer z-20) -->
@@ -401,8 +401,8 @@ const STEP_LABELS: Record<number, string> = {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
         <div>
-          <p class="text-[13px] font-semibold text-amber-800">กรุณาแก้ไขเฉพาะส่วนที่ไฮไลต์</p>
-          <p class="text-[12px] text-amber-700 mt-1 leading-relaxed">
+          <p class="text-body-xs font-semibold text-amber-800">กรุณาแก้ไขเฉพาะส่วนที่ไฮไลต์</p>
+          <p class="text-hint text-amber-700 mt-1 leading-relaxed">
             เจ้าหน้าที่ระบุส่วนที่ต้องแก้ไขไว้แล้ว กรุณากรอกให้ครบถ้วนแล้วกด "บันทึกการแก้ไข"
           </p>
         </div>
@@ -414,7 +414,7 @@ const STEP_LABELS: Record<number, string> = {
           <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
-          <span class="text-[15px] font-bold">ส่วนที่ 1: {{ STEP_LABELS[1] }}</span>
+          <span class="text-h2-section font-bold">ส่วนที่ 1: {{ STEP_LABELS[1] }}</span>
         </div>
         <Step1PersonalInfo
           ref="step1Ref"
@@ -430,7 +430,7 @@ const STEP_LABELS: Record<number, string> = {
           <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
           </svg>
-          <span class="text-[15px] font-bold">ส่วนที่ 2: {{ STEP_LABELS[2] }}</span>
+          <span class="text-h2-section font-bold">ส่วนที่ 2: {{ STEP_LABELS[2] }}</span>
         </div>
         <Step2Economics
           ref="step2Ref"
@@ -446,7 +446,7 @@ const STEP_LABELS: Record<number, string> = {
           <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span class="text-[15px] font-bold">ส่วนที่ 3: {{ STEP_LABELS[3] }}</span>
+          <span class="text-h2-section font-bold">ส่วนที่ 3: {{ STEP_LABELS[3] }}</span>
         </div>
         <Step3Problem
           ref="step3Ref"
@@ -462,7 +462,7 @@ const STEP_LABELS: Record<number, string> = {
           <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span class="text-[15px] font-bold">ส่วนที่ 4: {{ STEP_LABELS[4] }}</span>
+          <span class="text-h2-section font-bold">ส่วนที่ 4: {{ STEP_LABELS[4] }}</span>
         </div>
         <Step4Documents
           :filterFields="filterFields4"
@@ -481,7 +481,7 @@ const STEP_LABELS: Record<number, string> = {
         <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
-        <p class="text-[12px] text-red-600 leading-relaxed">{{ submitError }}</p>
+        <p class="text-hint text-red-600 leading-relaxed">{{ submitError }}</p>
       </div>
 
       <div class="flex gap-3">
@@ -489,7 +489,7 @@ const STEP_LABELS: Record<number, string> = {
         <button
           type="button"
           @click="router.push({ name: 'case-tracking', query: app.editApplicantId ? { applicantId: String(app.editApplicantId) } : {} })"
-          class="flex-[0_0_auto] w-[96px] py-3 rounded-xl border-2 border-slate-200 text-[14px] font-semibold text-slate-600 hover:border-slate-300 active:scale-[0.98] transition-all"
+          class="flex-[0_0_auto] w-[96px] py-3 rounded-xl border-2 border-slate-200 text-body-md font-semibold text-slate-600 hover:border-slate-300 active:scale-[0.98] transition-all"
         >
           ย้อนกลับ
         </button>
@@ -499,7 +499,7 @@ const STEP_LABELS: Record<number, string> = {
           type="button"
           @click="handleSave"
           :disabled="isSubmitting || anyLoading || ocrBlocksSubmit"
-          class="flex-1 py-3 rounded-xl text-[14px] font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          class="flex-1 py-3 rounded-xl text-body-md font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           :class="allReady && allFieldsEdited && !isSubmitting && !anyLoading && !ocrBlocksSubmit
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-blue-700'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
