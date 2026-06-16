@@ -354,7 +354,7 @@ async function handleSave() {
       linkOcrResult(ocrId, editedId!).catch(() => { /* silent — ไม่ block การแก้ไขที่สำเร็จแล้ว */ })
     }
 
-    router.push({ name: 'case-tracking', query: { applicantId: String(editedId) } })
+    router.push({ name: 'case-tracking', state: { applicantId: editedId } })
 
   } catch (err: unknown) {
     const rawDetail = (err as { data?: { detail?: unknown } })?.data?.detail
@@ -488,7 +488,7 @@ const STEP_LABELS: Record<number, string> = {
         <!-- ปุ่มย้อนกลับ -->
         <button
           type="button"
-          @click="router.push({ name: 'case-tracking', query: app.editApplicantId ? { applicantId: String(app.editApplicantId) } : {} })"
+          @click="router.push({ name: 'case-tracking', state: app.editApplicantId ? { applicantId: app.editApplicantId } : undefined })"
           class="flex-[0_0_auto] w-[96px] py-3 rounded-xl border-2 border-slate-200 text-body-md font-semibold text-slate-600 hover:border-slate-300 active:scale-[0.98] transition-all"
         >
           ย้อนกลับ
