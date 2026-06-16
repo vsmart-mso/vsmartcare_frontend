@@ -21,8 +21,7 @@ export const adminClient = ofetch.create({
   },
   onRequest({ options }) {
     const headers = new Headers(options.headers as HeadersInit | undefined)
-    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
-    if (bffKey) headers.set('X-API-Key', bffKey)
+    // Admin auth ใช้ admin JWT (Authorization: Bearer) ที่ case-service validate เอง
     const token = localStorage.getItem(ADMIN_TOKEN_KEY)
     if (token) headers.set('Authorization', `Bearer ${token}`)
     options.headers = headers

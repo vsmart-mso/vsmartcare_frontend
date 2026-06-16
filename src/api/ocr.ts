@@ -1,7 +1,7 @@
-// OCR API — เรียก OCR Service โดยตรง (ไม่ผ่าน BFF)
-// OCR service ใช้ Gemini 2.5 Flash อ่านข้อมูลจากรูปสมุดบัญชีธนาคาร
+// OCR API — เรียกผ่าน BFF proxy (CR-04: ไม่เปิด ocr-service port ตรงอีกต่อไป)
+// OCR service ใช้ Gemini Flash อ่านข้อมูลจากรูปสมุดบัญชีธนาคาร
 //
-// Base URL: http://localhost:8004 (dev) / http://ocr-service:8000 (docker)
+// Base URL: VITE_API_URL/v1/ocr/* (BFF proxy → ocr-service:8000 ภายใน docker network)
 // Docs:    ocr-service/OCR_API_DOCS.md
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -64,12 +64,20 @@ export type OcrState =
   | { phase: 'aborted' }
 
 // ─── OCR Service ─────────────────────────────────────────────────────────────
+// OCR ถูก proxy ผ่าน BFF แล้ว (CR-04) — ไม่เรียก ocr-service:8004 ตรงอีกต่อไป
+// ทุก request ผ่าน VITE_API_URL (/api-vsmartcare) พร้อม Bearer token ของประชาชน
 
-const ocrBaseUrl = (import.meta.env.VITE_OCR_API_URL as string)?.replace(/\/$/, '') ?? 'http://localhost:8004'
-const ocrApiKey = import.meta.env.VITE_OCR_API_KEY as string | undefined
+const ocrBaseUrl = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, '') ?? 'http://localhost:8000/api-vsmartcare'
+
+function _ocrAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  const token = sessionStorage.getItem('auth_token')
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
 
 /**
- * ส่งรูปสมุดบัญชีไป OCR — รองรับการยกเลิกผ่าน AbortSignal
+ * ส่งรูปสมุดบัญชีไป OCR ผ่าน BFF — รองรับการยกเลิกผ่าน AbortSignal
  *
  * @param file         รูปสมุดบัญชี (JPEG / PNG / WebP)
  * @param targetName   ชื่อ-นามสกุลที่ต้องการเทียบ เช่น "นาย ภูริพัฒน ปัญญา"
@@ -89,17 +97,10 @@ export async function ocrBankBook(
     form.append('applicant_id', String(applicantId))
   }
 
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  }
-  if (ocrApiKey) {
-    headers['Authorization'] = `Bearer ${ocrApiKey}`
-  }
   // ไม่ตั้ง Content-Type — browser จะตั้ง multipart/form-data พร้อม boundary เอง
-
   const res = await fetch(`${ocrBaseUrl}/v1/ocr/bank-book`, {
     method: 'POST',
-    headers,
+    headers: _ocrAuthHeaders(),
     body: form,
     signal,
   })
@@ -125,12 +126,9 @@ export async function fetchOcrResults(
   applicantId: number,
   limit = 10,
 ): Promise<OcrResultsListResponse> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (ocrApiKey) headers['Authorization'] = `Bearer ${ocrApiKey}`
-
   const res = await fetch(
     `${ocrBaseUrl}/v1/ocr/results/${applicantId}?limit=${limit}`,
-    { headers },
+    { headers: _ocrAuthHeaders() },
   )
 
   const data = await res.json().catch(() => ({})) as OcrResultsListResponse & { detail?: string }
@@ -153,12 +151,7 @@ export async function linkOcrResult(
   ocrResultId: number,
   applicantId: number,
 ): Promise<OcrResultRecord> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  }
-  if (ocrApiKey) headers['Authorization'] = `Bearer ${ocrApiKey}`
-
+  const headers = { ..._ocrAuthHeaders(), 'Content-Type': 'application/json' }
   const res = await fetch(`${ocrBaseUrl}/v1/ocr/results/${ocrResultId}/link`, {
     method: 'PATCH',
     headers,
