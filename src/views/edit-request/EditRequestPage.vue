@@ -177,12 +177,26 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
     case 'gov_aid_type_detail': return JSON.stringify(data.aidTypeDetails ?? {})
     // ── Step 3: ปัญหา / ความช่วยเหลือ / ธนาคาร ──
     case 'family_problems':           return String(data.problemDescription ?? '')
-    // รวม aidTypes + aidOtherText + aidInKindText ให้ dirty-check ตรวจได้ครบ
-    case 'requested_assistance_type': return JSON.stringify({
-      types:   data.aidTypes      ?? [],
-      other:   data.aidOtherText  ?? '',
-      inKind:  data.aidInKindText ?? '',
-    })
+    case 'requested_assistance_money':
+      return (data.aidTypes as string[] | undefined)?.includes('1') ? '1' : ''
+    case 'requested_assistance_in_kind':
+      return JSON.stringify({
+        on:   (data.aidTypes as string[] | undefined)?.includes('2') ?? false,
+        text: data.aidInKindText ?? '',
+      })
+    case 'requested_assistance_other':
+      return JSON.stringify({
+        on:   (data.aidTypes as string[] | undefined)?.includes('3') ?? false,
+        text: data.aidOtherText ?? '',
+      })
+    // legacy: รวม aidTypes + aidOtherText + aidInKindText
+    case 'requested_assistance_type':
+    case 'requested_assistance_detail':
+      return JSON.stringify({
+        types:   data.aidTypes      ?? [],
+        other:   data.aidOtherText  ?? '',
+        inKind:  data.aidInKindText ?? '',
+      })
     case 'bank_name':                 return String(data.bankNameId ?? '')
     case 'bank_account_number':       return String(data.bankAccount ?? '')
     default: return null
@@ -201,6 +215,8 @@ const allFieldsEdited = computed(() => {
       if (!app.documentsMeta.some(m => m.id === docType)) return false
       continue
     }
+    // เงิน-only: แสดง alert อย่างเดียว ไม่บังคับเปลี่ยนค่า
+    if (c.name === 'requested_assistance_money') continue
     // ── field ข้อความ/ตัวเลือก: เทียบค่าปัจจุบันกับค่าตั้งต้นทีละ field ──
     const base = baseline.value[c.step]
     const cur  = snapshot(c.step)

@@ -20,6 +20,40 @@ const commentMap = computed(() => {
   return m
 })
 
+const ASSISTANCE_REVIEW_FIELDS = [
+  'requested_assistance_type', 'requested_assistance_detail', // legacy
+  'requested_assistance_money', 'requested_assistance_in_kind', 'requested_assistance_other',
+]
+
+const showAssistanceSection = computed(() =>
+  ASSISTANCE_REVIEW_FIELDS.some(n => show(n))
+)
+
+const isLegacyAssistanceReview = computed(() =>
+  show('requested_assistance_type') || show('requested_assistance_detail')
+)
+
+const legacyAssistanceAlert = computed(() =>
+  commentMap.value.get('requested_assistance_type')
+  ?? commentMap.value.get('requested_assistance_detail')
+  ?? ''
+)
+
+const moneyAssistanceAlert = computed(() =>
+  commentMap.value.get('requested_assistance_money')
+  ?? (isLegacyAssistanceReview.value ? legacyAssistanceAlert.value : '')
+)
+
+const inKindAssistanceAlert = computed(() =>
+  commentMap.value.get('requested_assistance_in_kind')
+  ?? (isLegacyAssistanceReview.value ? legacyAssistanceAlert.value : '')
+)
+
+const otherAssistanceAlert = computed(() =>
+  commentMap.value.get('requested_assistance_other')
+  ?? (isLegacyAssistanceReview.value ? legacyAssistanceAlert.value : '')
+)
+
 // ─── 9.1 รายละเอียดปัญหา ─────────────────────────────────────────────────────
 const problemDescription = ref('')
 
@@ -61,9 +95,18 @@ const bankBranchName    = ref('')  // applicants.bank_branch_name (OCR ชื่
 // ─── Validation ───────────────────────────────────────────────────────────────
 const isReady = computed(() => {
   if (show('family_problems') && !problemDescription.value.trim()) return false
-  if (show('requested_assistance_type') && aidTypes.value.length === 0) return false
-  if (show('requested_assistance_type') && isOtherAidSelected.value && !aidOtherText.value.trim()) return false
-  if (show('requested_assistance_type') && isInKindAidSelected.value && !aidInKindText.value.trim()) return false
+  if (isLegacyAssistanceReview.value) {
+    if (aidTypes.value.length === 0) return false
+    if (isOtherAidSelected.value && !aidOtherText.value.trim()) return false
+    if (isInKindAidSelected.value && !aidInKindText.value.trim()) return false
+  } else if (showAssistanceSection.value) {
+    if (show('requested_assistance_in_kind')) {
+      if (!isInKindAidSelected.value || !aidInKindText.value.trim()) return false
+    }
+    if (show('requested_assistance_other')) {
+      if (!isOtherAidSelected.value || !aidOtherText.value.trim()) return false
+    }
+  }
   return true
 })
 
@@ -151,7 +194,7 @@ defineExpose({
          Section 10: ความช่วยเหลือที่ต้องการ
          ════════════════════════════════════════════════════════ -->
     <div
-      v-if="show('requested_assistance_type')"
+      v-if="showAssistanceSection"
       class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -167,13 +210,15 @@ defineExpose({
           <div class="flex items-center gap-2 mb-3">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">10.1</span>
             <span class="text-body-xs font-medium text-slate-600">ประเภทความช่วยเหลือที่ต้องการ <span class="text-red-500">*</span></span>
-            <FieldAlert v-if="commentMap.has('requested_assistance_type')" :reason="commentMap.get('requested_assistance_type')!" />
           </div>
 
           <div class="space-y-2">
 
             <!-- ช่วยเหลือเป็นเงิน (id=1) -->
             <div>
+              <div v-if="moneyAssistanceAlert" class="mb-2">
+                <FieldAlert :reason="moneyAssistanceAlert" />
+              </div>
               <!-- ล็อกไว้เสมอ: เลือกอัตโนมัติ ถอดออกไม่ได้ (cursor-default, ไม่มี @click) -->
               <label class="flex items-center gap-3 border border-[#1A56DB] bg-blue-50 rounded-xl px-4 py-3 cursor-default">
                 <div class="w-5 h-5 rounded border-2 bg-[#1A56DB] border-[#1A56DB] flex items-center justify-center flex-shrink-0">
@@ -187,6 +232,9 @@ defineExpose({
 
             <!-- ช่วยเหลือเรื่องอื่นๆ (id=3) -->
             <div>
+              <div v-if="otherAssistanceAlert" class="mb-2">
+                <FieldAlert :reason="otherAssistanceAlert" />
+              </div>
               <label
                 class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
                 :class="isOtherAidSelected ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
@@ -221,6 +269,9 @@ defineExpose({
 
             <!-- ช่วยเหลือเป็นสิ่งของ (id=2) -->
             <div>
+              <div v-if="inKindAssistanceAlert" class="mb-2">
+                <FieldAlert :reason="inKindAssistanceAlert" />
+              </div>
               <label
                 class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
                 :class="isInKindAidSelected ? 'border-[#1A56DB] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'"
