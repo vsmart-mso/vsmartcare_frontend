@@ -155,8 +155,14 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
     case 'contact_email':               return String(c.email ?? '')
     case 'marital_status':              return String(data.maritalStatus ?? '')
     case 'housing_type':                return String(data.housingType ?? '')
-    case 'housing_rent':                return String(data.rentPerMonth ?? '')
-    case 'family_members_count':        return String((data.householdMembers as unknown[])?.length ?? 0)
+    case 'housing_rent': {
+      // ไม่บังคับแก้ค่าเช่าเมื่อเปลี่ยนเป็นประเภทที่ไม่ใช่บ้านเช่าแล้ว
+      if (data.isRentHousing === false) return null
+      return String(data.rentPerMonth ?? '')
+    }
+    case 'household_members':           return JSON.stringify(data.householdMembers ?? [])
+    // backward compat: comment เก่าที่ยังใช้ชื่อเดิมก่อน migration 0060
+    case 'family_members_count':        return JSON.stringify(data.householdMembers ?? [])
     // ── Step 2: เศรษฐกิจ / สวัสดิการ ──
     case 'family_occupation':   return String(data.familyOccupation ?? '')
     case 'family_income':       return String(data.monthlyIncome ?? '')
@@ -199,8 +205,11 @@ const allFieldsEdited = computed(() => {
     const base = baseline.value[c.step]
     const cur  = snapshot(c.step)
     if (base == null || cur == null) return false // restore ยังไม่เสร็จ → ยังบันทึกไม่ได้
+    const curData = JSON.parse(cur) as Record<string, unknown>
+    // ค่าเช่า: ถ้าเปลี่ยนเป็นที่อยู่ที่ไม่ใช่บ้านเช่าแล้ว ถือว่าแก้ครบ (ไม่บังคับแก้ตัวเลขค่าเช่า)
+    if (c.name === 'housing_rent' && curData.isRentHousing === false) continue
     const baseVal = fieldValue(c.name, JSON.parse(base) as Record<string, unknown>)
-    const curVal  = fieldValue(c.name, JSON.parse(cur)  as Record<string, unknown>)
+    const curVal  = fieldValue(c.name, curData)
     if (baseVal == null) continue        // resolver ไม่รู้จัก field → ข้าม ไม่บังคับ
     if (baseVal === curVal) return false  // field นี้ยังไม่ถูกแก้ → ห้ามบันทึก
   }
@@ -297,6 +306,11 @@ async function handleSave() {
     const { initial_current_status_id: _unused, ...updatePayload } = payload
 
     const partialUpdate: Partial<typeof updatePayload> = {}
+    // housing_type / housing_rent อยู่ใน Step 1 แต่ถูก map ไปที่ economic_infos ใน buildApiPayload()
+    // ถ้าแก้ housing ใน Step 1 ต้องส่ง economic_infos ไปด้วย ไม่งั้น backend จะไม่อัปเดต
+    const editingHousing =
+      filterFields1.value.includes('housing_type') ||
+      filterFields1.value.includes('housing_rent')
     // applicant รวม field จาก step1 (address contact) + step3 (bank)
     // reset_processing_state: true ทุกครั้ง — backend clear process_started_at,
     // process_sla_days, type_money_category_id เพราะ case กลับไปสถานะ "รอรับเรื่อง"
@@ -309,10 +323,13 @@ async function handleSave() {
       partialUpdate.addresses         = updatePayload.addresses
       partialUpdate.household_members = updatePayload.household_members
     }
-    if (showStep2.value) {
+    if (showStep2.value || (showStep1.value && editingHousing)) {
       partialUpdate.economic_infos   = updatePayload.economic_infos
-      partialUpdate.dependency_loads = updatePayload.dependency_loads
-      partialUpdate.welfare_history  = updatePayload.welfare_history
+      // dependency_loads/welfare_history เป็น Step 2 เท่านั้น
+      if (showStep2.value) {
+        partialUpdate.dependency_loads = updatePayload.dependency_loads
+        partialUpdate.welfare_history  = updatePayload.welfare_history
+      }
     }
     if (showStep3.value) {
       partialUpdate.request_type_ids    = updatePayload.request_type_ids

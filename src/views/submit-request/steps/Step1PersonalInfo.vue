@@ -111,6 +111,14 @@ const rentOptionId = computed(() =>
 )
 const isRentSelected = computed(() => housingType.value === rentOptionId.value)
 
+// เปลี่ยนจากบ้านเช่าเป็นประเภทอื่น → ล้างค่าเช่า (ไม่ต้องกรอก + ไม่ติด dirty-check ค่าเดิม)
+watch([housingType, rentOptionId], ([ht, rentId]) => {
+  if (ht && ht !== rentId) {
+    rentPerMonth.value = ''
+    displayRent.value = ''
+  }
+})
+
 // ─── 4.2 ค่าเช่าต่อเดือน ──────────────────────────────────────────────────────
 const rentPerMonth  = ref('')   // ตัวเลขล้วน ใช้คำนวณ
 const displayRent   = ref('')   // แสดงใน input (มีลูกน้ำหลัง blur)
@@ -454,7 +462,10 @@ function touchAll() {
     rentPerMonth:  'housing_rent',
   }
   ;(Object.keys(touched) as (keyof typeof touched)[]).forEach(k => {
-    if (show(fieldNameMap[k])) touched[k] = true
+    if (!show(fieldNameMap[k])) return
+    // ค่าเช่าไม่บังคับเมื่อไม่ได้เลือกบ้านเช่า
+    if (k === 'rentPerMonth' && !isRentSelected.value) return
+    touched[k] = true
   })
 }
 
@@ -670,7 +681,8 @@ defineExpose({
     },
     maritalStatus: maritalStatus.value,
     housingType:   housingType.value,
-    rentPerMonth:      rentPerMonth.value,
+    isRentHousing: isRentSelected.value,
+    rentPerMonth:  isRentSelected.value ? rentPerMonth.value : '',
     householdMembers:  householdMembers.value,
   }),
 })
@@ -1266,7 +1278,7 @@ defineExpose({
     <!-- ════════════════════════════════════════════════════════
          Section 5: สมาชิกในครัวเรือน
          ════════════════════════════════════════════════════════ -->
-    <div v-if="show('family_members_count')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div v-if="show('household_members') || show('family_members_count')" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
         <div class="w-8 h-8 rounded-full bg-[#1A56DB] flex items-center justify-center flex-shrink-0">
           <span class="text-white text-body-xs font-bold">5</span>
@@ -1277,7 +1289,10 @@ defineExpose({
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">5.1</span>
           <span class="text-body-xs font-medium text-slate-600">รายชื่อสมาชิกในครัวเรือน</span>
-          <FieldAlert v-if="commentMap.has('family_members_count')" :reason="commentMap.get('family_members_count')!" />
+          <FieldAlert
+            v-if="commentMap.has('household_members') || commentMap.has('family_members_count')"
+            :reason="commentMap.get('household_members') ?? commentMap.get('family_members_count')!"
+          />
         </div>
         <div class="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
           <svg class="w-4 h-4 text-blue-500 flex-shrink-0 mt-[1px]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
