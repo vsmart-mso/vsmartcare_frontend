@@ -126,7 +126,6 @@ const formReady = computed(() =>
 // ─── Handlers: income input ───────────────────────────────────────────────────
 function handleIncomeInput(e: Event) {
   const input = e.target as HTMLInputElement
-  // จำกัด 10 หลัก — รายได้/ปี ไม่ควรเกินค่านี้ และกัน overflow ฝั่ง backend
   const digitsOnly = input.value.replace(/[^0-9]/g, '').slice(0, 10)
   annualIncome.value = digitsOnly
   const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('th-TH') : ''

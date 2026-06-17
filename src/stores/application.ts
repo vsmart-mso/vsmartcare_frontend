@@ -173,6 +173,9 @@ export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
   other_doc:    99,
 }
 
+/** id ของตัวเลือก "อื่น ๆ" ใน income_source_types / dependency_types (seed 0002) */
+export const OTHER_LOOKUP_TYPE_ID = 99
+
 // ─── Reverse map: attachment_types.id → docType (ใช้ใน Edit Mode) ────────────
 export const ATTACHMENT_ID_TO_DOCTYPE: Record<number, string> = Object.fromEntries(
   Object.entries(ATTACHMENT_TYPE_MAP).map(([k, v]) => [v, k])
@@ -370,17 +373,29 @@ export const useApplicationStore = defineStore('application', () => {
     // ─── dependency_loads ─────────────────────────────────────────────────
     // caregiverRoles เก็บ id ของประเภทภาระการอุปการะ (string[] จาก API)
     // caregiverOther ใช้เป็น other_text กรณีเลือก "อื่น ๆ"
-    const dependency_loads = (s2?.caregiverRoles ?? []).map(idStr => ({
-      dependency_type_id:    Number(idStr),
-      dependency_other_text: s2?.caregiverOther || null,
-    }))
+    const dependency_loads = (s2?.caregiverRoles ?? []).map(idStr => {
+      const dependency_type_id = Number(idStr)
+      return {
+        dependency_type_id,
+        dependency_other_text:
+          dependency_type_id === OTHER_LOOKUP_TYPE_ID
+            ? s2?.caregiverOther?.trim() || null
+            : null,
+      }
+    })
 
     // ─── economic_infos ───────────────────────────────────────────────────
     // income_sources เก็บ id ของแหล่งรายได้ (string[] จาก API)
-    const income_sources = (s2?.incomeSources ?? []).map(idStr => ({
-      income_source_type_id: Number(idStr),
-      other_details:         s2?.incomeSourceOther || null,
-    }))
+    const income_sources = (s2?.incomeSources ?? []).map(idStr => {
+      const income_source_type_id = Number(idStr)
+      return {
+        income_source_type_id,
+        other_details:
+          income_source_type_id === OTHER_LOOKUP_TYPE_ID
+            ? s2?.incomeSourceOther?.trim() || null
+            : null,
+      }
+    })
 
     const householdMembersList = (s1?.householdMembers ?? []).map((m, i) => ({
       seq:                  m.seq || i + 1,
@@ -530,9 +545,9 @@ export const useApplicationStore = defineStore('application', () => {
       familyOccupationOther: '',
       monthlyIncome:         eco?.monthly_income    ?? '',
       incomeSources:         (eco?.income_sources ?? []).map(s => String(s.income_source_type_id)),
-      incomeSourceOther:     (eco?.income_sources ?? []).find(s => s.other_details)?.other_details ?? '',
+      incomeSourceOther:     (eco?.income_sources ?? []).find(s => s.income_source_type_id === OTHER_LOOKUP_TYPE_ID)?.other_details ?? '',
       caregiverRoles:        caseData.dependency_loads.map(d => String(d.dependency_type_id)),
-      caregiverOther:        caseData.dependency_loads.find(d => d.dependency_other_text)?.dependency_other_text ?? '',
+      caregiverOther:        caseData.dependency_loads.find(d => d.dependency_type_id === OTHER_LOOKUP_TYPE_ID)?.dependency_other_text ?? '',
       govAidHistory:         wh?.has_received_welfare ? 'received' : 'none',
       timesThisYear:         String(wh?.received_count ?? ''),
       totalAmount:           String(wh?.total_received_amount ?? ''),

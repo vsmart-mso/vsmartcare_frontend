@@ -107,7 +107,6 @@ function handleMoneyInput(e: Event, setter: (v: string) => void) {
   el.value = digits ? Number(digits).toLocaleString('th-TH') : ''
 }
 
-// กรองอาชีพ — รับเฉพาะตัวอักษรไทย/อังกฤษ และช่องว่าง ห้ามตัวเลข/อักขระพิเศษ
 function handleFamilyOccupationInput(e: Event) {
   const input = e.target as HTMLInputElement
   const filtered = input.value.replace(/[^ก-๙฀-๿a-zA-Z\s]/g, '')
