@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
@@ -11,7 +11,6 @@ import { useAuth } from '@/composables/useAuth'
 import { formatThaiDate } from '@/utils/formatDate'
 import CaseTrackingSkeleton from './components/CaseTrackingSkeleton.vue'
 
-const route  = useRoute()
 const router = useRouter()
 const auth   = useAuthStore()
 const app    = useApplicationStore()
@@ -56,9 +55,11 @@ const nationalId = computed(() => {
   return showFullId.value ? formatNationalId(pid) : maskNationalId(pid)
 })
 
-// ─── Query param: รับทั้ง applicantId และ caseId (fallback) ────────────────────
+// ─── History state: รับ applicantId เพื่อ "เลือก case ที่ต้องการ" ─────────────────
+// ใช้ history.state แทน query string เพื่อไม่ให้เลข id โผล่ใน URL (กันรั่วผ่าน log/history/Referer)
+// ถ้าไม่มี → onMounted จะ fallback เป็น case ล่าสุดของผู้ใช้เอง (ดึงตาม person_id อยู่แล้ว)
 const applicantIdParam = computed(() => {
-  const v = route.query.applicantId ?? route.query.caseId
+  const v = window.history.state?.applicantId ?? window.history.state?.caseId
   return v ? Number(v) : null
 })
 

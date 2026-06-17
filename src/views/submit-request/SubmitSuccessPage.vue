@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
-const route  = useRoute()
 const router = useRouter()
 const auth   = useAuthStore()
 
-// applicant_id ที่ได้หลัง submit สำเร็จ
-const applicantId = computed(() => Number(route.query.caseId) || 0)
+// applicant_id ที่ได้หลัง submit สำเร็จ — ส่งมาทาง history.state (ไม่ใส่ใน URL เพื่อกัน id รั่ว)
+// snapshot ครั้งเดียวตอน setup เพราะ history.state ไม่ reactive และไม่เปลี่ยนระหว่างอยู่หน้านี้
+const applicantId = ref<number>(Number(window.history.state?.caseId) || 0)
 
 // วันที่ยื่น = ตอนนี้เลย (เพิ่งยื่นสำเร็จ)
 const submittedDate = new Date().toLocaleDateString('th-TH', {
@@ -29,7 +29,7 @@ const isLoadingCaseId = ref(true)
 // onBeforeRouteLeave ของ Vue Router ทำงานได้กับทั้ง back button และ router.push/replace
 onBeforeRouteLeave((to) => {
   if (to.name !== 'case-tracking') {
-    router.replace({ name: 'case-tracking', query: applicantId.value ? { applicantId: String(applicantId.value) } : {} })
+    router.replace({ name: 'case-tracking', state: applicantId.value ? { applicantId: applicantId.value } : undefined })
     return false  // ยกเลิก navigation เดิม (Vue Router จะ restore URL ก่อน replace)
   }
 })
@@ -69,7 +69,7 @@ async function copyCaseId() {
 }
 
 function goToTracking() {
-  router.replace({ name: 'case-tracking', query: { applicantId: String(applicantId.value) } })
+  router.replace({ name: 'case-tracking', state: { applicantId: applicantId.value } })
 }
 
 // ─── Satisfaction Survey ─────────────────────────────────────────────────────

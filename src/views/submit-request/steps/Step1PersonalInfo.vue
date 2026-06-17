@@ -579,6 +579,10 @@ const isReady = computed(() => {
     (!show('current_address_province')    || addr.province.value    !== '') &&
     (!show('current_address_district')    || addr.district.value    !== '') &&
     (!show('current_address_subdistrict') || addr.subdistrict.value !== '') &&
+    // phone/fax เป็น optional — ว่างได้ แต่ถ้ากรอกแล้วต้องถูก format (ขึ้นต้น 02–07, 9 หลัก)
+    // ถ้าไม่เช็คตรงนี้ ปุ่ม "ถัดไป" จะกดได้ทั้งที่ช่องโชว์ error อยู่
+    (!show('contact_phone_home')          || !phone.value.trim() || isValidPhone(phone.value)) &&
+    (!show('contact_fax')                 || !fax.value.trim()   || isValidFax(fax.value))     &&
     (!show('contact_mobile')              || isValidMobile(mobile.value))   &&
     (!show('contact_email')               || !email.value.trim() || isValidEmail(email.value.trim())) &&
     (!show('marital_status')              || maritalStatus.value    !== '') &&
