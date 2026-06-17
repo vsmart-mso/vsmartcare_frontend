@@ -122,7 +122,7 @@ const stepRef = ref<StepExpose | null>(null)
 function handleBack() {
   if (currentStep.value > 1) currentStep.value--
   else if (app.editMode && app.editApplicantId) {
-    router.push({ name: 'case-tracking', query: { applicantId: String(app.editApplicantId) } })
+    router.push({ name: 'case-tracking', state: { applicantId: app.editApplicantId } })
   } else router.back()
 }
 
@@ -234,7 +234,7 @@ async function handleSubmit() {
         linkOcrResult(ocrId, editedId).catch(() => { /* silent */ })
       }
 
-      router.push({ name: 'case-tracking', query: { applicantId: String(editedId) } })
+      router.push({ name: 'case-tracking', state: { applicantId: editedId } })
       return
     }
 
@@ -273,7 +273,7 @@ async function handleSubmit() {
     }
 
     // 6. ไปหน้าสำเร็จพร้อม applicant_id (ใช้อ้างอิงคำร้อง)
-    router.replace({ name: 'submit-success', query: { caseId: String(applicantId) } })
+    router.replace({ name: 'submit-success', state: { caseId: applicantId } })
 
   } catch (err: unknown) {
     // FastAPI 422 ส่ง detail เป็น array of {loc, msg, type}; 4xx อื่นส่งเป็น string

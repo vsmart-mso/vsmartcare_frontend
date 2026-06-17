@@ -150,13 +150,9 @@ function _resetMemberErrors() {
   nationalIdSuccess.value                = ''
 }
 
-// แปลง raw income string → display string พร้อมลูกน้ำ (e.g. "1000.50" → "1,000.50")
-// intStr fallback เป็น "0" เมื่อไม่มีส่วน integer (เช่น ".5" → "0.5")
 function formatIncomeDisplay(raw: string): string {
   if (!raw) return ''
-  const parts = raw.split('.')
-  const intStr = parts[0] ? Number(parts[0]).toLocaleString('th-TH') : '0'
-  return parts.length > 1 ? intStr + '.' + parts[1] : intStr
+  return Number(raw).toLocaleString('th-TH')
 }
 
 // ตรวจ checksum เลขบัตรประชาชนไทย 13 หลัก (MOD11 algorithm)
@@ -316,20 +312,12 @@ function handleMemberNameInput(e: Event, field: 'firstName' | 'lastName') {
   el.value = filtered
 }
 
-// input handler: กรองให้รับตัวเลข + จุดทศนิยม ≤ 2 ตำแหน่ง + แสดงลูกน้ำ (ใช้กับ monthlyIncome)
+// input handler: รับตัวเลขเท่านั้น + แสดงลูกน้ำ (ใช้กับ monthlyIncome)
 function handleMemberIncomeInput(e: Event) {
-  const el  = e.target as HTMLInputElement
-  let raw   = el.value.replace(/[^0-9.]/g, '')
-  // อนุญาตจุดเพียงจุดเดียว ทศนิยมสูงสุด 2 ตำแหน่ง
-  const dotIdx = raw.indexOf('.')
-  if (dotIdx !== -1) {
-    const decimals = raw.slice(dotIdx + 1).replace(/\./g, '')
-    raw = raw.slice(0, dotIdx + 1) + decimals.slice(0, 2)
-  }
-  // normalize: leading dot → เติม 0 นำหน้า (เช่น ".5" → "0.5")
-  if (raw.startsWith('.')) raw = '0' + raw
-  if (editingMember.value) editingMember.value.monthlyIncome = raw
-  const formatted = formatIncomeDisplay(raw)
+  const el = e.target as HTMLInputElement
+  const digits = el.value.replace(/[^0-9]/g, '').slice(0, 10)
+  if (editingMember.value) editingMember.value.monthlyIncome = digits
+  const formatted = digits ? Number(digits).toLocaleString('th-TH') : ''
   displayIncome.value = formatted
   el.value = formatted
 }
@@ -374,10 +362,10 @@ function saveMember() {
   // เลขบัตรประชาชน: optional — ใช้ validateNationalId (fromBlur=true ให้แจ้ง "ไม่ครบ")
   validateNationalId(m.nationalId, true)
 
-  // รายได้: required — ต้องกรอก และเป็นตัวเลข ≥ 0 (ทศนิยมได้)
+  // รายได้: required — ต้องกรอก และเป็นตัวเลข ≥ 0
   if (!m.monthlyIncome) {
     editMemberErrors.monthlyIncome = 'กรุณากรอกรายได้ต่อเดือน'
-  } else if (!/^\d+(\.\d{0,2})?$/.test(m.monthlyIncome)) {
+  } else if (!/^\d+$/.test(m.monthlyIncome)) {
     editMemberErrors.monthlyIncome = 'รายได้ต้องเป็นตัวเลขเท่านั้น'
   } else {
     editMemberErrors.monthlyIncome = ''
@@ -545,7 +533,6 @@ function handleRentInput(e: Event) {
   const el = e.target as HTMLInputElement
   const digits = el.value.replace(/[^0-9]/g, '')
   rentPerMonth.value = digits
-  // ใส่ลูกน้ำขณะพิมพ์เหมือน Step2 เช่น 1000 → "1,000"
   const formatted = digits ? Number(digits).toLocaleString('th-TH') : ''
   displayRent.value = formatted
   el.value = formatted
@@ -579,6 +566,10 @@ const isReady = computed(() => {
     (!show('current_address_province')    || addr.province.value    !== '') &&
     (!show('current_address_district')    || addr.district.value    !== '') &&
     (!show('current_address_subdistrict') || addr.subdistrict.value !== '') &&
+    // phone/fax เป็น optional — ว่างได้ แต่ถ้ากรอกแล้วต้องถูก format (ขึ้นต้น 02–07, 9 หลัก)
+    // ถ้าไม่เช็คตรงนี้ ปุ่ม "ถัดไป" จะกดได้ทั้งที่ช่องโชว์ error อยู่
+    (!show('contact_phone_home')          || !phone.value.trim() || isValidPhone(phone.value)) &&
+    (!show('contact_fax')                 || !fax.value.trim()   || isValidFax(fax.value))     &&
     (!show('contact_mobile')              || isValidMobile(mobile.value))   &&
     (!show('contact_email')               || !email.value.trim() || isValidEmail(email.value.trim())) &&
     (!show('marital_status')              || maritalStatus.value    !== '') &&
@@ -1532,7 +1523,7 @@ defineExpose({
                   <input
                     :value="displayIncome"
                     @input="handleMemberIncomeInput"
-                    type="text" inputmode="decimal"
+                    type="text" inputmode="numeric" pattern="[0-9]*"
                     placeholder="0"
                     class="w-full bg-white border rounded-xl px-3 py-2 pr-14 text-body-xs focus:outline-none focus:ring-2 transition-colors"
                     :class="editMemberErrors.monthlyIncome ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
