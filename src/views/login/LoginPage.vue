@@ -203,12 +203,77 @@ function handleTangRath() {
           </p>
         </div>
 
-        <!-- ส่วนที่ 5: ดาวน์โหลดแบบฟอร์ม KTB Corporate Online -->
-        <div class="flex justify-center mt-3">
+        <!-- ส่วนที่ 5: กล่องเตรียมเอกสาร (Document Preparation Notice) -->
+        <div class="mt-4 bg-amber-50 border border-amber-300 rounded-xl p-4">
+          <!-- หัวข้อพร้อมไอคอน warning -->
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg
+                class="w-4 h-4 text-amber-500"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 1.998-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.502-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </div>
+            <p class="text-body-xs font-bold text-amber-800 leading-snug">
+              โปรดเตรียมเอกสารให้ครบถ้วนก่อนเข้าสู่ระบบ
+            </p>
+          </div>
+
+          <!-- รายการเอกสาร -->
+          <ol class="list-decimal list-inside space-y-2 text-body-xs text-amber-900 leading-relaxed pl-1">
+
+            <!-- ข้อ 1: รูปถ่าย -->
+            <li class="font-medium">
+              รูปถ่ายประกอบการพิจารณา
+              <ul class="list-disc list-inside pl-4 mt-1 space-y-0.5 font-normal text-amber-800">
+                <li>รูปสภาพที่อยู่อาศัยภายนอกและภายใน</li>
+                <li>รูปผู้ประสบปัญหาทางสังคมคู่กับบัตรประชาชน</li>
+                <li>รูปสภาพปัญหาหรือความเดือดร้อนที่ต้องการขอรับความช่วยเหลือ</li>
+                <li>รูปสมาชิกในครอบครัว</li>
+              </ul>
+            </li>
+
+            <!-- ข้อ 2: บัตรประชาชน -->
+            <li class="font-medium">
+              บัตรประจำตัวประชาชน หรือ สำเนาทะเบียนราษฎร หรือ
+              เอกสารอื่นที่ทางราชการออกให้
+            </li>
+
+            <!-- ข้อ 3: ทะเบียนบ้าน -->
+            <li class="font-medium">
+              ทะเบียนบ้าน
+              <ul class="list-disc list-inside pl-4 mt-1 space-y-0.5 font-normal text-amber-800">
+                <li>รายการเกี่ยวกับบ้านและบุคคล</li>
+              </ul>
+            </li>
+
+            <!-- ข้อ 4: สมุดบัญชีธนาคาร -->
+            <li class="font-medium">
+              สมุดบัญชีธนาคาร
+              <span class="font-normal">(หน้าที่แสดงชื่อบัญชีและเลขที่บัญชี)</span>
+            </li>
+
+            <!-- ข้อ 5: แบบแจ้งข้อมูล KTB -->
+            <li class="font-medium">
+              แบบแจ้งข้อมูลการรับเงินโอนผ่านระบบ KTB Corporate Online
+            </li>
+
+          </ol>
+        </div>
+
+        <!-- ส่วนที่ 6: ดาวน์โหลดแบบฟอร์ม KTB Corporate Online -->
+        <div class="mt-3">
           <a
             href="/forms/ktb-corporate-online.pdf"
             download="แบบ-KTB-Corporate-Online.pdf"
-            class="inline-flex items-center gap-2 text-body-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
+            class="flex items-center justify-center gap-2 w-full text-body-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2.5 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
           >
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
