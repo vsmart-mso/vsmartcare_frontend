@@ -107,6 +107,11 @@ const cooldownEligibleAt = computed(() =>
   formatThaiDate(eligibilityStore.data?.eligible_at),
 )
 
+// แสดงปุ่มออกจากระบบเมื่อโหลดข้อมูลคำขอสำเร็จ — ครอบคลุมทั้งหลังยื่นใหม่ (active_case) และช่วง cooldown
+const showLogoutFooter = computed(
+  () => !isLoading.value && !loadError.value && caseData.value != null,
+)
+
 // หมายเหตุ: ไม่แสดง remarks ของเจ้าหน้าที่ให้ประชาชนเห็น (TASK-02)
 // ใช้ข้อความมาตรฐาน "คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น..." แทน
 /* [ปิดใช้งานชั่วคราว] ใช้คู่กับแบบประเมินหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้
@@ -436,7 +441,7 @@ async function handleLogout() {
          ══════════════════════════════════════════════════════════ -->
     <main
       class="flex-1 mx-auto w-full max-w-md px-4 pt-[4.5rem] space-y-3"
-      :class="isInCooldown ? 'pb-28' : 'pb-8'"
+      :class="showLogoutFooter ? 'pb-28' : 'pb-8'"
     >
 
       <!-- Loading — โชว์โครงหน้าจอจำลอง (skeleton) แทน spinner เปล่า ๆ -->
@@ -1109,9 +1114,9 @@ async function handleLogout() {
 
     </main>
 
-    <!-- Footer: ออกจากระบบ (ช่วง cooldown) — fixed ด้านล่างเหมือนปุ่มย้อนกลับหน้าอื่น -->
+    <!-- Footer: ออกจากระบบ — fixed ด้านล่าง (หลังยื่นคำขอ / ติดตามสถานะ / ช่วง cooldown) -->
     <footer
-      v-if="isInCooldown"
+      v-if="showLogoutFooter"
       class="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
       style="padding-bottom: max(env(safe-area-inset-bottom), 12px)"
     >
