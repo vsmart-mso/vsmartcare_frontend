@@ -6,6 +6,11 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
+import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
+
+function isBetaNoticeEnabled(): boolean {
+  return import.meta.env.VITE_LOGIN_BETA_NOTICE !== 'false'
+}
 
 // import โลโก้ช่องทาง login
 import logoThaID    from '@/assets/logo-thaid.png'
@@ -17,6 +22,11 @@ const route  = useRoute()
 
 const thaidError = ref<string | null>(null)
 const thaidLoading = ref(false)
+const showBetaNotice = ref(isBetaNoticeEnabled())
+
+function dismissBetaNotice() {
+  showBetaNotice.value = false
+}
 
 // รับ error message ที่ส่งมาจาก LoginThaIDReturnPage (เช่น ผู้ใช้ปฏิเสธในแอป ThaiD)
 onMounted(() => {
@@ -26,6 +36,7 @@ onMounted(() => {
     // ลบ query ออกจาก URL ไม่ให้ค้างเมื่อ user refresh
     router.replace({ name: 'login' })
   }
+
 })
 
 /** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
@@ -57,6 +68,8 @@ function handleTangRath() {
     - ไม่ใช้ justify-center เพื่อให้ brand section อยู่ด้านบนเสมอ
   -->
   <div class="min-h-dvh flex flex-col bg-[#F8FAFC]">
+
+    <LoginBetaNoticeModal :open="showBetaNotice" @dismiss="dismissBetaNotice" />
 
     <!--
       main: ใช้ flex-1 เพื่อดัน footer ลงด้านล่างเสมอ
