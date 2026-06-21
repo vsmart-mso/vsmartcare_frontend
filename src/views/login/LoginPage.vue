@@ -7,10 +7,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
-
-function isBetaNoticeEnabled(): boolean {
-  return import.meta.env.VITE_LOGIN_BETA_NOTICE !== 'false'
-}
+import { isLoginBetaNoticeEnabled } from '@/config/env'
 
 // import โลโก้ช่องทาง login
 import logoThaID    from '@/assets/logo-thaid.png'
@@ -22,7 +19,7 @@ const route  = useRoute()
 
 const thaidError = ref<string | null>(null)
 const thaidLoading = ref(false)
-const showBetaNotice = ref(isBetaNoticeEnabled())
+const showBetaNotice = ref(isLoginBetaNoticeEnabled())
 
 function dismissBetaNotice() {
   showBetaNotice.value = false
