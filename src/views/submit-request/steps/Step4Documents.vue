@@ -288,7 +288,7 @@ defineExpose({
         <div>
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">11.1</span>
-            <span class="text-body-xs font-medium text-slate-600">รูปภาพประกอบ (จำเป็น)</span>
+            <span class="text-h3-legend font-medium text-slate-600">รูปภาพประกอบ (จำเป็น)</span>
           </div>
           <p class="text-hint text-slate-500 ml-0.5">
             ถ่ายภาพหรือเลือกจาก อัลบั้ม — รูปสำคัญสำหรับการพิจารณาช่วยเหลือ
@@ -412,14 +412,14 @@ defineExpose({
         <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">12.1</span>
-            <span class="text-body-xs font-medium text-slate-600">เอกสารประกอบ</span>
+            <span class="text-h3-legend font-medium text-slate-600">เอกสารประกอบ</span>
           </div>
           <p class="text-hint text-slate-500 ml-0.5">กรุณาแนบเอกสารที่จำเป็น (มีเครื่องหมาย *) ให้ครบ หากมีเอกสารอื่นเพิ่มเติมสามารถแนบได้</p>
         </div>
 
         <!-- ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายจาก Step3 มา) — บังคับ + มี OCR ───────── -->
         <div v-if="show('bank_book_photo')">
-          <label class="flex items-center gap-1 text-body-xs text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
           </label>
@@ -455,7 +455,7 @@ defineExpose({
             </div>
             <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
               <div class="flex flex-col min-w-0 max-w-[60%]">
-                <span class="text-hint text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
+                <span class="text-body-xs text-slate-500 truncate">{{ bankBook.file.value?.name ?? 'รูปเดิมจากระบบ' }}</span>
                 <span v-if="bankBook.file.value" class="text-micro text-slate-400">
                   {{ bankBook.file.value.size < 1024 * 1024
                     ? `${(bankBook.file.value.size / 1024).toFixed(0)} KB`
@@ -614,7 +614,7 @@ defineExpose({
             maxlength="255"
             placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
             :class="[
-              'w-full border rounded-lg px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+              'w-full border rounded-lg px-3 py-2 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
               otherDocNameRequired
                 ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
                 : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
@@ -646,7 +646,7 @@ defineExpose({
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p class="text-body-xs font-semibold text-amber-700">โปรดตรวจสอบข้อมูลก่อนส่ง</p>
+            <p class="text-body font-semibold text-amber-700">โปรดตรวจสอบข้อมูลก่อนส่ง</p>
             <p class="text-hint text-amber-600 mt-0.5">หลังส่งคำขอแล้ว จะไม่สามารถแก้ไขข้อมูลได้</p>
           </div>
         </div>
@@ -662,7 +662,7 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-body-xs font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
+              <p class="text-body font-semibold text-slate-800">ตัวตน + ที่อยู่ + ครอบครัว</p>
               <p class="text-hint text-slate-500 mt-0.5">ยืนยันผ่าน ThaiID ✓</p>
             </div>
             <button
@@ -682,7 +682,7 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-body-xs font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
+              <p class="text-body font-semibold text-slate-800">เศรษฐกิจ + สวัสดิการ</p>
               <p class="text-hint text-slate-500 mt-0.5">ตามที่กรอกใน Step 2</p>
             </div>
             <button
@@ -702,7 +702,7 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-body-xs font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
+              <p class="text-body font-semibold text-slate-800">ปัญหา + ความช่วยเหลือ</p>
               <p class="text-hint text-slate-500 mt-0.5">ตามที่กรอกใน Step 3</p>
             </div>
             <button
@@ -722,7 +722,7 @@ defineExpose({
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-body-xs font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
+              <p class="text-body font-semibold text-slate-800">เอกสารและรูปประกอบ</p>
               <p class="text-hint text-slate-500 mt-0.5">อัปโหลดแล้ว {{ totalUploaded }} ไฟล์</p>
             </div>
             <button

@@ -69,11 +69,11 @@ function formatBytes(bytes: number): string {
 
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-body-xs font-semibold text-slate-800 leading-snug flex items-center gap-1">
+        <p class="text-body font-semibold text-slate-800 leading-snug flex items-center gap-1">
           <span>{{ title }}<span v-if="required" class="text-red-500"> *</span></span>
           <FieldAlert v-if="alertReason" :reason="alertReason" />
         </p>
-        <p v-if="subtitle" class="text-hint text-slate-500 mt-0.5">{{ subtitle }}</p>
+        <p v-if="subtitle" class="text-body-xs text-slate-500 mt-0.5">{{ subtitle }}</p>
       </div>
     </div>
 
@@ -110,7 +110,7 @@ function formatBytes(bytes: number): string {
       </div>
       <div class="flex items-center justify-between">
         <div class="flex flex-col min-w-0 max-w-[75%]">
-          <span class="text-hint text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
+          <span class="text-body-xs text-slate-500 truncate">{{ fileName ?? 'รูปเดิมจากระบบ' }}</span>
           <span v-if="fileSize" class="text-micro text-slate-400">{{ formatBytes(fileSize) }}</span>
         </div>
         <button
