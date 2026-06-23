@@ -2,6 +2,7 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
+import type { LookupItem } from '@/api/lookups'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
 import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
@@ -27,7 +28,10 @@ interface Option { value: string; label: string }
 
 // ─── 6.1 อาชีพและรายได้ ───────────────────────────────────────────────────────
 // occupation เก็บไว้ที่ PDPA แล้ว — step นี้เก็บเฉพาะ familyOccupation และ monthlyIncome
-const familyOccupation = ref('')   // economic_infos.family_occupation
+const OCCUPATION_OTHER_ID = 99
+const occupationTypeOptions = ref<LookupItem[]>([])
+const familyOccupationTypeId = ref<number | null>(null)
+const familyOccupation = ref('')   // free-text เมื่อเลือก id=99
 const monthlyIncome = ref('')
 
 // ─── 6.2 ที่มาของรายได้ ───────────────────────────────────────────────────────
@@ -107,25 +111,11 @@ function handleMoneyInput(e: Event, setter: (v: string) => void) {
   el.value = digits ? Number(digits).toLocaleString('th-TH') : ''
 }
 
-function handleFamilyOccupationInput(e: Event) {
-  const input = e.target as HTMLInputElement
-  const filtered = input.value.replace(/[^ก-๙฀-๿a-zA-Z\s]/g, '')
-  familyOccupation.value = filtered
-  input.value = filtered
-}
-
-const familyOccupationError = computed(() => {
-  const val = familyOccupation.value.trim()
-  if (!val) return ''
-  return /[^ก-๙฀-๿a-zA-Z\s]/.test(val)
-    ? 'กรอกได้เฉพาะตัวอักษรไทยหรืออังกฤษเท่านั้น'
-    : ''
-})
-
 // ─── Validation ───────────────────────────────────────────────────────────────
 // field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 const isReady = computed(() => {
-  if (show('family_occupation') && !familyOccupation.value.trim()) return false
+  if (show('family_occupation') && familyOccupationTypeId.value === null) return false
+  if (show('family_occupation') && familyOccupationTypeId.value === OCCUPATION_OTHER_ID && !familyOccupation.value.trim()) return false
   if (show('family_income') && !monthlyIncome.value) return false
   if (show('income_sources') && incomeSources.value.length === 0) return false
   if (show('income_source_other') && incomeOtherVal.value && incomeSources.value.includes(incomeOtherVal.value) && !incomeSourceOther.value.trim()) return false
@@ -152,18 +142,21 @@ watch(isLoading, (val) => emit('update:loading', val), { immediate: true })
 onMounted(async () => {
   try {
     // ดึง options ทั้งหมดพร้อมกัน — ถ้า API ล้มเหลวจะได้ [] และหน้าจอยังแสดงได้
-    const [incomeSrcData, dependencyData, receivedWelfareData] = await Promise.all([
+    const [incomeSrcData, dependencyData, receivedWelfareData, occupationData] = await Promise.all([
       lookupsApi.fetchIncomeSourceTypes().catch(() => []),
       lookupsApi.fetchDependencyTypes().catch(() => []),
       lookupsApi.fetchReceivedWelfareTypes().catch(() => []),
+      lookupsApi.fetchOccupationTypes().catch(() => []),
     ])
     incomeSourceOptions.value  = incomeSrcData.map(d => ({ value: String(d.id), label: d.name }))
     caregiverRoleOptions.value = dependencyData.map(d => ({ value: String(d.id), label: d.name }))
     aidTypeOptions.value       = receivedWelfareData.map(d => ({ value: String(d.id), label: d.name }))
+    occupationTypeOptions.value = occupationData
 
     // Pre-fill จาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป
     const s = app.step2
     if (s) {
+      familyOccupationTypeId.value = s.familyOccupationTypeId ?? null
       familyOccupation.value  = s.familyOccupation ?? ''
       monthlyIncome.value     = s.monthlyIncome    ?? ''
       incomeSources.value     = [...(s.incomeSources  ?? [])]
@@ -185,7 +178,8 @@ onMounted(async () => {
 
 defineExpose({
   getData: () => ({
-    familyOccupation:      familyOccupation.value,
+    familyOccupationTypeId: familyOccupationTypeId.value,
+    familyOccupation:      familyOccupationTypeId.value === OCCUPATION_OTHER_ID ? familyOccupation.value : '',
     familyOccupationOther: '',
     monthlyIncome:         monthlyIncome.value,
     incomeSources:      incomeSources.value,
@@ -237,16 +231,33 @@ defineExpose({
             <span>อาชีพหลักของครอบครัว <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('family_occupation')" :reason="commentMap.get('family_occupation')!" />
           </label>
-          <input
-            :value="familyOccupation"
-            @input="handleFamilyOccupationInput"
-            type="text"
-            maxlength="255"
-            placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
-            class="w-full border rounded-xl px-4 py-3 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
-            :class="familyOccupationError ? 'border-red-300' : 'border-slate-200'"
-          />
-          <p v-if="familyOccupationError" class="text-hint text-red-500 mt-1 px-1">{{ familyOccupationError }}</p>
+          <select
+            v-model="familyOccupationTypeId"
+            class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body-md focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] appearance-none bg-white"
+          >
+            <option :value="null" disabled>-- เลือกอาชีพ --</option>
+            <option v-for="opt in occupationTypeOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
+          </select>
+
+          <!-- ช่องระบุอื่นๆ -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <div v-if="familyOccupationTypeId === OCCUPATION_OTHER_ID" class="mt-2">
+              <input
+                v-model="familyOccupation"
+                type="text"
+                maxlength="255"
+                placeholder="ระบุอาชีพ"
+                class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              />
+            </div>
+          </Transition>
         </div>
 
         <div v-if="show('family_income')">

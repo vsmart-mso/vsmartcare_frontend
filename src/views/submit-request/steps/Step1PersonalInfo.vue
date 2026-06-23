@@ -171,7 +171,7 @@ function _blankMember(seq: number): HouseholdMemberForm {
   return {
     seq, nationalId: '', prefixId: '', prefixOther: '',
     firstName: '', lastName: '', dateOfBirth: '',
-    relationToApplicantId: null, occupation: '', monthlyIncome: '',
+    relationToApplicantId: null, occupationTypeId: null, occupation: '', monthlyIncome: '',
     physicalCondition: '', selfCare: null,
   }
 }
@@ -351,7 +351,14 @@ function validateMemberAtIndex(idx: number): boolean {
   errs.firstName = m.firstName.trim() ? '' : 'กรุณากรอกชื่อ'
   errs.lastName = m.lastName.trim() ? '' : 'กรุณากรอกนามสกุล'
   errs.relationToApplicantId = m.relationToApplicantId !== null ? '' : 'กรุณาเลือกความสัมพันธ์'
-  errs.occupation = m.occupation.trim() ? '' : 'กรุณากรอกอาชีพ'
+  // อาชีพ: required — ต้องเลือก type และถ้าเป็น "อื่นๆ" (id=99) ต้องกรอก free-text ด้วย
+  if (m.occupationTypeId === null) {
+    errs.occupation = 'กรุณาเลือกอาชีพ'
+  } else if (m.occupationTypeId === OCCUPATION_OTHER_ID && !m.occupation.trim()) {
+    errs.occupation = 'กรุณาระบุอาชีพ'
+  } else {
+    errs.occupation = ''
+  }
   errs.physicalCondition = m.physicalCondition ? '' : 'กรุณาเลือกสภาพทางร่างกาย'
   errs.selfCare = m.selfCare !== null ? '' : 'กรุณาเลือกการช่วยเหลือตนเอง'
 
@@ -378,13 +385,17 @@ function validateMemberAtIndex(idx: number): boolean {
     errs.monthlyIncome = ''
   }
 
+  // ล้าง free-text เมื่อไม่ได้เลือก "อื่นๆ" (id=99) — เก็บเฉพาะ occupationTypeId
+  if (m.occupationTypeId !== OCCUPATION_OTHER_ID) m.occupation = ''
+
   return !Object.values(errs).some(e => e)
 }
 
 function isMemberComplete(m: HouseholdMemberForm, idx: number): boolean {
   if (!m.prefixId || !m.firstName.trim() || !m.lastName.trim()) return false
   if (!m.dateOfBirth || m.relationToApplicantId === null) return false
-  if (!m.occupation.trim() || !m.physicalCondition || m.selfCare === null) return false
+  if (m.occupationTypeId === null || !m.physicalCondition || m.selfCare === null) return false
+  if (m.occupationTypeId === OCCUPATION_OTHER_ID && !m.occupation.trim()) return false
   if (!m.monthlyIncome || !/^\d+$/.test(m.monthlyIncome)) return false
   if (m.nationalId) {
     if (m.nationalId.length !== 13 || !isValidThaiNationalId(m.nationalId)) return false
@@ -405,6 +416,8 @@ function isHouseholdSectionValid(): boolean {
 
 const prefixOptions        = ref<{ value: string; label: string }[]>([])
 const relationTypeOptions  = ref<{ value: number; label: string }[]>([])
+const occupationTypeOptions = ref<{ value: number; label: string }[]>([])
+const OCCUPATION_OTHER_ID = 99
 const physicalConditionOptions = [
   { value: 'normal', label: 'ปกติ' },
   { value: 'disabled', label: 'พิการ' },
@@ -612,16 +625,18 @@ watch(isLoading, val => emit('update:loading', val), { immediate: true })
 onMounted(async () => {
   try {
     // ดึง lookup options จาก API พร้อมกัน
-    const [maritalData, housingData, prefixData, relationData] = await Promise.all([
+    const [maritalData, housingData, prefixData, relationData, occupationData] = await Promise.all([
       lookupsApi.fetchMaritalStatusTypes().catch(() => []),
       lookupsApi.fetchHousingTypes().catch(() => []),
       lookupsApi.fetchPrefixTypes().catch(() => []),
       lookupsApi.fetchHouseholdMemberRelationTypes().catch(() => []),
+      lookupsApi.fetchOccupationTypes().catch(() => []),
     ])
     maritalOptions.value       = maritalData.map(d => ({ value: String(d.id), label: d.name }))
     housingOptions.value       = housingData.map(d => ({ value: String(d.id), label: d.name }))
     prefixOptions.value        = prefixData.map(d => ({ value: String(d.id), label: d.name }))
     relationTypeOptions.value  = relationData.map(d => ({ value: d.id, label: d.name }))
+    occupationTypeOptions.value = occupationData.map(d => ({ value: d.id, label: d.name }))
 
     // เติมข้อมูลเดิมจาก store เมื่อ user ย้อนกลับมาจาก step ถัดไป
     const s = app.step1
@@ -1461,9 +1476,26 @@ defineExpose({
                 </div>
                 <div>
                   <label class="text-hint text-slate-600 mb-1.5 font-medium block">อาชีพ <span class="text-red-500">*</span></label>
-                  <input v-model="m.occupation" type="text" maxlength="255"
-                    class="w-full bg-white border rounded-xl px-3 py-2 text-body-xs focus:outline-none focus:ring-2 transition-colors"
-                    :class="householdMembersTouched && memberErrorsList[idx]?.occupation ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+                  <select v-model="m.occupationTypeId"
+                    class="w-full bg-white border rounded-xl px-3 py-2 text-body-xs focus:outline-none focus:ring-2 transition-colors appearance-none"
+                    :class="householdMembersTouched && memberErrorsList[idx]?.occupation ? 'border-red-300 focus:ring-red-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'">
+                    <option :value="null" disabled>-- เลือกอาชีพ --</option>
+                    <option v-for="opt in occupationTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                  <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="opacity-0 -translate-y-1"
+                    enter-to-class="opacity-100 translate-y-0"
+                    leave-active-class="transition-all duration-150 ease-in"
+                    leave-from-class="opacity-100 translate-y-0"
+                    leave-to-class="opacity-0 -translate-y-1"
+                  >
+                    <div v-if="m.occupationTypeId === OCCUPATION_OTHER_ID" class="mt-1">
+                      <input v-model="m.occupation" type="text" maxlength="255"
+                        placeholder="ระบุอาชีพ"
+                        class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]" />
+                    </div>
+                  </Transition>
                   <p v-if="householdMembersTouched && memberErrorsList[idx]?.occupation" class="text-micro text-red-500 mt-0.5">{{ memberErrorsList[idx].occupation }}</p>
                 </div>
                 <div>

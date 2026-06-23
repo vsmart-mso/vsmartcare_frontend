@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useApplicationStore } from '@/stores/application'
 import { welfareApi } from '@/api/welfare'
-import { lookupsApi, type HardshipStatusType } from '@/api/lookups'
+import { lookupsApi, type HardshipStatusType, type LookupItem } from '@/api/lookups'
 import { useEligibilityStore } from '@/stores/eligibility'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
@@ -57,6 +57,10 @@ onMounted(async () => {
   } catch {
     // โหลดไม่สำเร็จ → ปล่อยว่าง (ฟอร์มจะ validate ว่ายังเลือกไม่ได้)
   }
+  // ดึงรายการอาชีพจาก API พร้อมกัน
+  lookupsApi.fetchOccupationTypes().then(data => {
+    occupationTypeOptions.value = data
+  }).catch(() => {})
 
   // ไม่ต้อง redirect → ปิด skeleton แสดงฟอร์มตรวจสิทธิ์ให้ผู้ใช้กรอก
   isChecking.value = false
@@ -80,7 +84,10 @@ const effectiveDob = computed(() => {
 })
 
 // ─── Form Fields ───────────────────────────────────────────────────────────────
-const selectedOccupation = ref('')
+const occupationTypeOptions = ref<LookupItem[]>([])
+const selectedOccupationTypeId = ref<number | null>(null)
+const selectedOccupation = ref('')   // free-text เมื่อเลือก "อื่นๆ" (id=99)
+const OCCUPATION_OTHER_ID = 99
 const annualIncome = ref('')    // ตัวเลขล้วน ไม่มีลูกน้ำ
 const displayIncome = ref('')   // ค่าที่แสดงใน input (มีลูกน้ำ)
 
@@ -118,32 +125,15 @@ const incomeNumber = computed(() => {
   return isNaN(num) ? null : num
 })
 
-// ─── Validate: อาชีพ — รับเฉพาะตัวอักษรไทย/อังกฤษ และช่องว่าง ────────────────
-// ห้ามตัวเลขและอักขระพิเศษทุกชนิด
-const occupationError = computed(() => {
-  const val = selectedOccupation.value.trim()
-  if (!val) return ''
-  return /[^ก-๙฀-๿a-zA-Z\s]/.test(val)
-    ? 'กรอกได้เฉพาะตัวอักษรไทยหรืออังกฤษเท่านั้น'
-    : ''
-})
-
-function handleOccupationInput(e: Event) {
-  const input = e.target as HTMLInputElement
-  // กรองออกทันทีขณะพิมพ์ — ไม่ให้ตัวเลข/อักขระพิเศษโผล่ในช่อง
-  const filtered = input.value.replace(/[^ก-๙฀-๿a-zA-Z\s]/g, '')
-  selectedOccupation.value = filtered
-  input.value = filtered
-}
-
 // ─── Computed: ฟอร์มพร้อมส่งหรือยัง ──────────────────────────────────────────
-const formReady = computed(() =>
-  effectiveDob.value !== '' &&
-  selectedOccupation.value.trim() !== '' &&
-  occupationError.value === '' &&
-  incomeNumber.value !== null &&
-  selectedHardshipIds.value.length > 0   // ต้องเลือกสถานะความเดือดร้อนอย่างน้อย 1 ข้อ
-)
+const formReady = computed(() => {
+  if (effectiveDob.value === '') return false
+  if (selectedOccupationTypeId.value === null) return false
+  if (selectedOccupationTypeId.value === OCCUPATION_OTHER_ID && !selectedOccupation.value.trim()) return false
+  if (incomeNumber.value === null) return false
+  if (selectedHardshipIds.value.length === 0) return false   // ต้องเลือกสถานะความเดือดร้อนอย่างน้อย 1 ข้อ
+  return true
+})
 
 // ─── Handlers: income input ───────────────────────────────────────────────────
 function handleIncomeInput(e: Event) {
@@ -201,6 +191,11 @@ async function handleSubmit() {
   submitError.value       = ''
   failedEligibility.value = false
   try {
+    const occupationLabel = occupationTypeOptions.value.find(o => o.id === selectedOccupationTypeId.value)?.name ?? ''
+    const occupationText = selectedOccupationTypeId.value === OCCUPATION_OTHER_ID
+      ? selectedOccupation.value.trim()
+      : occupationLabel
+
     await welfareApi.createScreeningLog({
       person_id:           personId,
       criteria_version:    '1.0',
@@ -209,7 +204,7 @@ async function handleSubmit() {
       input_data_snapshot: {
         birthdate:     effectiveDob.value,
         age:           ageVal,
-        occupation:    selectedOccupation.value.trim(),
+        occupation:    occupationText,
         annual_income: income,
       },
       hardship_status_ids: [...selectedHardshipIds.value],
@@ -218,7 +213,8 @@ async function handleSubmit() {
     })
 
     app.setCheckSelf({
-      occupation:   selectedOccupation.value.trim(),
+      occupationTypeId: selectedOccupationTypeId.value,
+      occupation:   selectedOccupationTypeId.value === OCCUPATION_OTHER_ID ? selectedOccupation.value.trim() : '',
       annualIncome: income,
       dob:          effectiveDob.value,
       eligible:     passed,
@@ -368,18 +364,37 @@ function handleBack() {
           <label for="occupation" class="block text-body text-slate-600 mb-1.5 font-medium">
             อาชีพปัจจุบัน <span class="text-red-500">*</span>
           </label>
-          <input
+          <select
             id="occupation"
-            :value="selectedOccupation"
-            @input="handleOccupationInput"
+            v-model="selectedOccupationTypeId"
             :disabled="isSubmitting"
-            type="text"
-            maxlength="255"
-            placeholder="เช่น เกษตรกร, รับจ้างทั่วไป, ค้าขาย"
-            class="w-full bg-white border rounded-xl px-4 py-3 text-body text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
-            :class="occupationError ? 'border-red-300' : selectedOccupation ? 'border-slate-300' : 'border-slate-200'"
-          />
-          <p v-if="occupationError" class="text-hint text-red-500 mt-1 px-1">{{ occupationError }}</p>
+            class="w-full bg-white border rounded-xl px-4 py-3 text-body text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+            :class="selectedOccupationTypeId !== null ? 'border-slate-300' : 'border-slate-200'"
+          >
+            <option :value="null" disabled>-- เลือกอาชีพ --</option>
+            <option v-for="opt in occupationTypeOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
+          </select>
+
+          <!-- ช่องระบุอาชีพอื่นๆ — แสดงเมื่อเลือก id=99 -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <div v-if="selectedOccupationTypeId === OCCUPATION_OTHER_ID" class="mt-2">
+              <input
+                v-model="selectedOccupation"
+                :disabled="isSubmitting"
+                type="text"
+                maxlength="255"
+                placeholder="ระบุอาชีพ"
+                class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
+          </Transition>
         </div>
       </div>
 
