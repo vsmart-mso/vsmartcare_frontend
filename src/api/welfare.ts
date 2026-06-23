@@ -159,7 +159,8 @@ export interface HouseholdMemberPayload {
   last_name: string
   date_of_birth?: string | null
   relation_to_applicant_id?: number | null
-  occupation?: string | null
+  occupation_type_id?: number | null
+  occupation?: string | null      // free-text เมื่อ occupation_type_id=99
   monthly_income?: number | null
   physical_condition: PhysicalCondition
   self_care: boolean
@@ -168,10 +169,12 @@ export interface HouseholdMemberPayload {
 export interface CaseEconomicInfoPayload {
   housing_types_id?: number | null
   housing_types_rent?: number | null  // ค่าเช่าต่อเดือน (บาท) — ส่งเฉพาะเมื่อเลือกบ้านเช่า
-  occupation?: string | null
+  occupation_type_id?: number | null
+  occupation?: string | null      // free-text เมื่อ occupation_type_id=99
   monthly_income?: number | null
   household_members?: number | null
-  family_occupation?: string | null
+  family_occupation_type_id?: number | null
+  family_occupation?: string | null  // free-text เมื่อ family_occupation_type_id=99
   income_sources: CaseIncomeSourcePayload[]
 }
 
@@ -254,9 +257,11 @@ export interface FullEconomicInfoRead {
   id: number
   housing_types_id: number | null
   housing_types_rent: string | null  // Decimal จาก backend ส่งมาเป็น string
+  occupation_type_id: number | null
   occupation: string | null
   monthly_income: string | null
   household_members: number | null
+  family_occupation_type_id: number | null
   family_occupation: string | null
   income_sources: Array<{ income_source_type_id: number; other_details: string | null }>
 }
@@ -288,6 +293,7 @@ export interface FullHouseholdMemberRead {
   last_name: string
   date_of_birth: string | null
   relation_to_applicant_id: number | null
+  occupation_type_id: number | null
   occupation: string | null
   monthly_income: string | null  // Decimal จาก backend ส่งมาเป็น string
   physical_condition: PhysicalCondition

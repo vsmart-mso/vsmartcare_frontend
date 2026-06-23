@@ -24,7 +24,8 @@ export interface PdpaConsent {
 // ผลการตรวจสอบสิทธิ์เบื้องต้น (CheckSelfPage)
 // รวม occupation + annualIncome ไว้ด้วย เพื่อ pre-fill ใน Step2
 export interface CheckSelfData {
-  occupation: string    // อาชีพที่เลือก — map to economic_infos.occupation + applicants.is_government_officer
+  occupationTypeId: number | null  // FK → occupation_types.id
+  occupation: string    // free-text เมื่อ occupationTypeId=99
   annualIncome: number  // รายได้ต่อปี (บาท) — ÷12 → economic_infos.monthly_income
   dob: string           // วันเกิด (YYYY-MM-DD) เผื่อ ThaiID ไม่ส่ง → applicants.birth_date
   eligible: boolean     // ผ่านสิทธิ์หรือไม่
@@ -47,7 +48,8 @@ export interface HouseholdMemberForm {
   lastName: string
   dateOfBirth: string                                   // '' = ไม่ระบุ, format YYYY-MM-DD
   relationToApplicantId: number | null
-  occupation: string
+  occupationTypeId: number | null
+  occupation: string    // free-text เมื่อ occupationTypeId=99
   monthlyIncome: string
   physicalCondition: '' | 'normal' | 'disabled' | 'chronic_illness'   // '' = ยังไม่เลือก
   selfCare: boolean | null                                            // null = ยังไม่เลือก
@@ -86,8 +88,9 @@ export interface Step1Data {
 // ข้อมูล Step 2 — เศรษฐกิจ (economic_infos + income_sources + dependency_loads + welfare_histories)
 export interface Step2Data {
   // occupation ไม่อยู่ที่นี่ — ดึงจาก CheckSelfData.occupation แทน
-  familyOccupation: string    // economic_infos.family_occupation
-  familyOccupationOther: string // กรณีเลือก "อื่นๆ" ในอาชีพของคนในครอบครัว
+  familyOccupationTypeId: number | null  // FK → occupation_types.id
+  familyOccupation: string    // free-text เมื่อ familyOccupationTypeId=99
+  familyOccupationOther: string // (deprecated — เก็บไว้เพื่อ compat)
   monthlyIncome: string       // economic_infos.monthly_income (บาท/เดือน)
   incomeSources: string[]     // economic_income_sources.income_source_type_id (หลาย row)
   incomeSourceOther: string   // กรณีเลือก "อื่นๆ"
@@ -407,6 +410,7 @@ export const useApplicationStore = defineStore('application', () => {
       last_name:            m.lastName,
       date_of_birth:        m.dateOfBirth || null,
       relation_to_applicant_id: m.relationToApplicantId ?? null,
+      occupation_type_id:   m.occupationTypeId ?? null,
       occupation:           m.occupation || null,
       monthly_income:       (() => { const n = Number(m.monthlyIncome); return m.monthlyIncome !== '' && !isNaN(n) ? n : null })(),
       physical_condition:   m.physicalCondition || 'normal',
@@ -416,6 +420,7 @@ export const useApplicationStore = defineStore('application', () => {
     const economic_infos: CasePayload['economic_infos'] = [{
       housing_types_id:   Number(s1?.housingType ?? '0') || null,
       housing_types_rent: s1?.rentPerMonth ? (Number(s1.rentPerMonth) || null) : null,
+      occupation_type_id: cs?.occupationTypeId ?? null,
       occupation:        cs?.occupation || null,
       // Step2 เก็บรายได้ต่อเดือน; ถ้าไม่มีให้ fallback จาก CheckSelf (รายได้ต่อปี ÷ 12)
       monthly_income:    s2?.monthlyIncome
@@ -424,6 +429,7 @@ export const useApplicationStore = defineStore('application', () => {
                              ? Math.round(cs.annualIncome / 12)
                              : null,
       household_members: householdMembersList.length > 0 ? householdMembersList.length : null,
+      family_occupation_type_id: s2?.familyOccupationTypeId ?? null,
       family_occupation: s2?.familyOccupation || null,
       income_sources,
     }]
@@ -524,6 +530,7 @@ export const useApplicationStore = defineStore('application', () => {
         lastName:             m.last_name ?? '',
         dateOfBirth:          m.date_of_birth ?? '',
         relationToApplicantId: m.relation_to_applicant_id ?? null,
+        occupationTypeId:     m.occupation_type_id ?? null,
         occupation:           m.occupation ?? '',
         monthlyIncome:        m.monthly_income ? String(Math.round(Number(m.monthly_income))) : '',
         physicalCondition:    (m.physical_condition ?? 'normal') as 'normal' | 'disabled' | 'chronic_illness',
@@ -533,6 +540,7 @@ export const useApplicationStore = defineStore('application', () => {
 
     // ── checkSelf (occupation สำหรับ Step2) ─────────────────────────────────
     checkSelf.value = {
+      occupationTypeId: eco?.occupation_type_id ?? null,
       occupation:   eco?.occupation ?? '',
       annualIncome: Number(eco?.monthly_income ?? 0) * 12,
       dob:          '',
@@ -544,6 +552,7 @@ export const useApplicationStore = defineStore('application', () => {
 
     // ── Step 2 ──────────────────────────────────────────────────────────────
     step2.value = {
+      familyOccupationTypeId: eco?.family_occupation_type_id ?? null,
       familyOccupation:      eco?.family_occupation ?? '',
       familyOccupationOther: '',
       monthlyIncome:         eco?.monthly_income    ?? '',
