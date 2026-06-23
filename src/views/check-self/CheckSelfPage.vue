@@ -320,11 +320,11 @@ function handleBack() {
 
       <!-- ─── Card: ข้อมูลอายุ ─────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
 
         <!-- วันเกิด: read-only ถ้า ThaiID ส่งมา / date picker ถ้าไม่มีข้อมูล -->
         <div class="mb-3">
-          <label class="block text-body-xs text-slate-500 mb-1">วันเกิด</label>
+          <label class="block text-body text-slate-500 mb-1">วันเกิด</label>
 
           <template v-if="dobFromThaiD">
             <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
@@ -351,7 +351,7 @@ function handleBack() {
 
         <!-- อายุที่คำนวณได้ -->
         <div>
-          <label class="block text-body-xs text-slate-500 mb-1">อายุปัจจุบัน</label>
+          <label class="block text-body text-slate-500 mb-1">อายุปัจจุบัน</label>
           <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
             <span class="text-body font-medium" :class="age !== null ? 'text-slate-900' : 'text-slate-400'">
               {{ age !== null ? `${age} ปี` : '—' }}
@@ -362,10 +362,10 @@ function handleBack() {
 
       <!-- ─── Card: อาชีพ ──────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
 
         <div>
-          <label for="occupation" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+          <label for="occupation" class="block text-body text-slate-600 mb-1.5 font-medium">
             อาชีพปัจจุบัน <span class="text-red-500">*</span>
           </label>
           <input
@@ -385,10 +385,10 @@ function handleBack() {
 
       <!-- ─── Card: รายได้ ─────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
 
         <div>
-          <label for="income" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+          <label for="income" class="block text-body text-slate-600 mb-1.5 font-medium">
             รายได้รวมต่อปี (บาท) <span class="text-red-500">*</span>
           </label>
           <div class="relative">
@@ -467,7 +467,7 @@ function handleBack() {
           <p class="text-body font-bold text-red-700 leading-snug mb-1">
             คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
           </p>
-          <p class="text-body-md text-red-800 leading-relaxed">
+          <p class="text-body text-red-800 leading-relaxed">
             ระบบไม่สามารถดำเนินการต่อได้
             หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
               href="tel:1300"

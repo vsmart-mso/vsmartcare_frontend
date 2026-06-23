@@ -171,11 +171,11 @@ defineExpose({
         <!-- 9.1 รายละเอียดปัญหา -->
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">9.1</span>
-          <span class="text-body-xs font-medium text-slate-600">รายละเอียดปัญหา</span>
+          <span class="text-h3-legend font-medium text-slate-600">รายละเอียดปัญหา</span>
           <FieldAlert v-if="commentMap.has('family_problems')" :reason="commentMap.get('family_problems')!" />
         </div>
 
-        <label class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+        <label class="block text-body text-slate-600 mb-1.5 font-medium">
           สภาพปัญหาความเดือดร้อนของครอบครัว <span class="text-red-500">*</span>
         </label>
         <textarea
@@ -183,7 +183,7 @@ defineExpose({
           rows="5"
           maxlength="500"
           placeholder="อธิบายสภาพปัญหาและความเดือดร้อนที่ประสบ..."
-          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
         />
         <p class="text-right text-micro text-slate-400 mt-1">{{ problemDescription.length }}/500</p>
 
@@ -209,7 +209,7 @@ defineExpose({
         <div>
           <div class="flex items-center gap-2 mb-3">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">10.1</span>
-            <span class="text-body-xs font-medium text-slate-600">ประเภทความช่วยเหลือที่ต้องการ <span class="text-red-500">*</span></span>
+            <span class="text-h3-legend font-medium text-slate-600">ประเภทความช่วยเหลือที่ต้องการ <span class="text-red-500">*</span></span>
           </div>
 
           <div class="space-y-2">
@@ -226,7 +226,7 @@ defineExpose({
                     <polyline points="1,5 4.5,9 11,1" />
                   </svg>
                 </div>
-                <span class="text-body-md text-[#1A56DB] font-medium">ช่วยเหลือเป็นเงิน</span>
+                <span class="text-body text-[#1A56DB] font-medium">ช่วยเหลือเป็นเงิน</span>
               </label>
             </div>
 
@@ -248,12 +248,12 @@ defineExpose({
                     <polyline points="1,5 4.5,9 11,1" />
                   </svg>
                 </div>
-                <span class="text-body-md transition-colors" :class="isOtherAidSelected ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+                <span class="text-body transition-colors" :class="isOtherAidSelected ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
                   ช่วยเหลือเรื่องอื่นๆ
                 </span>
               </label>
               <div v-if="isOtherAidSelected" class="mt-2 ml-4">
-                <label class="block text-hint text-slate-600 mb-1 font-medium">
+                <label class="block text-body text-slate-600 mb-1 font-medium">
                   โปรดระบุรายละเอียด <span class="text-red-500">*</span>
                 </label>
                 <textarea
@@ -261,7 +261,7 @@ defineExpose({
                   rows="3"
                   maxlength="500"
                   placeholder="ระบุรายละเอียดความช่วยเหลือที่ต้องการ..."
-                  class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+                  class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
                 />
                 <p class="text-right text-micro text-slate-400 mt-0.5">{{ aidOtherText.length }}/500</p>
               </div>
@@ -285,12 +285,12 @@ defineExpose({
                     <polyline points="1,5 4.5,9 11,1" />
                   </svg>
                 </div>
-                <span class="text-body-md transition-colors" :class="isInKindAidSelected ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+                <span class="text-body transition-colors" :class="isInKindAidSelected ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
                   ช่วยเหลือเป็นสิ่งของ
                 </span>
               </label>
               <div v-if="isInKindAidSelected" class="mt-2 ml-4">
-                <label class="block text-hint text-slate-600 mb-1 font-medium">
+                <label class="block text-body text-slate-600 mb-1 font-medium">
                   โปรดระบุรายละเอียด <span class="text-red-500">*</span>
                 </label>
                 <textarea
@@ -298,7 +298,7 @@ defineExpose({
                   rows="3"
                   maxlength="500"
                   placeholder="ระบุรายละเอียดสิ่งของที่ต้องการ..."
-                  class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
+                  class="w-full border border-slate-200 rounded-xl px-4 py-3 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] resize-none leading-relaxed"
                 />
                 <p class="text-right text-micro text-slate-400 mt-0.5">{{ aidInKindText.length }}/500</p>
               </div>
