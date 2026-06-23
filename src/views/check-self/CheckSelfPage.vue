@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { useApplicationStore } from '@/stores/application'
 import { welfareApi } from '@/api/welfare'
+import { lookupsApi, type HardshipStatusType } from '@/api/lookups'
 import { useEligibilityStore } from '@/stores/eligibility'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
@@ -50,6 +51,13 @@ onMounted(async () => {
       // API ล้มเหลว → ปล่อยให้เข้าหน้าปกติ
     }
   }
+  // โหลด master data สถานะความเดือดร้อน (ใช้แสดงเป็น checkbox)
+  try {
+    hardshipOptions.value = await lookupsApi.fetchHardshipStatusTypes()
+  } catch {
+    // โหลดไม่สำเร็จ → ปล่อยว่าง (ฟอร์มจะ validate ว่ายังเลือกไม่ได้)
+  }
+
   // ไม่ต้อง redirect → ปิด skeleton แสดงฟอร์มตรวจสิทธิ์ให้ผู้ใช้กรอก
   isChecking.value = false
 })
@@ -75,6 +83,19 @@ const effectiveDob = computed(() => {
 const selectedOccupation = ref('')
 const annualIncome = ref('')    // ตัวเลขล้วน ไม่มีลูกน้ำ
 const displayIncome = ref('')   // ค่าที่แสดงใน input (มีลูกน้ำ)
+
+// ─── สถานะความเดือดร้อน (checkbox เลือกได้หลายข้อ) ────────────────────────────
+// hardshipOptions = ตัวเลือกจาก master data (โหลดผ่าน API)
+// selectedHardshipIds = id ที่ผู้ใช้ติ๊กเลือกไว้
+const hardshipOptions = ref<HardshipStatusType[]>([])
+const selectedHardshipIds = ref<number[]>([])
+
+// ติ๊ก/เอาติ๊กออก 1 ตัวเลือก — ถ้ามีอยู่แล้วให้เอาออก ถ้ายังไม่มีให้เพิ่ม
+function toggleHardship(id: number) {
+  const idx = selectedHardshipIds.value.indexOf(id)
+  if (idx >= 0) selectedHardshipIds.value.splice(idx, 1)
+  else selectedHardshipIds.value.push(id)
+}
 
 // ─── Computed: อายุจากวันเกิด ─────────────────────────────────────────────────
 const age = computed((): number | null => {
@@ -120,7 +141,8 @@ const formReady = computed(() =>
   effectiveDob.value !== '' &&
   selectedOccupation.value.trim() !== '' &&
   occupationError.value === '' &&
-  incomeNumber.value !== null
+  incomeNumber.value !== null &&
+  selectedHardshipIds.value.length > 0   // ต้องเลือกสถานะความเดือดร้อนอย่างน้อย 1 ข้อ
 )
 
 // ─── Handlers: income input ───────────────────────────────────────────────────
@@ -190,6 +212,7 @@ async function handleSubmit() {
         occupation:    selectedOccupation.value.trim(),
         annual_income: income,
       },
+      hardship_status_ids: [...selectedHardshipIds.value],
       user_agent: navigator.userAgent,
       ip_address:  null,
     })
@@ -200,6 +223,7 @@ async function handleSubmit() {
       dob:          effectiveDob.value,
       eligible:     passed,
       checkedAt:    new Date().toISOString(),
+      hardshipStatusIds: [...selectedHardshipIds.value],
     })
 
     if (passed) {
@@ -296,11 +320,11 @@ function handleBack() {
 
       <!-- ─── Card: ข้อมูลอายุ ─────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลส่วนตัว</p>
 
         <!-- วันเกิด: read-only ถ้า ThaiID ส่งมา / date picker ถ้าไม่มีข้อมูล -->
         <div class="mb-3">
-          <label class="block text-body-xs text-slate-500 mb-1">วันเกิด</label>
+          <label class="block text-body text-slate-500 mb-1">วันเกิด</label>
 
           <template v-if="dobFromThaiD">
             <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
@@ -327,7 +351,7 @@ function handleBack() {
 
         <!-- อายุที่คำนวณได้ -->
         <div>
-          <label class="block text-body-xs text-slate-500 mb-1">อายุปัจจุบัน</label>
+          <label class="block text-body text-slate-500 mb-1">อายุปัจจุบัน</label>
           <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
             <span class="text-body font-medium" :class="age !== null ? 'text-slate-900' : 'text-slate-400'">
               {{ age !== null ? `${age} ปี` : '—' }}
@@ -338,10 +362,10 @@ function handleBack() {
 
       <!-- ─── Card: อาชีพ ──────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลอาชีพ</p>
 
         <div>
-          <label for="occupation" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+          <label for="occupation" class="block text-body text-slate-600 mb-1.5 font-medium">
             อาชีพปัจจุบัน <span class="text-red-500">*</span>
           </label>
           <input
@@ -361,10 +385,10 @@ function handleBack() {
 
       <!-- ─── Card: รายได้ ─────────────────────────────────────────────────── -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
-        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
+        <p class="text-body-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">ข้อมูลรายได้</p>
 
         <div>
-          <label for="income" class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+          <label for="income" class="block text-body text-slate-600 mb-1.5 font-medium">
             รายได้รวมต่อปี (บาท) <span class="text-red-500">*</span>
           </label>
           <div class="relative">
@@ -388,6 +412,43 @@ function handleBack() {
         </div>
       </div>
 
+      <!-- ─── Card: สถานะความเดือดร้อน (เลือกได้หลายข้อ) ───────────────────── -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-4">
+        <p class="text-hint font-medium text-slate-400 uppercase tracking-wider mb-3">สถานะความเดือดร้อน</p>
+
+        <label class="block text-body-xs text-slate-600 mb-2 font-medium">
+          สถานะความเดือดร้อน <span class="text-red-500">*</span>
+        </label>
+
+        <div class="space-y-2.5">
+          <!-- วน loop แสดงทุกตัวเลือกจาก master data -->
+          <button
+            v-for="opt in hardshipOptions"
+            :key="opt.id"
+            type="button"
+            @click="toggleHardship(opt.id)"
+            :disabled="isSubmitting"
+            class="w-full flex items-center gap-3 border rounded-xl px-4 py-3 text-left transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            :class="selectedHardshipIds.includes(opt.id)
+              ? 'border-[#1A56DB] bg-blue-50'
+              : 'border-slate-200 bg-white hover:border-slate-300'"
+          >
+            <!-- กล่อง checkbox -->
+            <span
+              class="flex items-center justify-center w-5 h-5 rounded border flex-shrink-0 transition-colors"
+              :class="selectedHardshipIds.includes(opt.id)
+                ? 'bg-[#1A56DB] border-[#1A56DB]'
+                : 'bg-white border-slate-300'"
+            >
+              <svg v-if="selectedHardshipIds.includes(opt.id)" class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+            <span class="text-body text-slate-700">{{ opt.name }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Error: ไม่ผ่านเกณฑ์ → แสดงข้อความมาตรฐาน ไม่ไปต่อ -->
       <div
         v-if="failedEligibility"
@@ -406,7 +467,7 @@ function handleBack() {
           <p class="text-body font-bold text-red-700 leading-snug mb-1">
             คุณสมบัติไม่ตรงตามหลักเกณฑ์เบื้องต้น
           </p>
-          <p class="text-body-md text-red-800 leading-relaxed">
+          <p class="text-body text-red-800 leading-relaxed">
             ระบบไม่สามารถดำเนินการต่อได้
             หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
               href="tel:1300"

@@ -744,25 +744,25 @@ defineExpose({
         <!-- 1.1 ข้อมูลจาก ThaiD (read-only) -->
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">1.1</span>
-          <span class="text-body-xs font-medium text-slate-600">ข้อมูลจาก ThaiD</span>
+          <span class="text-h3-legend font-medium text-slate-600">ข้อมูลจาก ThaiD</span>
         </div>
 
         <!-- ไอคอนล็อค (ใช้ซ้ำในทุก read-only field) -->
         <!-- คำนำหน้า + ชื่อ -->
         <div class="flex gap-3 mb-3">
           <div class="w-[35%]">
-            <label class="block text-hint text-slate-500 mb-1.5">คำนำหน้าชื่อ</label>
+            <label class="block text-body text-slate-500 mb-1.5">คำนำหน้าชื่อ</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-              <span class="text-body-md text-slate-700">{{ authUser?.title ?? '—' }}</span>
+              <span class="text-body text-slate-700">{{ authUser?.title ?? '—' }}</span>
               <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
           </div>
           <div class="flex-1">
-            <label class="block text-hint text-slate-500 mb-1.5">ชื่อ</label>
+            <label class="block text-body text-slate-500 mb-1.5">ชื่อ</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-              <span class="text-body-md text-slate-700">{{ authUser?.fname ?? '—' }}</span>
+              <span class="text-body text-slate-700">{{ authUser?.fname ?? '—' }}</span>
               <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -772,9 +772,9 @@ defineExpose({
 
         <!-- นามสกุล -->
         <div class="mb-3">
-          <label class="block text-hint text-slate-500 mb-1.5">นามสกุล</label>
+          <label class="block text-body text-slate-500 mb-1.5">นามสกุล</label>
           <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-            <span class="text-body-md text-slate-700">{{ authUser?.lname ?? '—' }}</span>
+            <span class="text-body text-slate-700">{{ authUser?.lname ?? '—' }}</span>
             <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
@@ -783,9 +783,9 @@ defineExpose({
 
         <!-- เลขบัตรประชาชน -->
         <div class="mb-3">
-          <label class="block text-hint text-slate-500 mb-1.5">เลขประจำตัวประชาชน 13 หลัก</label>
+          <label class="block text-body text-slate-500 mb-1.5">เลขประจำตัวประชาชน 13 หลัก</label>
           <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-            <span class="text-body-md text-slate-700 tracking-wide">
+            <span class="text-body text-slate-700 tracking-wide">
               {{ authUser?.pid ? formatPID(authUser.pid) : '—' }}
             </span>
             <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -797,9 +797,9 @@ defineExpose({
         <!-- วันเกิด + อายุ -->
         <div class="flex gap-3 mb-3">
           <div class="flex-1">
-            <label class="block text-hint text-slate-500 mb-1.5">วัน/เดือน/ปีเกิด</label>
+            <label class="block text-body text-slate-500 mb-1.5">วัน/เดือน/ปีเกิด</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-              <span class="text-body-md text-slate-700">
+              <span class="text-body text-slate-700">
                 {{ formatThaiDate(effectiveDob) }}
               </span>
               <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -808,9 +808,9 @@ defineExpose({
             </div>
           </div>
           <div class="w-[28%]">
-            <label class="block text-hint text-slate-500 mb-1.5">อายุ</label>
+            <label class="block text-body text-slate-500 mb-1.5">อายุ</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-              <span class="text-body-md text-slate-700">{{ age !== null ? `${age} ปี` : '—' }}</span>
+              <span class="text-body text-slate-700">{{ age !== null ? `${age} ปี` : '—' }}</span>
               <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -836,15 +836,15 @@ defineExpose({
         <div class="hidden">
           <div class="flex items-center gap-2 mb-3">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">1.2</span>
-            <span class="text-body-xs font-medium text-slate-600">ความเกี่ยวข้อง</span>
+            <span class="text-h3-legend font-medium text-slate-600">ความเกี่ยวข้อง</span>
           </div>
           <div>
-            <label class="block text-body-xs text-slate-600 mb-1.5 font-medium">
+            <label class="block text-body text-slate-600 mb-1.5 font-medium">
               ความสัมพันธ์กับผู้ประสบปัญหา
             </label>
             <!-- ล็อคเป็น "ตนเอง" เสมอ เนื่องจากผู้ใช้ยื่นด้วยตนเองผ่าน ThaiD -->
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-4 py-3">
-              <span class="text-body-md text-slate-700 font-medium">{{ RELATIONSHIP }}</span>
+              <span class="text-body text-slate-700 font-medium">{{ RELATIONSHIP }}</span>
               <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -879,13 +879,13 @@ defineExpose({
           class="flex items-center gap-2 mb-3"
         >
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">2.1</span>
-          <span class="text-body-xs font-medium text-slate-600">ที่อยู่ปัจจุบัน</span>
+          <span class="text-h3-legend font-medium text-slate-600">ที่อยู่ปัจจุบัน</span>
         </div>
 
         <!-- บ้านเลขที่ + หมู่ที่ -->
         <div v-if="show('current_address_house_no') || show('current_address_moo')" class="flex gap-3 mb-3">
           <div v-if="show('current_address_house_no')" class="flex-1">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>บ้านเลขที่ <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_house_no')" :reason="commentMap.get('current_address_house_no')!" />
             </label>
@@ -896,13 +896,13 @@ defineExpose({
               type="text"
               inputmode="text"
               maxlength="50"
-              class="w-full border rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
+              class="w-full border rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB] transition-colors"
               :class="errors.houseNo ? 'border-red-300' : 'border-slate-200'"
             />
             <p v-if="errors.houseNo" class="text-micro text-red-500 mt-1 px-1">{{ errors.houseNo }}</p>
           </div>
           <div v-if="show('current_address_moo')" class="w-[33%]">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>หมู่ที่</span>
               <FieldAlert v-if="commentMap.has('current_address_moo')" :reason="commentMap.get('current_address_moo')!" />
             </label>
@@ -912,14 +912,14 @@ defineExpose({
               type="text"
               inputmode="numeric"
               maxlength="50"
-              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
         </div>
 
         <!-- ชื่อหมู่บ้าน -->
         <div v-if="show('current_address_village')" class="mb-3">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>ชื่อหมู่บ้าน</span>
             <FieldAlert v-if="commentMap.has('current_address_village')" :reason="commentMap.get('current_address_village')!" />
           </label>
@@ -927,14 +927,14 @@ defineExpose({
             v-model="villageName"
             type="text"
             maxlength="255"
-            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
 
         <!-- ตรอก + ซอย -->
         <div v-if="show('current_address_alley') || show('current_address_soi')" class="flex gap-3 mb-3">
           <div v-if="show('current_address_alley')" class="flex-1">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ตรอก</span>
               <FieldAlert v-if="commentMap.has('current_address_alley')" :reason="commentMap.get('current_address_alley')!" />
             </label>
@@ -942,11 +942,11 @@ defineExpose({
               v-model="alley"
               type="text"
               maxlength="255"
-              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
           <div v-if="show('current_address_soi')" class="flex-1">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ซอย</span>
               <FieldAlert v-if="commentMap.has('current_address_soi')" :reason="commentMap.get('current_address_soi')!" />
             </label>
@@ -954,14 +954,14 @@ defineExpose({
               v-model="soi"
               type="text"
               maxlength="255"
-              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
             />
           </div>
         </div>
 
         <!-- ถนน -->
         <div v-if="show('current_address_road')" class="mb-3">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>ถนน</span>
             <FieldAlert v-if="commentMap.has('current_address_road')" :reason="commentMap.get('current_address_road')!" />
           </label>
@@ -969,7 +969,7 @@ defineExpose({
             v-model="road"
             type="text"
             maxlength="255"
-            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+            class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
           />
         </div>
 
@@ -990,7 +990,7 @@ defineExpose({
         <template v-else>
           <!-- จังหวัด -->
           <div v-if="show('current_address_province')" class="mb-3">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>จังหวัด <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_province')" :reason="commentMap.get('current_address_province')!" />
             </label>
@@ -1007,7 +1007,7 @@ defineExpose({
 
           <!-- อำเภอ/เขต -->
           <div v-if="show('current_address_district')" class="mb-3">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>อำเภอ/เขต <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_district')" :reason="commentMap.get('current_address_district')!" />
             </label>
@@ -1025,7 +1025,7 @@ defineExpose({
 
           <!-- ตำบล/แขวง -->
           <div v-if="show('current_address_subdistrict')" class="mb-3">
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ตำบล/แขวง <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('current_address_subdistrict')" :reason="commentMap.get('current_address_subdistrict')!" />
             </label>
@@ -1043,9 +1043,9 @@ defineExpose({
 
           <!-- รหัสไปรษณีย์ — auto-fill จากตำบลที่เลือก (read-only, แสดงเมื่อ cascade แสดง) -->
           <div v-if="show('current_address_province') || show('current_address_district') || show('current_address_subdistrict')" class="mb-4">
-            <label class="block text-hint text-slate-600 mb-1.5 font-medium">รหัสไปรษณีย์</label>
+            <label class="block text-body text-slate-600 mb-1.5 font-medium">รหัสไปรษณีย์</label>
             <div class="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5">
-              <span class="text-body-md" :class="addr.zipcode.value ? 'text-slate-700' : 'text-slate-400'">
+              <span class="text-body" :class="addr.zipcode.value ? 'text-slate-700' : 'text-slate-400'">
                 {{ addr.zipcode.value || ' ' }}
               </span>
               <svg v-if="addr.zipcode.value" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -1057,7 +1057,7 @@ defineExpose({
 
         <!-- GPS — แผนที่แบบ interactive -->
         <div v-if="show('current_address_gps')" class="flex items-center gap-1 mb-2">
-          <span class="text-hint text-slate-600 font-medium">ตำแหน่ง GPS</span>
+          <span class="text-body text-slate-600 font-medium">ตำแหน่ง GPS</span>
           <FieldAlert v-if="commentMap.has('current_address_gps')" :reason="commentMap.get('current_address_gps')!" />
         </div>
         <GpsMapPicker
@@ -1080,12 +1080,12 @@ defineExpose({
           class="flex items-center gap-2 mb-3"
         >
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">2.2</span>
-          <span class="text-body-xs font-medium text-slate-600">ข้อมูลติดต่อ</span>
+          <span class="text-h3-legend font-medium text-slate-600">ข้อมูลติดต่อ</span>
         </div>
 
         <!-- โทรศัพท์ (บ้าน/ที่ทำงาน) — optional, 9 หลัก -->
         <div v-if="show('contact_phone_home')" class="mb-3">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>โทรศัพท์</span>
             <FieldAlert v-if="commentMap.has('contact_phone_home')" :reason="commentMap.get('contact_phone_home')!" />
           </label>
@@ -1097,7 +1097,7 @@ defineExpose({
             inputmode="tel"
             maxlength="9"
             placeholder="เบอร์บ้าน/ที่ทำงาน"
-            class="w-full border rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+            class="w-full border rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.phone
               ? 'border-red-300 focus:ring-red-200'
               : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
@@ -1107,7 +1107,7 @@ defineExpose({
 
         <!-- โทรสาร — optional, 9 หลัก -->
         <div v-if="show('contact_fax')" class="mb-3">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>โทรสาร</span>
             <FieldAlert v-if="commentMap.has('contact_fax')" :reason="commentMap.get('contact_fax')!" />
           </label>
@@ -1118,7 +1118,7 @@ defineExpose({
             type="text"
             inputmode="tel"
             maxlength="9"
-            class="w-full border rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+            class="w-full border rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.fax
               ? 'border-red-300 focus:ring-red-200'
               : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
@@ -1128,7 +1128,7 @@ defineExpose({
 
         <!-- โทรศัพท์มือถือ — required, validate format -->
         <div v-if="show('contact_mobile')" class="mb-3">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>โทรศัพท์มือถือ <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('contact_mobile')" :reason="commentMap.get('contact_mobile')!" />
           </label>
@@ -1139,7 +1139,7 @@ defineExpose({
             inputmode="tel"
             maxlength="10"
             @blur="touched.mobile = true"
-            class="w-full border rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+            class="w-full border rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.mobile
               ? 'border-red-300 focus:ring-red-200'
               : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
@@ -1149,7 +1149,7 @@ defineExpose({
 
         <!-- อีเมล — optional, validate format เฉพาะเมื่อมีค่า -->
         <div v-if="show('contact_email')">
-          <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+          <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>อีเมล</span>
             <FieldAlert v-if="commentMap.has('contact_email')" :reason="commentMap.get('contact_email')!" />
           </label>
@@ -1160,7 +1160,7 @@ defineExpose({
             maxlength="255"
             placeholder="example@email.com"
             @blur="touched.email = true"
-            class="w-full border rounded-xl px-3 py-2.5 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+            class="w-full border rounded-xl px-3 py-2.5 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
             :class="errors.email
               ? 'border-red-300 focus:ring-red-200'
               : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
@@ -1184,7 +1184,7 @@ defineExpose({
       <div class="p-4">
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">3.1</span>
-          <span class="text-body-xs font-medium text-slate-600">
+          <span class="text-h3-legend font-medium text-slate-600">
             สถานภาพสมรส <span class="text-red-500">*</span>
           </span>
           <FieldAlert v-if="commentMap.has('marital_status')" :reason="commentMap.get('marital_status')!" />
@@ -1204,7 +1204,7 @@ defineExpose({
             >
               <div v-if="maritalStatus === opt.value" class="w-2.5 h-2.5 rounded-full bg-[#1A56DB]" />
             </div>
-            <span class="text-body-md transition-colors" :class="maritalStatus === opt.value ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+            <span class="text-body transition-colors" :class="maritalStatus === opt.value ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
               {{ opt.label }}
             </span>
           </label>
@@ -1226,7 +1226,7 @@ defineExpose({
       <div class="p-4">
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">4.1</span>
-          <span class="text-body-xs font-medium text-slate-600">
+          <span class="text-h3-legend font-medium text-slate-600">
             ลักษณะที่อยู่อาศัย <span class="text-red-500">*</span>
           </span>
           <FieldAlert v-if="commentMap.has('housing_type')" :reason="commentMap.get('housing_type')!" />
@@ -1246,7 +1246,7 @@ defineExpose({
             >
               <div v-if="housingType === opt.value" class="w-2.5 h-2.5 rounded-full bg-[#1A56DB]" />
             </div>
-            <span class="text-body-md transition-colors" :class="housingType === opt.value ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
+            <span class="text-body transition-colors" :class="housingType === opt.value ? 'text-[#1A56DB] font-medium' : 'text-slate-700'">
               {{ opt.label }}
             </span>
           </label>
@@ -1265,9 +1265,9 @@ defineExpose({
           <div v-if="isRentSelected" class="mt-4 pt-4 border-t border-slate-100">
             <div class="flex items-center gap-2 mb-3">
               <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">4.2</span>
-              <span class="text-body-xs font-medium text-slate-600">ค่าเช่าต่อเดือน</span>
+              <span class="text-h3-legend font-medium text-slate-600">ค่าเช่าต่อเดือน</span>
             </div>
-            <label class="flex items-center gap-1 text-hint text-slate-600 mb-1.5 font-medium">
+            <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ค่าเช่าต่อเดือน (บาท) <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('housing_rent')" :reason="commentMap.get('housing_rent')!" />
             </label>
@@ -1279,12 +1279,12 @@ defineExpose({
                 type="text"
                 inputmode="numeric"
                 pattern="[0-9]*"
-                class="w-full border rounded-xl px-3 py-2.5 pr-20 text-body-md placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
+                class="w-full border rounded-xl px-3 py-2.5 pr-20 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors"
                 :class="errors.rentPerMonth
                   ? 'border-red-300 focus:ring-red-200'
                   : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'"
               />
-              <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-hint text-slate-400">บาท/เดือน</span>
+              <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-body-xs text-slate-400">บาท/เดือน</span>
             </div>
             <p v-if="errors.rentPerMonth" class="text-micro text-red-500 mt-1 px-1">{{ errors.rentPerMonth }}</p>
           </div>
@@ -1305,7 +1305,7 @@ defineExpose({
       <div class="p-4">
         <div class="flex items-center gap-2 mb-3">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">5.1</span>
-          <span class="text-body-xs font-medium text-slate-600">รายชื่อสมาชิกในครัวเรือน</span>
+          <span class="text-h3-legend font-medium text-slate-600">รายชื่อสมาชิกในครัวเรือน</span>
           <FieldAlert
             v-if="commentMap.has('household_members') || commentMap.has('family_members_count')"
             :reason="commentMap.get('household_members') ?? commentMap.get('family_members_count')!"

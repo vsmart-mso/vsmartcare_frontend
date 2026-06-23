@@ -30,6 +30,8 @@ export type BankNameType = LookupItem
 export type BankAccountType = LookupItem
 /** ตอบจาก `GET /v1/lookups/household-member-relation-types` */
 export type HouseholdMemberRelationType = LookupItem
+/** ตอบจาก `GET /v1/lookups/hardship-status-types` (สถานะความเดือดร้อน) */
+export type HardshipStatusType = LookupItem
 
 // ─── Module-level cache ────────────────────────────────────────────────────────
 // เก็บ Promise ไว้ด้วย เพื่อกัน race condition กรณีมีการเรียกพร้อมกันก่อน cache เสร็จ
@@ -88,4 +90,7 @@ export const lookupsApi = {
 
   /** ความสัมพันธ์กับผู้ประสบปัญหา (บิดา/มารดา / บุตร / คู่สมรส ฯลฯ) */
   fetchHouseholdMemberRelationTypes: () => fetchLookup('/v1/lookups/household-member-relation-types'),
+
+  /** สถานะความเดือดร้อน (ประสบปัญหาเอง / ครอบครัวประสบปัญหา) */
+  fetchHardshipStatusTypes: () => fetchLookup('/v1/lookups/hardship-status-types'),
 }

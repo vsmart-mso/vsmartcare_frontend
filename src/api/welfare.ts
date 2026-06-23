@@ -63,6 +63,7 @@ export interface ScreeningPayload {
   screening_status: boolean            // true = ผ่าน, false = ไม่ผ่าน
   failure_reason_code?: string | null  // เช่น "AGE_UNDER_18" หรือ "INCOME_OVER_100000"
   input_data_snapshot?: ScreeningInputSnapshot | null
+  hardship_status_ids?: number[] | null  // id สถานะความเดือดร้อนที่เลือก (เลือกได้หลายข้อ)
   ip_address?: string | null
   user_agent?: string | null
 }
@@ -73,6 +74,7 @@ export interface ScreeningResponse {
   screening_status: boolean
   failure_reason_code: string | null
   input_data_snapshot: ScreeningInputSnapshot | null
+  hardship_status_ids: number[] | null
 }
 
 // ─── Case Display (สรุปสถานะคำร้อง) ────────────────────────────────────────────
