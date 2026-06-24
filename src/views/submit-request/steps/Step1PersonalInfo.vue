@@ -1418,8 +1418,8 @@ defineExpose({
                   maxlength="17" type="text" inputmode="numeric"
                   placeholder="ระบุ 13 หลัก (ถ้ามี)"
                   class="w-full bg-white border rounded-xl px-3 py-2 text-body-xs focus:outline-none focus:ring-2 transition-colors"
-                  :class="householdMembersTouched && memberErrorsList[idx]?.nationalId ? 'border-red-300 focus:ring-red-200' : nationalIdSuccessList[idx] ? 'border-green-400 focus:ring-green-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
-                <p v-if="householdMembersTouched && memberErrorsList[idx]?.nationalId" class="text-micro text-red-500 mt-0.5">{{ memberErrorsList[idx].nationalId }}</p>
+                  :class="memberErrorsList[idx]?.nationalId ? 'border-red-300 focus:ring-red-200' : nationalIdSuccessList[idx] ? 'border-green-400 focus:ring-green-200' : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'" />
+                <p v-if="memberErrorsList[idx]?.nationalId" class="text-micro text-red-500 mt-0.5">{{ memberErrorsList[idx].nationalId }}</p>
                 <p v-else-if="nationalIdSuccessList[idx]" class="text-micro text-green-600 mt-0.5 flex items-center gap-1">
                   <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
