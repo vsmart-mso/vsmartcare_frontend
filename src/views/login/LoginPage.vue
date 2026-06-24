@@ -88,6 +88,25 @@ function handleTangRath() {
            ═══════════════════════════════════════════════ -->
       <div class="flex flex-col px-5 pt-6 pb-8">
 
+        <!-- ประกาศช่วงทดลองใช้งาน -->
+        <div class="mb-5 bg-amber-50 border border-amber-300 rounded-xl p-4">
+          <!-- หัวข้อพร้อมไอคอน — จัดกึ่งกลาง เหมือนกล่องเอกสารด้านล่าง -->
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 1.998-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.502-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <p class="text-[16px] font-bold text-amber-800 leading-snug">
+              ช่วงทดลองการใช้งานระบบ เฉพาะ 9 พื้นที่เท่านั้น
+            </p>
+          </div>
+          <!-- รายชื่อจังหวัด -->
+          <p class="text-[14px] text-amber-800 text-center leading-relaxed">
+            (สมุทรปราการ, หนองคาย, เชียงใหม่, แพร่, เชียงราย, กาญจนบุรี, นครศรีธรรมราช, สงขลา, พัทลุง)
+          </p>
+        </div>
+
         <!-- ส่วนที่ 2: Title -->
         <div class="text-center mb-7">
           <!-- h1 — token H2-section (1.25rem) ใต้ Display brand -->
