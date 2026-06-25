@@ -103,7 +103,7 @@ function handleTangRath() {
           </div>
           <!-- รายชื่อจังหวัด -->
           <p class="text-[14px] text-amber-800 text-center leading-relaxed">
-            (สมุทรปราการ, หนองคาย, เชียงใหม่, แพร่, เชียงราย, กาญจนบุรี, นครศรีธรรมราช, สงขลา, พัทลุง)
+            (สมุทรปราการ, หนองคาย, เชียงใหม่, แพร่, เชียงราย, กาญจนบุรี, นครราชสีมา, สงขลา, พัทลุง)
           </p>
         </div>
 
@@ -289,26 +289,7 @@ function handleTangRath() {
               <span class="font-normal">(หน้าที่แสดงชื่อบัญชีและเลขที่บัญชี)</span>
             </li>
 
-            <!-- ข้อ 5: แบบแจ้งข้อมูล KTB -->
-            <li class="font-medium">
-              แบบแจ้งข้อมูลการรับเงินโอนผ่านระบบ KTB Corporate Online
-            </li>
-
           </ol>
-        </div>
-
-        <!-- ส่วนที่ 6: ดาวน์โหลดแบบฟอร์ม KTB Corporate Online -->
-        <div class="mt-3">
-          <a
-            href="/forms/ktb-corporate-online.pdf"
-            download="แบบ-KTB-Corporate-Online.pdf"
-            class="flex items-center justify-center gap-2 w-full text-body-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2.5 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
-          >
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            ดาวน์โหลด KTB Corporate Online
-          </a>
         </div>
 
       </div>
