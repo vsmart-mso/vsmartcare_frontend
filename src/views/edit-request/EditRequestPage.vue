@@ -28,7 +28,12 @@ onMounted(() => {
 function buildFilterFields(step: number): string[] {
   const names = new Set(
     app.reviewComments
-      .filter(c => c.step === step && c.name !== 'remarks')
+      .filter(c => {
+        if (c.step !== step || c.name === 'remarks') return false
+        // คำขอใหม่ไม่รองรับ KTB — ข้าม comment นี้ถ้าเคสไม่เคยมีรูป KTB
+        if (c.name === 'doc_ktb_corporate' && !app.existingEvidenceIds['ktb_form']) return false
+        return true
+      })
       .map(c => c.name)
   )
 
@@ -205,7 +210,11 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
 
 // true = แก้ไขครบ "ทุก" field ที่ถูกตีกลับแล้ว (ถ้ายังเหลือ field ที่ค่าเท่าเดิม → false)
 const allFieldsEdited = computed(() => {
-  const comments = app.reviewComments.filter(c => c.name !== 'remarks')
+  const comments = app.reviewComments.filter(c => {
+    if (c.name === 'remarks') return false
+    if (c.name === 'doc_ktb_corporate' && !app.existingEvidenceIds['ktb_form']) return false
+    return true
+  })
   if (comments.length === 0) return false // ไม่มีอะไรให้แก้ (ปกติ guard redirect ไปแล้ว)
 
   for (const c of comments) {

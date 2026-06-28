@@ -88,6 +88,25 @@ function handleTangRath() {
            ═══════════════════════════════════════════════ -->
       <div class="flex flex-col px-5 pt-6 pb-8">
 
+        <!-- ประกาศช่วงทดลองใช้งาน -->
+        <div class="mb-5 bg-amber-50 border border-amber-300 rounded-xl p-4">
+          <!-- หัวข้อพร้อมไอคอน — จัดกึ่งกลาง เหมือนกล่องเอกสารด้านล่าง -->
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 1.998-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.502-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <p class="text-[16px] font-bold text-amber-800 leading-snug">
+              ช่วงทดลองการใช้งานระบบ เฉพาะ 9 พื้นที่เท่านั้น
+            </p>
+          </div>
+          <!-- รายชื่อจังหวัด -->
+          <p class="text-[14px] text-amber-800 text-center leading-relaxed">
+            (สมุทรปราการ, หนองคาย, เชียงใหม่, แพร่, เชียงราย, กาญจนบุรี, นครราชสีมา, สงขลา, พัทลุง)
+          </p>
+        </div>
+
         <!-- ส่วนที่ 2: Title -->
         <div class="text-center mb-7">
           <!-- h1 — token H2-section (1.25rem) ใต้ Display brand -->
@@ -270,26 +289,7 @@ function handleTangRath() {
               <span class="font-normal">(หน้าที่แสดงชื่อบัญชีและเลขที่บัญชี)</span>
             </li>
 
-            <!-- ข้อ 5: แบบแจ้งข้อมูล KTB -->
-            <li class="font-medium">
-              แบบแจ้งข้อมูลการรับเงินโอนผ่านระบบ KTB Corporate Online
-            </li>
-
           </ol>
-        </div>
-
-        <!-- ส่วนที่ 6: ดาวน์โหลดแบบฟอร์ม KTB Corporate Online -->
-        <div class="mt-3">
-          <a
-            href="/forms/ktb-corporate-online.pdf"
-            download="แบบ-KTB-Corporate-Online.pdf"
-            class="flex items-center justify-center gap-2 w-full text-body-xs font-medium text-amber-700 border border-amber-300 rounded-lg px-3 py-2.5 bg-white hover:bg-amber-50 active:scale-[0.98] transition-all select-none"
-          >
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            ดาวน์โหลด KTB Corporate Online
-          </a>
         </div>
 
       </div>

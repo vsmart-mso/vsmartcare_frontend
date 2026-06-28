@@ -23,6 +23,13 @@ const auth = useAuthStore()
 const props = defineProps<{ filterFields?: string[] }>()
 const show = (name: string): boolean => !props.filterFields || props.filterFields.includes(name)
 
+// KTB: ปิดใน flow ยื่นคำขอใหม่ — เปิดเฉพาะแก้ไขคำขอเก่าที่เคยแนบ KTB และเจ้าหน้าที่ตีกลับ field นี้
+const showKtbUpload = computed(() =>
+  !!props.filterFields &&
+  show('doc_ktb_corporate') &&
+  !!app.existingEvidenceIds['ktb_form'],
+)
+
 const commentMap = computed(() => {
   const m = new Map<string, string>()
   for (const c of app.reviewComments) m.set(c.name, c.reason)
@@ -129,7 +136,7 @@ const totalUploaded = computed(() =>
     { u: family,      k: 'family'       },
     { u: houseHome,   k: 'house_home'   },
     { u: housePerson, k: 'house_person' },
-    { u: ktbForm,     k: 'ktb_form'    },
+    { u: ktbForm,     k: 'ktb_form'     },
     { u: otherDoc,    k: 'other_doc'    },
     { u: bankBook,    k: 'bank_book'    },
   ].filter(({ u, k }) => u.file.value || app.existingImageUrls[k]).length,
@@ -149,7 +156,7 @@ const isReady = computed(() =>
   // ทะเบียนบ้าน 2 ใบเป็น required — ต้องมีรูปครบจึงจะไปต่อได้
   (!show('doc_house_registration_house')   || hasImg(houseHome,   'house_home'))   &&
   (!show('doc_house_registration_person')  || hasImg(housePerson, 'house_person')) &&
-  (!show('doc_ktb_corporate')              || hasImg(ktbForm,     'ktb_form'))     &&
+  (!showKtbUpload.value                    || hasImg(ktbForm,     'ktb_form'))     &&
   !otherDocNameRequired.value
 )
 
@@ -233,6 +240,7 @@ onMounted(async () => {
     fetchingImages.value = true
     try {
       await Promise.all(slots.map(async ({ id, field }) => {
+        if (id === 'ktb_form' && !showKtbUpload.value) return
         if (!show(field)) return                     // slot ไม่ถูกแสดง — ไม่ต้องโหลด
         if (app.existingImageUrls[id]) return       // มี cache แล้ว
         const evidenceId = app.existingEvidenceIds[id]
@@ -397,7 +405,7 @@ defineExpose({
          Section 12: เอกสารแนบเพิ่มเติม (ไม่บังคับ)
          ════════════════════════════════════════════════════════ -->
     <div
-      v-if="['doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other','bank_book_photo'].some(f => show(f))"
+      v-if="showKtbUpload || ['doc_house_registration_house','doc_house_registration_person','doc_other','bank_book_photo'].some(f => show(f))"
       class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
     >
       <div class="flex items-center gap-3 bg-blue-50 px-4 py-3 border-b border-blue-100">
@@ -409,7 +417,7 @@ defineExpose({
       <div class="p-4 space-y-3">
 
         <!-- 12.1 header — แสดงเมื่อมี field เอกสารแนบ หรือรูปสมุดบัญชี -->
-        <div v-if="['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_ktb_corporate','doc_other'].some(f => show(f))">
+        <div v-if="showKtbUpload || ['bank_book_photo','doc_house_registration_house','doc_house_registration_person','doc_other'].some(f => show(f))">
           <div class="flex items-center gap-2 mb-0.5">
             <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">12.1</span>
             <span class="text-h3-legend font-medium text-slate-600">เอกสารประกอบ</span>
@@ -571,9 +579,9 @@ defineExpose({
           @clear="clrImg(housePerson, 'house_person')"
         />
 
-        <!-- แบบฟอร์ม KTB Corporate Online -->
+        <!-- แบบฟอร์ม KTB Corporate Online (เฉพาะเคสเก่าที่เคยแนบ + ถูกตีกลับให้แก้) -->
         <PhotoUploadCard
-          v-if="show('doc_ktb_corporate')"
+          v-if="showKtbUpload"
           upload-id="ktb-form"
           :replace-mode="app.editMode"
           title="รูปแบบฟอร์ม KTB Corporate Online"
