@@ -30,7 +30,6 @@ export interface CheckSelfData {
   dob: string           // วันเกิด (YYYY-MM-DD) เผื่อ ThaiID ไม่ส่ง → applicants.birth_date
   eligible: boolean     // ผ่านสิทธิ์หรือไม่
   checkedAt: string     // ISO date
-  hardshipStatusIds: number[]  // id สถานะความเดือดร้อนที่เลือก → screening_logs.hardship_status_ids
 }
 
 /** map label จาก UI → requester_relation_type.id (ดู `/v1/lookups/requester-relation-types`) */
@@ -546,8 +545,6 @@ export const useApplicationStore = defineStore('application', () => {
       dob:          '',
       eligible:     true,
       checkedAt:    new Date().toISOString(),
-      // edit mode: ไม่มีข้อมูลสถานะความเดือดร้อนจาก case detail → ปล่อยว่าง
-      hardshipStatusIds: [],
     }
 
     // ── Step 2 ──────────────────────────────────────────────────────────────
