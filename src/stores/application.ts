@@ -137,9 +137,9 @@ interface SerializableDraft {
   documentsMeta:         DocumentMeta[]
   editMode:              boolean
   editApplicantId:       number | null
-  existingEvidenceIds:   Record<string, number>
-  existingOtherTypeName: string
-  savedAt:               string // ISO timestamp
+  existingEvidenceIds:    Record<string, number>
+  existingOtherTypeNames: Record<string, string>  // ชื่อเอกสารสำหรับ other_doc_0/1/2
+  savedAt:                string // ISO timestamp
 }
 
 // ─── Helper: อ่าน draft จาก sessionStorage ───────────────────────────────────
@@ -173,7 +173,10 @@ export const ATTACHMENT_TYPE_MAP: Record<string, number> = {
   house_person: 7,
   family:       8,
   ktb_form:     11,
-  other_doc:    99,
+  other_doc:    99,  // เก็บไว้สำหรับ ATTACHMENT_ID_TO_DOCTYPE reverse map
+  other_doc_0:  99,  // รูปอื่น ๆ ใบที่ 1
+  other_doc_1:  99,  // รูปอื่น ๆ ใบที่ 2
+  other_doc_2:  99,  // รูปอื่น ๆ ใบที่ 3
 }
 
 /** id ของตัวเลือก "อื่น ๆ" ใน income_source_types / dependency_types (seed 0002) */
@@ -215,8 +218,8 @@ export const useApplicationStore = defineStore('application', () => {
   const existingEvidenceIds   = ref<Record<string, number>>(saved?.existingEvidenceIds ?? {})
   // docType → blob URL (memory เท่านั้น — re-fetch เมื่อ Step mount ใหม่หลัง refresh)
   const existingImageUrls     = ref<Record<string, string>>({})
-  // ชื่อเอกสาร other_doc (persist ได้)
-  const existingOtherTypeName = ref<string>(saved?.existingOtherTypeName ?? '')
+  // ชื่อเอกสาร other_doc_0/1/2 (persist ได้) — key = 'other_doc_0' | 'other_doc_1' | 'other_doc_2'
+  const existingOtherTypeNames = ref<Record<string, string>>(saved?.existingOtherTypeNames ?? {})
 
   // ── Bank Book OCR State (ไม่ persist เพราะ re-OCR ใหม่ทุกครั้ง) ──────────
   // เก็บผล OCR จากรูปสมุดบัญชี — ใช้ข้าม step (Step3 → Step5)
@@ -230,21 +233,21 @@ export const useApplicationStore = defineStore('application', () => {
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
   watch(
     [pdpa, checkSelf, selectedService, step1, step2, step3, documentsMeta,
-     editMode, editApplicantId, existingEvidenceIds, existingOtherTypeName],
+     editMode, editApplicantId, existingEvidenceIds, existingOtherTypeNames],
     () => {
       saveDraftToStorage({
-        pdpa:                  pdpa.value,
-        checkSelf:             checkSelf.value,
-        selectedService:       selectedService.value,
-        step1:                 step1.value,
-        step2:                 step2.value,
-        step3:                 step3.value,
-        documentsMeta:         documentsMeta.value,
-        editMode:              editMode.value,
-        editApplicantId:       editApplicantId.value,
-        existingEvidenceIds:   existingEvidenceIds.value,
-        existingOtherTypeName: existingOtherTypeName.value,
-        savedAt:               new Date().toISOString(),
+        pdpa:                   pdpa.value,
+        checkSelf:              checkSelf.value,
+        selectedService:        selectedService.value,
+        step1:                  step1.value,
+        step2:                  step2.value,
+        step3:                  step3.value,
+        documentsMeta:          documentsMeta.value,
+        editMode:               editMode.value,
+        editApplicantId:        editApplicantId.value,
+        existingEvidenceIds:    existingEvidenceIds.value,
+        existingOtherTypeNames: existingOtherTypeNames.value,
+        savedAt:                new Date().toISOString(),
       })
     },
     { deep: true },
@@ -580,13 +583,23 @@ export const useApplicationStore = defineStore('application', () => {
 
     // ── Evidence IDs สำหรับ lazy-load รูปใน Step4 ───────────────────────────
     existingEvidenceIds.value = {}
-    existingOtherTypeName.value = ''
+    existingOtherTypeNames.value = {}
+    let otherDocIdx = 0
     for (const ev of caseData.welfare_evidences) {
-      const docType = ATTACHMENT_ID_TO_DOCTYPE[ev.attachment_type_id]
-      if (docType) {
-        existingEvidenceIds.value = { ...existingEvidenceIds.value, [docType]: ev.id }
-        if (docType === 'other_doc' && ev.file_other_type_name) {
-          existingOtherTypeName.value = ev.file_other_type_name
+      if (ev.attachment_type_id === 99) {
+        // รองรับ "รูปอื่น ๆ" หลายรูป (สูงสุด 3 slot) โดยใส่ key other_doc_0/1/2 ตามลำดับ
+        if (otherDocIdx < 3) {
+          const key = `other_doc_${otherDocIdx}`
+          existingEvidenceIds.value = { ...existingEvidenceIds.value, [key]: ev.id }
+          if (ev.file_other_type_name) {
+            existingOtherTypeNames.value = { ...existingOtherTypeNames.value, [key]: ev.file_other_type_name }
+          }
+        }
+        otherDocIdx++
+      } else {
+        const docType = ATTACHMENT_ID_TO_DOCTYPE[ev.attachment_type_id]
+        if (docType) {
+          existingEvidenceIds.value = { ...existingEvidenceIds.value, [docType]: ev.id }
         }
       }
     }
@@ -634,7 +647,7 @@ export const useApplicationStore = defineStore('application', () => {
     // revoke blob URLs เพื่อ free memory
     Object.values(existingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
     existingImageUrls.value     = {}
-    existingOtherTypeName.value = ''
+    existingOtherTypeNames.value = {}
     clearBankBookOcr()
     sessionStorage.removeItem(DRAFT_KEY)
   }
@@ -652,7 +665,7 @@ export const useApplicationStore = defineStore('application', () => {
     editApplicantId,
     existingEvidenceIds,
     existingImageUrls,
-    existingOtherTypeName,
+    existingOtherTypeNames,
     bankBookOcrResult,
     bankBookOcrLoading,
     bankBookOcrResultId,
