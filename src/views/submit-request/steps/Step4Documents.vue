@@ -48,8 +48,14 @@ const family   = useImageUpload({ maxWidth: 1200, maxHeight: 900,  quality: 0.80
 const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 const ktbForm      = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+// รูปอื่น ๆ รองรับสูงสุด 3 รูป (other_doc_0 / other_doc_1 / other_doc_2)
 const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const otherDocName = ref('') // ชื่อประเภทเอกสาร "อื่นๆ" — backend บังคับส่งเมื่ออัปโหลด
+const otherDoc1    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const otherDoc2    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const otherDocName  = ref('') // ชื่อเอกสาร slot 0 — backend บังคับส่งเมื่ออัปโหลด
+const otherDocName1 = ref('') // ชื่อเอกสาร slot 1
+const otherDocName2 = ref('') // ชื่อเอกสาร slot 2
+const otherDocCount = ref(1)  // จำนวน slot ที่แสดง (1–3 ขึ้นอยู่กับที่ผู้ใช้กด "เพิ่ม")
 
 // ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายมาจาก Step3 ตามมติประชุม 2026-05-19) ─────────
 // compress: max 1200×1600px, WebP quality 82% — เหมือนเดิมตอนอยู่ Step3
@@ -140,7 +146,9 @@ const previewFamily      = computed(() => family.previewUrl.value      || app.ex
 const previewHouseHome   = computed(() => houseHome.previewUrl.value   || app.existingImageUrls['house_home']   || '')
 const previewHousePerson = computed(() => housePerson.previewUrl.value || app.existingImageUrls['house_person'] || '')
 const previewKtbForm     = computed(() => ktbForm.previewUrl.value     || app.existingImageUrls['ktb_form']     || '')
-const previewOtherDoc    = computed(() => otherDoc.previewUrl.value    || app.existingImageUrls['other_doc']    || '')
+const previewOtherDoc0   = computed(() => otherDoc.previewUrl.value    || app.existingImageUrls['other_doc_0']   || '')
+const previewOtherDoc1   = computed(() => otherDoc1.previewUrl.value   || app.existingImageUrls['other_doc_1']   || '')
+const previewOtherDoc2   = computed(() => otherDoc2.previewUrl.value   || app.existingImageUrls['other_doc_2']   || '')
 
 // นับรูปทั้งหมดที่อัปโหลดแล้ว (นับทั้ง local file และ server image)
 const totalUploaded = computed(() =>
@@ -153,13 +161,19 @@ const totalUploaded = computed(() =>
     { u: houseHome,   k: 'house_home'   },
     { u: housePerson, k: 'house_person' },
     { u: ktbForm,     k: 'ktb_form'     },
-    { u: otherDoc,    k: 'other_doc'    },
+    { u: otherDoc,    k: 'other_doc_0'  },
+    { u: otherDoc1,   k: 'other_doc_1'  },
+    { u: otherDoc2,   k: 'other_doc_2'  },
     { u: bankBook,    k: 'bank_book'    },
   ].filter(({ u, k }) => u.file.value || app.existingImageUrls[k]).length,
 )
 
 // ─── Validation ────────────────────────────────────────────────────────────────
-const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
+const otherDocNameRequired0 = computed(() => hasImg(otherDoc,  'other_doc_0') && !otherDocName.value.trim())
+const otherDocNameRequired1 = computed(() => otherDocCount.value >= 2 && hasImg(otherDoc1, 'other_doc_1') && !otherDocName1.value.trim())
+const otherDocNameRequired2 = computed(() => otherDocCount.value >= 3 && hasImg(otherDoc2, 'other_doc_2') && !otherDocName2.value.trim())
+// validation รวม — ใช้ใน isReady
+const otherDocNameRequired  = computed(() => otherDocNameRequired0.value || otherDocNameRequired1.value || otherDocNameRequired2.value)
 const showManualAccountType = computed(() =>
   !!previewBankBook.value &&
   !app.bankBookOcrLoading &&
@@ -207,18 +221,29 @@ watch(() => family.file.value,      (f) => syncFile('family',       'family',   
 watch(() => houseHome.file.value,   (f) => syncFile('house_home',   'house_home',   f ?? null))
 watch(() => housePerson.file.value, (f) => syncFile('house_person', 'house_person', f ?? null))
 watch(() => ktbForm.file.value,     (f) => syncFile('ktb_form',     'ktb_form',     f ?? null))
-watch(() => otherDoc.file.value,    (f) => syncFile('other_doc',    'other_doc',    f ?? null, otherDocName.value))
+watch(() => otherDoc.file.value,    (f) => syncFile('other_doc_0',  'other_doc_0',  f ?? null, otherDocName.value))
+watch(() => otherDoc1.file.value,   (f) => syncFile('other_doc_1',  'other_doc_1',  f ?? null, otherDocName1.value))
+watch(() => otherDoc2.file.value,   (f) => syncFile('other_doc_2',  'other_doc_2',  f ?? null, otherDocName2.value))
 watch(() => bankBook.file.value,    (f) => syncFile('bank_book',    'bank_book',    f ?? null))
-// เมื่อชื่อเปลี่ยน ให้ persist ลง store เสมอ (ไม่ว่าจะมีไฟล์หรือไม่)
-// ใช้ existingOtherTypeName เป็น temp storage เพื่อให้ชื่อรอดเมื่อ component unmount
+
+// เมื่อชื่อเปลี่ยน ให้ persist ลง store เสมอ และ sync metadata ถ้ามีไฟล์
 watch(otherDocName, (name) => {
-  app.existingOtherTypeName = name
+  app.existingOtherTypeNames['other_doc_0'] = name
   const f = otherDoc.file.value
   if (!f) return
-  app.addDocument(
-    { id: 'other_doc', docType: 'other_doc', fileName: f.name, fileSizeBytes: f.size, mimeType: f.type, otherTypeName: name },
-    f
-  )
+  app.addDocument({ id: 'other_doc_0', docType: 'other_doc_0', fileName: f.name, fileSizeBytes: f.size, mimeType: f.type, otherTypeName: name }, f)
+})
+watch(otherDocName1, (name) => {
+  app.existingOtherTypeNames['other_doc_1'] = name
+  const f = otherDoc1.file.value
+  if (!f) return
+  app.addDocument({ id: 'other_doc_1', docType: 'other_doc_1', fileName: f.name, fileSizeBytes: f.size, mimeType: f.type, otherTypeName: name }, f)
+})
+watch(otherDocName2, (name) => {
+  app.existingOtherTypeNames['other_doc_2'] = name
+  const f = otherDoc2.file.value
+  if (!f) return
+  app.addDocument({ id: 'other_doc_2', docType: 'other_doc_2', fileName: f.name, fileSizeBytes: f.size, mimeType: f.type, otherTypeName: name }, f)
 })
 
 // เมื่อ component mount ใหม่ (เช่น ผู้ใช้กลับมา Step4) ให้ restore ไฟล์จาก store
@@ -236,7 +261,9 @@ onMounted(async () => {
     { id: 'house_home',   field: 'doc_house_registration_house',  uploader: houseHome    },
     { id: 'house_person', field: 'doc_house_registration_person', uploader: housePerson  },
     { id: 'ktb_form',     field: 'doc_ktb_corporate',             uploader: ktbForm      },
-    { id: 'other_doc',    field: 'doc_other',                     uploader: otherDoc     },
+    { id: 'other_doc_0',  field: 'doc_other',                     uploader: otherDoc     },
+    { id: 'other_doc_1',  field: 'doc_other',                     uploader: otherDoc1    },
+    { id: 'other_doc_2',  field: 'doc_other',                     uploader: otherDoc2    },
     { id: 'bank_book',    field: 'bank_book_photo',               uploader: bankBook     },
   ]
 
@@ -246,9 +273,17 @@ onMounted(async () => {
     if (stored) uploader.restore(stored)
   }
 
-  // 2. restore ชื่อเอกสาร "อื่นๆ" — existingOtherTypeName เก็บค่าล่าสุดเสมอ
-  //    (watch อัปเดตทุกครั้งที่ user พิมพ์ ทั้ง create และ edit mode)
-  if (app.existingOtherTypeName) otherDocName.value = app.existingOtherTypeName
+  // 2. restore ชื่อเอกสาร "อื่นๆ" แต่ละ slot — existingOtherTypeNames เก็บค่าล่าสุดเสมอ
+  if (app.existingOtherTypeNames['other_doc_0']) otherDocName.value  = app.existingOtherTypeNames['other_doc_0']
+  if (app.existingOtherTypeNames['other_doc_1']) otherDocName1.value = app.existingOtherTypeNames['other_doc_1']
+  if (app.existingOtherTypeNames['other_doc_2']) otherDocName2.value = app.existingOtherTypeNames['other_doc_2']
+
+  // restore จำนวน slot ที่เปิดอยู่ (ตามข้อมูลใน store — ทั้ง local file และ evidence จาก server)
+  if (app.getFile('other_doc_2') || !!app.existingEvidenceIds['other_doc_2']) {
+    otherDocCount.value = 3
+  } else if (app.getFile('other_doc_1') || !!app.existingEvidenceIds['other_doc_1']) {
+    otherDocCount.value = 2
+  }
 
   // 3. ดึงรายชื่อธนาคารจาก API (ใช้ใน OCR auto-fill ของสมุดบัญชี)
   const bankNameData = await lookupsApi.fetchBankNames().catch(() => [])
@@ -283,6 +318,22 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+// ลบ slot "รูปอื่น ๆ" — clear เฉพาะ slot ที่ระบุและล้าง store
+function removeOtherDocSlot(slot: 1 | 2) {
+  if (slot === 2) {
+    otherDoc2.clear()
+    app.clearExistingImage('other_doc_2')
+    app.removeDocument('other_doc_2')
+    otherDocName2.value = ''
+    otherDocCount.value = 2
+  } else {
+    // ลบ slot 1 — ต้องลบ slot 2 ด้วยถ้าเปิดอยู่ (slot 2 ขึ้นกับ slot 1)
+    otherDoc1.clear(); app.clearExistingImage('other_doc_1'); app.removeDocument('other_doc_1'); otherDocName1.value = ''
+    otherDoc2.clear(); app.clearExistingImage('other_doc_2'); app.removeDocument('other_doc_2'); otherDocName2.value = ''
+    otherDocCount.value = 1
+  }
+}
+
 defineExpose({
   getData: () => ({
     photos: {
@@ -293,7 +344,9 @@ defineExpose({
       family:       family.file.value,
       houseHome:    houseHome.file.value,
       housePerson:  housePerson.file.value,
-      otherDoc:     otherDoc.file.value,
+      otherDoc0:    otherDoc.file.value,
+      otherDoc1:    otherDoc1.file.value,
+      otherDoc2:    otherDoc2.file.value,
     },
   }),
 })
@@ -644,40 +697,146 @@ defineExpose({
           @clear="clrImg(ktbForm, 'ktb_form')"
         />
 
-        <!-- รูปอื่น ๆ -->
-        <PhotoUploadCard
-          v-if="show('doc_other')"
-          upload-id="other-doc"
-          :replace-mode="app.editMode"
-          title="รูปอื่น ๆ"
-          subtitle="เอกสารแนบเพิ่มเติม"
-          icon="document"
-          :preview-url="previewOtherDoc"
-          :file-name="otherDoc.file.value?.name"
-          :file-size="otherDoc.file.value?.size"
-          :is-loading="otherDoc.isLoading.value || fetchingImages"
-          :error="otherDoc.error.value"
-          :alert-reason="commentMap.get('doc_other')"
-          @file-select="otherDoc.handleFileSelect"
-          @clear="clrImg(otherDoc, 'other_doc')"
-        >
-          <!-- input ชื่อเอกสาร อยู่ตรงกลางระหว่าง header กับปุ่มอัปโหลด -->
-          <input
-            v-model="otherDocName"
-            type="text"
-            maxlength="255"
-            placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
-            :class="[
-              'w-full border rounded-lg px-3 py-2 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
-              otherDocNameRequired
-                ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
-                : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
-            ]"
-          />
-          <p v-if="otherDocNameRequired" class="text-micro text-red-500 mt-1">
-            กรุณาระบุชื่อเอกสาร
-          </p>
-        </PhotoUploadCard>
+        <!-- รูปอื่น ๆ (รองรับสูงสุด 3 รูป) -->
+        <template v-if="show('doc_other')">
+
+          <!-- Slot 0 — รูปอื่น ๆ ใบที่ 1 (แสดงเสมอ) -->
+          <PhotoUploadCard
+            upload-id="other-doc-0"
+            :replace-mode="app.editMode"
+            title="รูปอื่น ๆ"
+            subtitle="เอกสารแนบเพิ่มเติม"
+            icon="document"
+            :preview-url="previewOtherDoc0"
+            :file-name="otherDoc.file.value?.name"
+            :file-size="otherDoc.file.value?.size"
+            :is-loading="otherDoc.isLoading.value || fetchingImages"
+            :error="otherDoc.error.value"
+            :alert-reason="commentMap.get('doc_other')"
+            @file-select="otherDoc.handleFileSelect"
+            @clear="clrImg(otherDoc, 'other_doc_0')"
+          >
+            <input
+              v-model="otherDocName"
+              type="text"
+              maxlength="255"
+              placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
+              :class="[
+                'w-full border rounded-lg px-3 py-2 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+                otherDocNameRequired0
+                  ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                  : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+              ]"
+            />
+            <p v-if="otherDocNameRequired0" class="text-micro text-red-500 mt-1">
+              กรุณาระบุชื่อเอกสาร
+            </p>
+          </PhotoUploadCard>
+
+          <!-- Slot 1 — รูปอื่น ๆ ใบที่ 2 -->
+          <div v-if="otherDocCount >= 2" class="flex flex-col">
+            <PhotoUploadCard
+              upload-id="other-doc-1"
+              :replace-mode="app.editMode"
+              title="รูปอื่น ๆ (2)"
+              subtitle="เอกสารแนบเพิ่มเติม"
+              icon="document"
+              :preview-url="previewOtherDoc1"
+              :file-name="otherDoc1.file.value?.name"
+              :file-size="otherDoc1.file.value?.size"
+              :is-loading="otherDoc1.isLoading.value || fetchingImages"
+              :error="otherDoc1.error.value"
+              @file-select="otherDoc1.handleFileSelect"
+              @clear="clrImg(otherDoc1, 'other_doc_1')"
+            >
+              <input
+                v-model="otherDocName1"
+                type="text"
+                maxlength="255"
+                placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
+                :class="[
+                  'w-full border rounded-lg px-3 py-2 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+                  otherDocNameRequired1
+                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                    : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+                ]"
+              />
+              <p v-if="otherDocNameRequired1" class="text-micro text-red-500 mt-1">
+                กรุณาระบุชื่อเอกสาร
+              </p>
+            </PhotoUploadCard>
+            <!-- ปุ่มลบ slot 1 — แสดงเฉพาะเมื่อ slot 2 ยังไม่เปิด -->
+            <button
+              v-if="otherDocCount === 2"
+              type="button"
+              @click="removeOtherDocSlot(1)"
+              class="mt-2 mx-auto flex items-center gap-1.5 text-body-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-3 py-1.5 transition-all active:scale-95"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              ลบช่องนี้
+            </button>
+          </div>
+
+          <!-- Slot 2 — รูปอื่น ๆ ใบที่ 3 -->
+          <div v-if="otherDocCount >= 3" class="flex flex-col">
+            <PhotoUploadCard
+              upload-id="other-doc-2"
+              :replace-mode="app.editMode"
+              title="รูปอื่น ๆ (3)"
+              subtitle="เอกสารแนบเพิ่มเติม"
+              icon="document"
+              :preview-url="previewOtherDoc2"
+              :file-name="otherDoc2.file.value?.name"
+              :file-size="otherDoc2.file.value?.size"
+              :is-loading="otherDoc2.isLoading.value || fetchingImages"
+              :error="otherDoc2.error.value"
+              @file-select="otherDoc2.handleFileSelect"
+              @clear="clrImg(otherDoc2, 'other_doc_2')"
+            >
+              <input
+                v-model="otherDocName2"
+                type="text"
+                maxlength="255"
+                placeholder="ระบุชื่อเอกสาร เช่น ใบรับรองแพทย์"
+                :class="[
+                  'w-full border rounded-lg px-3 py-2 text-body placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+                  otherDocNameRequired2
+                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                    : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+                ]"
+              />
+              <p v-if="otherDocNameRequired2" class="text-micro text-red-500 mt-1">
+                กรุณาระบุชื่อเอกสาร
+              </p>
+            </PhotoUploadCard>
+            <button
+              type="button"
+              @click="removeOtherDocSlot(2)"
+              class="mt-2 mx-auto flex items-center gap-1.5 text-body-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 rounded-lg px-3 py-1.5 transition-all active:scale-95"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              ลบช่องนี้
+            </button>
+          </div>
+
+          <!-- ปุ่มเพิ่มรูปอื่น ๆ — แสดงเมื่อยังไม่ครบ 3 slot -->
+          <button
+            v-if="otherDocCount < 3"
+            type="button"
+            @click="otherDocCount++"
+            class="w-full flex items-center justify-center gap-2 border border-dashed border-slate-300 rounded-xl py-2.5 text-body-xs font-medium text-slate-600 hover:border-[#1A56DB] hover:text-[#1A56DB] active:scale-[0.98] transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            เพิ่มรูปอื่น ๆ
+          </button>
+
+        </template>
 
       </div>
     </div>

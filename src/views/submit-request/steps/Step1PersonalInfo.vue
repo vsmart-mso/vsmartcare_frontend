@@ -207,8 +207,10 @@ function syncMembersToCount() {
 function handleHouseholdCountInput(e: Event) {
   const el = e.target as HTMLInputElement
   const digits = el.value.replace(/[^0-9]/g, '')
-  householdMemberCount.value = digits
-  el.value = digits
+  const num = parseInt(digits, 10)
+  const result = isNaN(num) ? '' : String(Math.min(num, 20))
+  householdMemberCount.value = result
+  el.value = result
   syncMembersToCount()
 }
 
@@ -1338,7 +1340,7 @@ defineExpose({
         <!-- จำนวนสมาชิกในครัวเรือน -->
         <div class="mb-4">
           <label class="text-hint text-slate-600 mb-1.5 font-medium block">
-            จำนวนสมาชิกในครัวเรือน <span class="text-red-500">*</span>
+            จำนวนสมาชิกในครัวเรือน
           </label>
           <div class="relative max-w-[200px]">
             <input

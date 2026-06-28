@@ -380,10 +380,14 @@ async function handleSave() {
         await welfareApi.uploadEvidence(app.editApplicantId!, attachmentTypeId, file, meta.otherTypeName)
       }
       // กรณีแก้แค่ชื่อเอกสาร "อื่นๆ" แต่ไม่ได้เปลี่ยนรูป
-      const otherDocHasNewFile = app.documentsMeta.some(m => m.id === 'other_doc')
-      const otherDocEvidenceId = app.existingEvidenceIds['other_doc']
-      if (!otherDocHasNewFile && otherDocEvidenceId && app.existingOtherTypeName) {
-        await welfareApi.updateEvidenceName(app.editApplicantId!, otherDocEvidenceId, app.existingOtherTypeName)
+      // รองรับสูงสุด 3 slot (other_doc_0 / other_doc_1 / other_doc_2)
+      for (const key of ['other_doc_0', 'other_doc_1', 'other_doc_2'] as const) {
+        const hasNewFile = app.documentsMeta.some(m => m.id === key)
+        const evidenceId = app.existingEvidenceIds[key]
+        const name = app.existingOtherTypeNames[key]
+        if (!hasNewFile && evidenceId && name) {
+          await welfareApi.updateEvidenceName(app.editApplicantId!, evidenceId, name)
+        }
       }
     }
 
