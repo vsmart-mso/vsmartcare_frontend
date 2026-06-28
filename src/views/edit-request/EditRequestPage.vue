@@ -221,6 +221,14 @@ const allFieldsEdited = computed(() => {
     // ── field รูปภาพ (step 4): ต้องอัปโหลดไฟล์ใหม่ทับ ──
     const docType = FILE_FIELD_DOCTYPE[c.name]
     if (docType) {
+      // รูปอื่นๆ รองรับหลาย slot (other_doc_0/1/2) — ถือว่าแก้แล้วถ้ามีไฟล์ใหม่ใน slot ใดก็ได้
+      if (docType === 'other_doc') {
+        const hasAny = app.documentsMeta.some(
+          m => m.id === 'other_doc_0' || m.id === 'other_doc_1' || m.id === 'other_doc_2'
+        )
+        if (!hasAny) return false
+        continue
+      }
       if (!app.documentsMeta.some(m => m.id === docType)) return false
       continue
     }
@@ -379,14 +387,19 @@ async function handleSave() {
         const attachmentTypeId = ATTACHMENT_TYPE_MAP[meta.docType] ?? 8
         await welfareApi.uploadEvidence(app.editApplicantId!, attachmentTypeId, file, meta.otherTypeName)
       }
-      // กรณีแก้แค่ชื่อเอกสาร "อื่นๆ" แต่ไม่ได้เปลี่ยนรูป
+      // จัดการ slot "รูปอื่นๆ" ที่ไม่มีไฟล์ใหม่
       // รองรับสูงสุด 3 slot (other_doc_0 / other_doc_1 / other_doc_2)
       for (const key of ['other_doc_0', 'other_doc_1', 'other_doc_2'] as const) {
         const hasNewFile = app.documentsMeta.some(m => m.id === key)
         const evidenceId = app.existingEvidenceIds[key]
         const name = app.existingOtherTypeNames[key]
-        if (!hasNewFile && evidenceId && name) {
+        if (hasNewFile || !evidenceId) continue
+        if (name) {
+          // มีชื่อ → แค่อัปเดตชื่อ (ไม่ได้เปลี่ยนรูป)
           await welfareApi.updateEvidenceName(app.editApplicantId!, evidenceId, name)
+        } else {
+          // ชื่อว่าง = slot ถูกลบด้วยปุ่ม "ลบช่องนี้" → ลบ evidence จาก server ด้วย
+          await welfareApi.deleteEvidence(app.editApplicantId!, evidenceId)
         }
       }
     }
