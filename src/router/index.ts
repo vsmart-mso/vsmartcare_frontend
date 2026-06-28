@@ -56,6 +56,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/submit-request/SubmitSuccessPage.vue'),
     meta: { requiresAuth: true },
   },
+  
   {
     path: '/case-tracking',
     name: 'case-tracking',

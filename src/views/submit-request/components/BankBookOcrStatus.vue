@@ -26,6 +26,7 @@ const props = defineProps<{
   targetName: string
   bankOptions: { value: string; label: string }[]
   accountTypeOptions: { value: string; label: string }[]  // ประเภทเงินฝาก (master) สำหรับ map จาก OCR
+  manualAccountTypeId?: string
   disabled?: boolean
 }>()
 
@@ -150,11 +151,24 @@ watch(
 // ถ้าขาดอย่างใดอย่างหนึ่ง ถือว่าไม่ผ่าน (ใช้คุม UI ให้สอดคล้องกับ gate ใน SubmitRequestPage)
 const bankInfoComplete = computed(() => {
   const i = ocrResult.value?.bank_info
+  const hasAccountType = !!(i?.deposit_type?.trim() || props.manualAccountTypeId?.trim())
   return !!(
     i?.bank_name?.trim() &&
     i?.account_number?.trim() &&
     i?.account_name?.trim() &&
-    i?.deposit_type?.trim() &&
+    hasAccountType &&
+    i?.branch_name?.trim()
+  )
+})
+
+const missingOnlyDepositType = computed(() => {
+  const i = ocrResult.value?.bank_info
+  return !!(
+    i?.bank_name?.trim() &&
+    i?.account_number?.trim() &&
+    i?.account_name?.trim() &&
+    !i?.deposit_type?.trim() &&
+    !props.manualAccountTypeId?.trim() &&
     i?.branch_name?.trim()
   )
 })
@@ -263,6 +277,27 @@ defineExpose({ reset })
     </div>
 
     <!-- OCR ข้อมูลไม่ครบ: อ่านชื่อตรงแต่ขาด ธนาคาร/เลขที่บัญชี/ชื่อบัญชี (สีแดง) -->
+    <div
+      v-else-if="(ocrResult?.bank_info?.match_status === 'match' || ocrResult?.bank_info?.match_status === 'review') && missingOnlyDepositType"
+      class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1.5"
+    >
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+        <p class="text-body-xs font-semibold text-amber-700">อ่านข้อมูลสมุดบัญชีได้แล้ว แต่ไม่พบประเภทเงินฝาก</p>
+      </div>
+      <div class="text-hint text-amber-700 space-y-0.5 ml-6">
+        <p v-if="ocrResult.bank_info.bank_name"><strong>ธนาคาร:</strong> {{ ocrResult.bank_info.bank_name }}</p>
+        <p v-if="ocrResult.bank_info.account_number"><strong>เลขที่บัญชี:</strong> {{ ocrResult.bank_info.account_number }}</p>
+        <p v-if="ocrResult.bank_info.account_name"><strong>ชื่อบัญชี:</strong> {{ ocrResult.bank_info.account_name }}</p>
+        <p v-if="ocrResult.bank_info.branch_name">
+          <strong>สาขา:</strong> {{ ocrResult.bank_info.branch_name }}<template v-if="ocrResult.bank_info.branch_code"> ({{ ocrResult.bank_info.branch_code }})</template>
+        </p>
+        <p class="text-micro text-amber-600 mt-1">กรุณาเลือกประเภทเงินฝากจากช่องด้านล่าง</p>
+      </div>
+    </div>
+
     <div
       v-else-if="(ocrResult?.bank_info?.match_status === 'match' || ocrResult?.bank_info?.match_status === 'review') && !bankInfoComplete"
       class="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5"

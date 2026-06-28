@@ -87,11 +87,12 @@ const step3OcrState = computed<Step3OcrState>(() => {
 
   // ต้องอ่านข้อมูลได้ครบทั้ง 5 อย่าง: ธนาคาร + เลขที่บัญชี + ชื่อบัญชี + ประเภทเงินฝาก + ชื่อสาขา
   // (branch_code เป็นข้อมูลเสริม ไม่บังคับ) — ถ้าขาดอย่างใดอย่างหนึ่ง → ถือว่าไม่ผ่าน (bad) แม้ชื่อจะตรงก็ตาม
+  const hasAccountType = !!(info?.deposit_type?.trim() || app.step3?.bankAccountTypeId?.trim())
   const hasAllInfo = !!(
     info?.bank_name?.trim() &&
     info?.account_number?.trim() &&
     info?.account_name?.trim() &&
-    info?.deposit_type?.trim() &&
+    hasAccountType &&
     info?.branch_name?.trim()
   )
 
@@ -108,6 +109,16 @@ const ocrBlocksSubmit = computed(() =>
 )
 
 /** ปุ่ม "ถัดไป" ใน Step 4 ต้องถูก disable เพิ่มเติมเมื่อ OCR สมุดบัญชีไม่ผ่าน */
+const missingBankAccountType = computed(() => {
+  const info = app.bankBookOcrResult?.bank_info
+  return !!(
+    info &&
+    (info.match_status === 'match' || info.match_status === 'review') &&
+    !info.deposit_type?.trim() &&
+    !app.step3?.bankAccountTypeId?.trim()
+  )
+})
+
 const nextBlocked = computed(() => currentStep.value === 4 && ocrBlocksSubmit.value)
 
 // stepRef ใช้ดึงข้อมูลผ่าน getData() เมื่อกด "ถัดไป"
@@ -188,6 +199,11 @@ async function handleSubmit() {
   }
 
   // ── Guard: OCR ผลไม่ดี → ห้าม submit (สมุดบัญชีอยู่ Step4 แล้ว) ──────────────
+  if (missingBankAccountType.value) {
+    submitError.value = 'กรุณากลับไป Step 4 และเลือกประเภทเงินฝากของสมุดบัญชีธนาคาร'
+    return
+  }
+
   if (ocrBlocksSubmit.value) {
     submitError.value = 'กรุณากลับไป Step 4 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
     return

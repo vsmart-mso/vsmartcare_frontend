@@ -4,6 +4,7 @@ import { useImageUpload } from '@/composables/useImageUpload'
 import PhotoUploadCard from '../components/PhotoUploadCard.vue'
 import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { useApplicationStore } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
@@ -59,6 +60,11 @@ const fetchingBankBook = ref(false)
 const bankOptions = ref<{ value: string; label: string }[]>([])
 // accountTypeOptions (ประเภทเงินฝาก) — ส่งให้ BankBookOcrStatus ใช้ map deposit_type→id
 const accountTypeOptions = ref<{ value: string; label: string }[]>([])
+const bankAccountTypeId = ref('')
+const accountTypeSelectOptions = computed(() => [
+  { value: '', label: '-- ยังไม่เลือก --' },
+  ...accountTypeOptions.value,
+])
 
 // ─── OCR helpers ────────────────────────────────────────────────────────────
 const ocrRef = ref<InstanceType<typeof BankBookOcrStatus> | null>(null)
@@ -80,11 +86,21 @@ function handleOcrAutoFill(payload: {
   bankAccountTypeId: string
   branchName: string
 }) {
+  bankAccountTypeId.value = payload.bankAccountTypeId || ''
   app.setBankInfo(
     payload.bankNameId        || app.step3?.bankNameId        || '',
     payload.accountNumber     || app.step3?.bankAccount       || '',
-    payload.bankAccountTypeId || app.step3?.bankAccountTypeId || '',
+    bankAccountTypeId.value,
     payload.branchName        || app.step3?.bankBranchName    || '',
+  )
+}
+
+function syncBankAccountType() {
+  app.setBankInfo(
+    app.step3?.bankNameId ?? '',
+    app.step3?.bankAccount ?? '',
+    bankAccountTypeId.value,
+    app.step3?.bankBranchName ?? '',
   )
 }
 
@@ -144,6 +160,13 @@ const totalUploaded = computed(() =>
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 const otherDocNameRequired = computed(() => hasImg(otherDoc, 'other_doc') && !otherDocName.value.trim())
+const showManualAccountType = computed(() =>
+  !!previewBankBook.value &&
+  !app.bankBookOcrLoading &&
+  !!app.bankBookOcrResult?.bank_info &&
+  (app.bankBookOcrResult.bank_info.match_status === 'match' || app.bankBookOcrResult.bank_info.match_status === 'review') &&
+  !app.bankBookOcrResult.bank_info.deposit_type?.trim()
+)
 // field ที่ซ่อน (ไม่อยู่ใน filterFields) ถือว่า valid เสมอ
 // bank_book_photo เป็น required ตามมติประชุม 2026-05-19 (ย้ายจาก Step3 มา Step4)
 const isReady = computed(() =>
@@ -201,6 +224,8 @@ watch(otherDocName, (name) => {
 // เมื่อ component mount ใหม่ (เช่น ผู้ใช้กลับมา Step4) ให้ restore ไฟล์จาก store
 // File object ยังอยู่ใน app.files (Map ใน Pinia) แต่ preview ใน useImageUpload หายไปแล้ว
 onMounted(async () => {
+  bankAccountTypeId.value = app.step3?.bankAccountTypeId ?? ''
+
   // field = ชื่อ reviewComment ของ slot นั้น — ใช้ guard การ fetch รูปในโหมด edit-request
   const slots: Array<{ id: string; field: string; uploader: ReturnType<typeof useImageUpload> }> = [
     { id: 'exterior',     field: 'evidence_house_exterior',       uploader: exterior     },
@@ -496,11 +521,32 @@ defineExpose({
             :target-name="ocrTargetName"
             :bank-options="bankOptions"
             :account-type-options="accountTypeOptions"
+            :manual-account-type-id="bankAccountTypeId"
             :disabled="ocrDisabled"
             @auto-fill="handleOcrAutoFill"
           />
 
           <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
+          <div
+            v-if="showManualAccountType"
+            class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3"
+          >
+            <label class="block text-body-xs font-semibold text-amber-800 mb-1.5">
+              ประเภทเงินฝาก <span class="text-red-500">*</span>
+            </label>
+            <SearchableSelect
+              v-model="bankAccountTypeId"
+              :options="accountTypeSelectOptions"
+              placeholder="เลือกประเภทเงินฝาก"
+              :disabled="accountTypeOptions.length === 0"
+              :has-error="!bankAccountTypeId"
+              @change="syncBankAccountType"
+            />
+            <p class="text-micro text-amber-700 mt-1.5">
+              กรุณาเลือกข้อมูลจากสมุดบัญชี
+            </p>
+          </div>
+
           <div
             v-if="!previewBankBook"
             class="border-2 border-dashed rounded-xl p-4 transition-colors"
