@@ -245,6 +245,35 @@ async function handleSubmit() {
         }
       }
 
+      // อัปโหลด/อัปเดตรูปภาพเอกสารของสมาชิก (edit mode)
+      const memberDocTypeMap: Record<string, number> = {
+        id_card: 12, house_home: 6, house_person: 7, other: 99,
+      }
+      for (const [key, file] of app.memberFiles.entries()) {
+        const match = key.match(/^m(\d+)_(.+)$/)
+        if (!match) continue
+        const seq      = Number(match[1])
+        const docType  = match[2]
+        const attachmentTypeId = memberDocTypeMap[docType]
+        if (!attachmentTypeId) continue
+        // ลบ evidence เดิมก่อน (ถ้ามี)
+        const oldEvidenceId = app.memberExistingEvidenceIds[key]
+        if (oldEvidenceId) {
+          await welfareApi.deleteEvidence(app.editApplicantId, oldEvidenceId)
+        }
+        const otherName = docType === 'other' ? app.memberExistingOtherTypeNames[key] : undefined
+        await welfareApi.uploadMemberEvidence(app.editApplicantId, seq, attachmentTypeId, file, otherName)
+      }
+      // กรณีแก้แค่ชื่อ "อื่นๆ" ของสมาชิกโดยไม่ได้เปลี่ยนรูป → PATCH ชื่อ
+      for (const [key, name] of Object.entries(app.memberExistingOtherTypeNames)) {
+        if (!key.endsWith('_other')) continue
+        const hasNewFile = app.memberFiles.has(key)
+        const evidenceId = app.memberExistingEvidenceIds[key]
+        if (!hasNewFile && evidenceId && name) {
+          await welfareApi.updateEvidenceName(app.editApplicantId, evidenceId, name)
+        }
+      }
+
       const editedId = app.editApplicantId
 
       // Link OCR result (ถ้ามีการอัปโหลดรูปสมุดบัญชีใหม่ใน edit mode)
@@ -280,6 +309,28 @@ async function handleSubmit() {
       if (!file) continue
       const attachmentTypeId = ATTACHMENT_TYPE_MAP[meta.docType] ?? 8
       await welfareApi.uploadEvidence(applicantId, attachmentTypeId, file, meta.otherTypeName)
+    }
+
+    // 3.5 อัปโหลดรูปภาพเอกสารของสมาชิกในครัวเรือน (ถ้ามี)
+    // key รูปแบบ "m{seq}_{docType}" → ดึง seq + docType จาก key แล้วส่ง uploadMemberEvidence
+    if (app.memberFiles.size > 0) {
+      const memberDocTypeMap: Record<string, number> = {
+        id_card:      12,
+        house_home:   6,
+        house_person: 7,
+        other:        99,
+      }
+      for (const [key, file] of app.memberFiles.entries()) {
+        // parse key: "m{seq}_{docType}"
+        const match = key.match(/^m(\d+)_(.+)$/)
+        if (!match) continue
+        const seq      = Number(match[1])
+        const docType  = match[2]
+        const attachmentTypeId = memberDocTypeMap[docType]
+        if (!attachmentTypeId) continue
+        const otherName = docType === 'other' ? app.memberExistingOtherTypeNames[key] : undefined
+        await welfareApi.uploadMemberEvidence(applicantId, seq, attachmentTypeId, file, otherName)
+      }
     }
 
     // 4. ล้างข้อมูล draft ออกจาก memory และ sessionStorage

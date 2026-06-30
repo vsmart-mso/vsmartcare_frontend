@@ -298,6 +298,12 @@ export interface FullHouseholdMemberRead {
   monthly_income: string | null  // Decimal จาก backend ส่งมาเป็น string
   physical_condition: PhysicalCondition
   self_care: boolean
+  // รูปภาพเอกสารของสมาชิกคนนี้ — backend ส่งมาพร้อมกับ household_members
+  evidences: Array<{
+    id: number
+    attachment_type_id: number   // 12=id_card, 13=house_home, 14=house_person, 15=other
+    file_other_type_name: string | null
+  }>
 }
 
 export interface FullCaseDetail {
@@ -318,6 +324,8 @@ export interface FullCaseDetail {
     attachment_type_id: number
     file_name: string | null
     file_other_type_name: string | null
+    // household_member_id: NOT NULL = evidence ของสมาชิก, NULL = evidence ของผู้ยื่น
+    household_member_id: number | null
   }>
   welfare_request_status_logs: StatusLogItem[]
   latest_welfare_request_status: StatusLogItem | null
@@ -466,6 +474,35 @@ export const welfareApi = {
     // backend บังคับให้ส่ง file_other_type_name เมื่อ attachment_type_id = 99 (อื่นๆ)
     if (otherTypeName) form.append('file_other_type_name', otherTypeName)
     return _postMultipart<{ evidence: unknown }>(`/v1/cases/${applicantId}/evidences`, form)
+  },
+
+  // อัปโหลดรูปภาพเอกสารของสมาชิกในครัวเรือน
+  // ส่ง household_member_seq แทน id — backend resolve เป็น household_member_id เอง
+  // (attachment_type_id: 12=บัตรประชาชน, 13=ทะเบียนบ้านบ้าน, 14=ทะเบียนบ้านบุคคล, 15=อื่นๆ)
+  uploadMemberEvidence(
+    applicantId: number,
+    memberSeq: number,
+    attachmentTypeId: number,
+    file: File,
+    otherTypeName?: string,
+  ) {
+    const form = new FormData()
+    form.append('attachment_type_id', String(attachmentTypeId))
+    form.append('household_member_seq', String(memberSeq))
+    form.append('file', file)
+    if (otherTypeName) form.append('file_other_type_name', otherTypeName)
+    return _postMultipart<{ evidence: { id: number } }>(`/v1/cases/${applicantId}/evidences`, form)
+  },
+
+  // ดาวน์โหลดรูปเอกสารสมาชิกจาก server → blob URL
+  // ใช้ endpoint เดิม — evidence ของสมาชิกใช้ path เดียวกับ evidence ของผู้ยื่น
+  async fetchMemberEvidenceAsObjectUrl(applicantId: number, evidenceId: number): Promise<string> {
+    return welfareApi.fetchEvidenceAsObjectUrl(applicantId, evidenceId)
+  },
+
+  // แก้ชื่อเอกสาร "อื่นๆ" ของสมาชิก (ไม่ต้อง re-upload ไฟล์)
+  updateMemberEvidenceName(applicantId: number, evidenceId: number, name: string) {
+    return welfareApi.updateEvidenceName(applicantId, evidenceId, name)
   },
 
   // ─── Satisfaction Survey ─────────────────────────────────────────────────────

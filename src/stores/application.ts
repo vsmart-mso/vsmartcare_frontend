@@ -139,6 +139,9 @@ interface SerializableDraft {
   editApplicantId:       number | null
   existingEvidenceIds:    Record<string, number>
   existingOtherTypeNames: Record<string, string>  // ชื่อเอกสารสำหรับ other_doc_0/1/2
+  // รูปภาพเอกสารของสมาชิก — key = "m{seq}_{docType}" เช่น "m1_id_card"
+  memberExistingEvidenceIds:    Record<string, number>
+  memberExistingOtherTypeNames: Record<string, string>  // key = "m{seq}_other"
   savedAt:                string // ISO timestamp
 }
 
@@ -187,6 +190,26 @@ export const ATTACHMENT_ID_TO_DOCTYPE: Record<number, string> = Object.fromEntri
   Object.entries(ATTACHMENT_TYPE_MAP).map(([k, v]) => [v, k])
 )
 
+// ─── Attachment type map สำหรับรูปภาพเอกสารของสมาชิกในครัวเรือน ─────────────
+// docType → attachment_types.id
+// - id_card (12): ใหม่ — ตั้งชื่อ 'id_card' ไม่มี prefix เผื่อผู้ยื่นใช้ด้วยในอนาคต
+// - house_home / house_person / other: ใช้ ID เดิมร่วมกับผู้ยื่น แยกด้วย household_member_id
+export const MEMBER_ATTACHMENT_TYPE_MAP: Record<string, number> = {
+  id_card:      12,
+  house_home:   6,
+  house_person: 7,
+  other:        99,
+}
+
+// Reverse map สำหรับ edit mode: attachment_types.id → member docType
+// ใช้เฉพาะกับ evidence ที่ household_member_id IS NOT NULL เท่านั้น
+export const MEMBER_ATTACHMENT_ID_TO_DOCTYPE: Record<number, string> = {
+  12: 'id_card',
+  6:  'house_home',
+  7:  'house_person',
+  99: 'other',
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useApplicationStore = defineStore('application', () => {
   // อ่าน draft จาก sessionStorage ถ้ามี (กรณี user กด refresh)
@@ -221,6 +244,25 @@ export const useApplicationStore = defineStore('application', () => {
   // ชื่อเอกสาร other_doc_0/1/2 (persist ได้) — key = 'other_doc_0' | 'other_doc_1' | 'other_doc_2'
   const existingOtherTypeNames = ref<Record<string, string>>(saved?.existingOtherTypeNames ?? {})
 
+  // ── Member Photo State ────────────────────────────────────────────────────
+  // key รูปแบบ "m{seq}_{docType}" เช่น "m1_id_card", "m2_house_home", "m3_other"
+
+  // File objects จริงๆ (memory only — ไม่ serialize)
+  const memberFiles = ref<Map<string, File>>(new Map())
+
+  // evidence ID จาก server สำหรับ edit mode (persist ลง sessionStorage ได้)
+  const memberExistingEvidenceIds = ref<Record<string, number>>(
+    saved?.memberExistingEvidenceIds ?? {}
+  )
+
+  // blob URL สำหรับแสดงรูป (memory only — re-fetch เมื่อ mount ใหม่หลัง refresh)
+  const memberExistingImageUrls = ref<Record<string, string>>({})
+
+  // ชื่อเอกสาร "อื่นๆ" ของสมาชิก (persist ได้) — key = "m{seq}_other"
+  const memberExistingOtherTypeNames = ref<Record<string, string>>(
+    saved?.memberExistingOtherTypeNames ?? {}
+  )
+
   // ── Bank Book OCR State (ไม่ persist เพราะ re-OCR ใหม่ทุกครั้ง) ──────────
   // เก็บผล OCR จากรูปสมุดบัญชี — ใช้ข้าม step (Step3 → Step5)
   const bankBookOcrResult = ref<OcrBankBookResponse | null>(null)
@@ -233,7 +275,8 @@ export const useApplicationStore = defineStore('application', () => {
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
   watch(
     [pdpa, checkSelf, selectedService, step1, step2, step3, documentsMeta,
-     editMode, editApplicantId, existingEvidenceIds, existingOtherTypeNames],
+     editMode, editApplicantId, existingEvidenceIds, existingOtherTypeNames,
+     memberExistingEvidenceIds, memberExistingOtherTypeNames],
     () => {
       saveDraftToStorage({
         pdpa:                   pdpa.value,
@@ -247,6 +290,8 @@ export const useApplicationStore = defineStore('application', () => {
         editApplicantId:        editApplicantId.value,
         existingEvidenceIds:    existingEvidenceIds.value,
         existingOtherTypeNames: existingOtherTypeNames.value,
+        memberExistingEvidenceIds:    memberExistingEvidenceIds.value,
+        memberExistingOtherTypeNames: memberExistingOtherTypeNames.value,
         savedAt:                new Date().toISOString(),
       })
     },
@@ -584,9 +629,29 @@ export const useApplicationStore = defineStore('application', () => {
     // ── Evidence IDs สำหรับ lazy-load รูปใน Step4 ───────────────────────────
     existingEvidenceIds.value = {}
     existingOtherTypeNames.value = {}
+    memberExistingEvidenceIds.value = {}
+    memberExistingOtherTypeNames.value = {}
+
+    // สร้าง map: household_member_id → seq เพื่อสร้าง key "m{seq}_{docType}"
+    const memberIdToSeq: Record<number, number> = {}
+    for (const m of caseData.household_members ?? []) {
+      if (m.id != null) memberIdToSeq[m.id] = m.seq
+    }
+
     let otherDocIdx = 0
     for (const ev of caseData.welfare_evidences) {
-      if (ev.attachment_type_id === 99) {
+      if (ev.household_member_id != null) {
+        // รูปของสมาชิกในครัวเรือน — ใช้ key "m{seq}_{docType}"
+        const seq = memberIdToSeq[ev.household_member_id]
+        if (seq == null) continue  // สมาชิกถูกลบไปแล้ว → ข้าม
+        const docType = MEMBER_ATTACHMENT_ID_TO_DOCTYPE[ev.attachment_type_id]
+        if (!docType) continue
+        const key = `m${seq}_${docType}`
+        memberExistingEvidenceIds.value = { ...memberExistingEvidenceIds.value, [key]: ev.id }
+        if (docType === 'other' && ev.file_other_type_name) {
+          memberExistingOtherTypeNames.value = { ...memberExistingOtherTypeNames.value, [key]: ev.file_other_type_name }
+        }
+      } else if (ev.attachment_type_id === 99) {
         // รองรับ "รูปอื่น ๆ" หลายรูป (สูงสุด 3 slot) โดยใส่ key other_doc_0/1/2 ตามลำดับ
         if (otherDocIdx < 3) {
           const key = `other_doc_${otherDocIdx}`
@@ -614,6 +679,48 @@ export const useApplicationStore = defineStore('application', () => {
   function clearExistingImage(docType: string) {
     const { [docType]: _, ...rest } = existingImageUrls.value
     existingImageUrls.value = rest
+  }
+
+  // ─── Member Photo Actions ─────────────────────────────────────────────────
+
+  // บันทึก File object ของรูปสมาชิก — key = "m{seq}_{docType}"
+  function addMemberFile(key: string, file: File) {
+    memberFiles.value.set(key, file)
+  }
+
+  // ลบ File object และ evidence ID ของรูปสมาชิก
+  function removeMemberFile(key: string) {
+    memberFiles.value.delete(key)
+    const { [key]: _, ...rest } = memberExistingEvidenceIds.value
+    memberExistingEvidenceIds.value = rest
+    const { [key]: _2, ...rest2 } = memberExistingImageUrls.value
+    memberExistingImageUrls.value = rest2
+    const { [key]: _3, ...rest3 } = memberExistingOtherTypeNames.value
+    memberExistingOtherTypeNames.value = rest3
+  }
+
+  // รับ File object ของรูปสมาชิก
+  function getMemberFile(key: string): File | undefined {
+    return memberFiles.value.get(key)
+  }
+
+  // เก็บ blob URL ของรูปสมาชิกที่ fetch มาแล้ว (edit mode)
+  function setMemberExistingImage(key: string, url: string) {
+    memberExistingImageUrls.value = { ...memberExistingImageUrls.value, [key]: url }
+  }
+
+  // user กด "ลบ" รูปสมาชิกเดิม
+  function clearMemberExistingImage(key: string) {
+    const { [key]: _, ...rest } = memberExistingImageUrls.value
+    memberExistingImageUrls.value = rest
+    // ลบ evidence ID ออกด้วยเพื่อไม่ให้ edit mode สับสน
+    const { [key]: _2, ...rest2 } = memberExistingEvidenceIds.value
+    memberExistingEvidenceIds.value = rest2
+  }
+
+  // บันทึกชื่อ "อื่นๆ" ของรูปสมาชิก — key = "m{seq}_other"
+  function setMemberOtherName(key: string, name: string) {
+    memberExistingOtherTypeNames.value = { ...memberExistingOtherTypeNames.value, [key]: name }
   }
 
   // ─── Bank Book OCR Actions ──────────────────────────────────────────────
@@ -648,6 +755,12 @@ export const useApplicationStore = defineStore('application', () => {
     Object.values(existingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
     existingImageUrls.value     = {}
     existingOtherTypeNames.value = {}
+    // ล้าง member photos
+    memberFiles.value = new Map()
+    memberExistingEvidenceIds.value = {}
+    Object.values(memberExistingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
+    memberExistingImageUrls.value = {}
+    memberExistingOtherTypeNames.value = {}
     clearBankBookOcr()
     sessionStorage.removeItem(DRAFT_KEY)
   }
@@ -666,6 +779,11 @@ export const useApplicationStore = defineStore('application', () => {
     existingEvidenceIds,
     existingImageUrls,
     existingOtherTypeNames,
+    // member photos state
+    memberFiles,
+    memberExistingEvidenceIds,
+    memberExistingImageUrls,
+    memberExistingOtherTypeNames,
     bankBookOcrResult,
     bankBookOcrLoading,
     bankBookOcrResultId,
@@ -685,6 +803,13 @@ export const useApplicationStore = defineStore('application', () => {
     populateFromCase,
     setExistingImage,
     clearExistingImage,
+    // member photos actions
+    addMemberFile,
+    removeMemberFile,
+    getMemberFile,
+    setMemberExistingImage,
+    clearMemberExistingImage,
+    setMemberOtherName,
     clearAll,
     setBankBookOcrLoading,
     setBankBookOcrResult,
