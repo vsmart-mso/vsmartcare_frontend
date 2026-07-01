@@ -21,7 +21,7 @@ pipeline {
 
         NAMESPACE     = "vcare"
         DEPLOYMENT    = "vcare-frontend"
-        CONTAINER     = "nginx"
+        CONTAINER     = "vcare-frontend"
 
         KUBECONFIG    = "/var/lib/jenkins/.kube/config"
     }
@@ -79,7 +79,7 @@ pipeline {
 
                     kubectl apply -f deployment.yml
                     kubectl apply -f service.yml
-                    kubectl apply -f ingress.yml
+                    kubectl apply -f hpa.yml
 
                     kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
                         ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}
@@ -97,7 +97,7 @@ pipeline {
                     kubectl -n ${NAMESPACE} get deployment
                     kubectl -n ${NAMESPACE} get pods -o wide
                     kubectl -n ${NAMESPACE} get svc
-                    kubectl -n ${NAMESPACE} get ingress
+                    kubectl -n ${NAMESPACE} get hpa
                 '''
             }
         }

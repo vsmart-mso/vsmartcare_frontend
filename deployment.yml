@@ -19,7 +19,7 @@ spec:
         - name: frontcred
       containers:
         - name: vcare-frontend
-          image: vcare-frontend:latest
+          image: registry-vs.m-society.go.th/kitsune-cop/vcare-frontend:latest
           ports:
             - containerPort: 80
           resources:
