@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: vcare
+  name: vcare-frontend
+  labels:
+    app: vcare-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vcare-frontend
+  template:
+    metadata:
+      labels:
+        app: vcare-frontend
+    spec:
+      imagePullSecrets:
+        - name: frontcred
+      containers:
+        - name: vcare-frontend
+          image: vcare-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
