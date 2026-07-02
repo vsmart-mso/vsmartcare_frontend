@@ -37,7 +37,22 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
+                    export KUBECONFIG=${KUBECONFIG}
+
+                    VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                        -o jsonpath='{.data.VITE_API_URL}' | base64 -d)
+                    VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                        -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)
+                    VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                        -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)
+                    VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                        -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)
+
                     docker build \
+                        --build-arg VITE_API_URL="$VITE_API_URL" \
+                        --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
+                        --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
+                        --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
                         -t ${IMAGE_NAME}:latest .
                 '''
