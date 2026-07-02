@@ -9,11 +9,9 @@ import { apiClient } from './client'
 async function _postMultipart<T = unknown>(path: string, form: FormData): Promise<T> {
   const baseURL = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
   const token   = sessionStorage.getItem('auth_token')
-  const bffKey  = import.meta.env.VITE_BFF_API_KEY as string | undefined
 
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (token)  headers['Authorization'] = `Bearer ${token}`
-  if (bffKey) headers['X-API-Key']     = bffKey
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
   const res = await fetch(`${baseURL}${path}`, { method: 'POST', headers, body: form })
   const data = await res.json().catch(() => ({}))
@@ -457,10 +455,8 @@ export const welfareApi = {
   async deleteEvidence(applicantId: number, evidenceId: number): Promise<void> {
     const baseURL = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
     const token   = sessionStorage.getItem('auth_token')
-    const bffKey  = import.meta.env.VITE_BFF_API_KEY as string | undefined
     const headers: Record<string, string> = {}
-    if (token)  headers['Authorization'] = `Bearer ${token}`
-    if (bffKey) headers['X-API-Key']     = bffKey
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`${baseURL}/v1/cases/${applicantId}/evidences/${evidenceId}`, { method: 'DELETE', headers })
     if (!res.ok) {
       const err = new Error(`${res.status} ${res.statusText}`) as Error & { data: unknown }
@@ -535,10 +531,8 @@ export const welfareApi = {
   async fetchEvidenceAsObjectUrl(applicantId: number, evidenceId: number): Promise<string> {
     const base = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
     const token  = sessionStorage.getItem('auth_token')
-    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
     const headers: Record<string, string> = {}
-    if (token)  headers['Authorization'] = `Bearer ${token}`
-    if (bffKey) headers['X-API-Key']     = bffKey
+    if (token) headers['Authorization'] = `Bearer ${token}`
     try {
       const res = await fetch(`${base}/v1/cases/${applicantId}/evidences/${evidenceId}/file`, { headers })
       if (!res.ok) return ''

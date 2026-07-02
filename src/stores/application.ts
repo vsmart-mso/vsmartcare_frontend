@@ -9,7 +9,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { CasePayload, FullCaseDetail, ReviewComment } from '@/api/welfare'
 import type { OcrBankBookResponse } from '@/api/ocr'
-import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
+import { estimateAgeFromThaiDBirthdate, normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
