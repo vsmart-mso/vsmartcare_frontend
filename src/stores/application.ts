@@ -9,6 +9,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { CasePayload, FullCaseDetail, ReviewComment } from '@/api/welfare'
 import type { OcrBankBookResponse } from '@/api/ocr'
+import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
 
 // ─── Key สำหรับ sessionStorage ───────────────────────────────────────────────
 const DRAFT_KEY = 'application_draft'
@@ -344,18 +345,13 @@ export const useApplicationStore = defineStore('application', () => {
 
     // คำนวณอายุจากวันเกิด YYYY-MM-DD
     function computeAge(dob: string | null | undefined): number | null {
-      if (!dob || !dob.trim()) return null
-      const birth = new Date(dob)
-      if (isNaN(birth.getTime())) return null
-      const today = new Date()
-      let y = today.getFullYear() - birth.getFullYear()
-      const passed =
-        today.getMonth() > birth.getMonth() ||
-        (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate())
-      if (!passed) y--
-      return y
+      return estimateAgeFromThaiDBirthdate(dob ?? '')
     }
-    const effectiveDob = authUser?.dob?.trim() || cs?.dob || null
+    const effectiveDob = (() => {
+      const raw = authUser?.dob?.trim() || cs?.dob || ''
+      if (!raw) return null
+      return normalizeThaiDBirthdateForApp(raw) || null
+    })()
     const age = computeAge(effectiveDob)
 
     // ─── addresses ────────────────────────────────────────────────────────

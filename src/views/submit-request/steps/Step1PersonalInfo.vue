@@ -6,6 +6,7 @@ import { useThaiAddress } from '@/composables/useThaiAddress'
 import { useApplicationStore } from '@/stores/application'
 import type { HouseholdMemberForm } from '@/stores/application'
 import { formatThaiDate } from '@/utils/formatDate'
+import { estimateAgeFromThaiDBirthdate } from '@/utils/birthdate'
 import { lookupsApi } from '@/api/lookups'
 import GpsMapPicker from '@/components/GpsMapPicker.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
@@ -249,15 +250,7 @@ function handleNationalIdBlur(idx: number) {
 
 // คำนวณอายุจากวันเกิด (YYYY-MM-DD) → number | null — ใช้ร่วมกันทั้ง main applicant และ household member
 function calcMemberAge(dob: string): number | null {
-  if (!dob) return null
-  const birth = new Date(dob)
-  if (isNaN(birth.getTime())) return null
-  const today = new Date()
-  let y = today.getFullYear() - birth.getFullYear()
-  const passed = today.getMonth() > birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate())
-  if (!passed) y -= 1
-  return y < 0 ? 0 : y
+  return estimateAgeFromThaiDBirthdate(dob)
 }
 
 // ── Thai date picker helpers ────────────────────────────────────────────────

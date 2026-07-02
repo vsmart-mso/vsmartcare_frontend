@@ -1,10 +1,15 @@
-// OCR API — เรียก OCR Service โดยตรง (ไม่ผ่าน BFF)
-// OCR service ใช้ Gemini 2.5 Flash อ่านข้อมูลจากรูปสมุดบัญชีธนาคาร
-//
-// Base URL: http://localhost:8004 (dev) / http://ocr-service:8000 (docker)
-// Docs:    ocr-service/OCR_API_DOCS.md
+// OCR API — เรียกผ่าน BFF (ME-02) พร้อม citizen Bearer token
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── OCR via BFF ─────────────────────────────────────────────────────────────
+
+const ocrBaseUrl = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, '') ?? 'http://localhost:8000/api-vsmartcare'
+
+function ocrAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers = { Accept: 'application/json', ...extra }
+  const token = sessionStorage.getItem('auth_token')
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
 
 export type MatchStatus = 'match' | 'review' | 'mismatch' | 'blurry' | 'no_text'
 
@@ -54,6 +59,21 @@ export interface OcrErrorResponse {
   detail: string
 }
 
+function ocrErrorMessage(detail: unknown, status: number): string {
+  const code = typeof detail === 'string' ? detail : ''
+  if (code === 'gemini_api_key_leaked' || code === 'gemini_api_key_invalid') {
+    return 'บริการอ่านรูปสมุดบัญชีชั่วคราวไม่พร้อมใช้งาน กรุณากรอกข้อมูลบัญชีด้วยตนเอง'
+  }
+  if (code === 'gemini_api_key_not_configured') {
+    return 'บริการ OCR ยังไม่ได้ตั้งค่า กรุณากรอกข้อมูลบัญชีด้วยตนเอง'
+  }
+  if (code === 'gemini_api_error' || status === 502) {
+    return 'ไม่สามารถอ่านรูปสมุดบัญชีได้ในขณะนี้ กรุณากรอกข้อมูลด้วยตนเอง'
+  }
+  if (code) return code
+  return `OCR service error ${status}`
+}
+
 // ─── State ของ OCR process ──────────────────────────────────────────────────
 
 export type OcrState =
@@ -64,9 +84,6 @@ export type OcrState =
   | { phase: 'aborted' }
 
 // ─── OCR Service ─────────────────────────────────────────────────────────────
-
-const ocrBaseUrl = (import.meta.env.VITE_OCR_API_URL as string)?.replace(/\/$/, '') ?? 'http://localhost:8004'
-const ocrApiKey = import.meta.env.VITE_OCR_API_KEY as string | undefined
 
 /**
  * ส่งรูปสมุดบัญชีไป OCR — รองรับการยกเลิกผ่าน AbortSignal
@@ -89,12 +106,7 @@ export async function ocrBankBook(
     form.append('applicant_id', String(applicantId))
   }
 
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  }
-  if (ocrApiKey) {
-    headers['Authorization'] = `Bearer ${ocrApiKey}`
-  }
+  const headers = ocrAuthHeaders()
   // ไม่ตั้ง Content-Type — browser จะตั้ง multipart/form-data พร้อม boundary เอง
 
   const res = await fetch(`${ocrBaseUrl}/v1/ocr/bank-book`, {
@@ -108,7 +120,7 @@ export async function ocrBankBook(
 
   if (!res.ok) {
     const err = new Error(
-      typeof data.detail === 'string' ? data.detail : `OCR service error ${res.status}`,
+      ocrErrorMessage(data.detail, res.status),
     ) as Error & { status: number }
     err.status = res.status
     throw err
@@ -125,8 +137,7 @@ export async function fetchOcrResults(
   applicantId: number,
   limit = 10,
 ): Promise<OcrResultsListResponse> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (ocrApiKey) headers['Authorization'] = `Bearer ${ocrApiKey}`
+  const headers = ocrAuthHeaders()
 
   const res = await fetch(
     `${ocrBaseUrl}/v1/ocr/results/${applicantId}?limit=${limit}`,
@@ -137,7 +148,7 @@ export async function fetchOcrResults(
 
   if (!res.ok) {
     const err = new Error(
-      typeof data.detail === 'string' ? data.detail : `OCR service error ${res.status}`,
+      ocrErrorMessage(data.detail, res.status),
     ) as Error & { status: number }
     err.status = res.status
     throw err
@@ -153,11 +164,7 @@ export async function linkOcrResult(
   ocrResultId: number,
   applicantId: number,
 ): Promise<OcrResultRecord> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  }
-  if (ocrApiKey) headers['Authorization'] = `Bearer ${ocrApiKey}`
+  const headers = ocrAuthHeaders({ 'Content-Type': 'application/json' })
 
   const res = await fetch(`${ocrBaseUrl}/v1/ocr/results/${ocrResultId}/link`, {
     method: 'PATCH',

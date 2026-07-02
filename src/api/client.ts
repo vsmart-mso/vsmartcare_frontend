@@ -21,6 +21,7 @@ export const apiClient = ofetch.create({
   onRequest({ options }) {
     const headers = new Headers(options.headers as HeadersInit | undefined)
     const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
+    // CR-02: optional — เมื่อมี citizen/staff Bearer แล้ว BFF ไม่บังคับ X-API-Key
     if (bffKey) {
       headers.set('X-API-Key', bffKey)
     }

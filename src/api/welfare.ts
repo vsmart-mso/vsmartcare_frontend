@@ -323,6 +323,10 @@ export interface FullCaseDetail {
   latest_welfare_request_status: StatusLogItem | null
   created_at: string | null
   count_037: number
+  /** approve_status ของแถว approve_case ล่าสุด — null = ยังไม่มีประวัติ */
+  latest_approve_status?: boolean | null
+  /** comment ล่าสุดจากการส่งกลับแก้ไข (status=8) */
+  welfare_edit_request_comments?: ReviewComment[]
 }
 
 // ─── Approve Case (การอนุมัติเคสของเจ้าหน้าที่) ─────────────────────────────────
