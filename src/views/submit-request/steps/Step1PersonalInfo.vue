@@ -6,10 +6,13 @@ import { useThaiAddress } from '@/composables/useThaiAddress'
 import { useApplicationStore } from '@/stores/application'
 import type { HouseholdMemberForm } from '@/stores/application'
 import { formatThaiDate } from '@/utils/formatDate'
+import { compressImage } from '@/composables/useImageUpload'
 import { lookupsApi } from '@/api/lookups'
+import { welfareApi } from '@/api/welfare'
 import GpsMapPicker from '@/components/GpsMapPicker.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import PhotoUploadCard from '../components/PhotoUploadCard.vue'
 import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
 // ─── สถานะการโหลด ──────────────────────────────────────────────────────────────
@@ -146,6 +149,144 @@ const displayIncomeList = ref<string[]>([])
 const memberErrorsList = ref<MemberFieldErrors[]>([])
 const nationalIdSuccessList = ref<string[]>([])
 
+// ─── Member Photo State ─────────────────────────────────────────────────────
+// แต่ละสมาชิกมี 4 slot: id_card, house_home, house_person, other
+// ใช้ compressImage โดยตรง (ไม่ใช้ composable เพราะ slot จำนวนไม่แน่นอน)
+
+interface MemberPhotoSlot {
+  file:       File | null
+  previewUrl: string
+  isLoading:  boolean
+  error:      string
+}
+
+interface MemberPhotoRow {
+  idCard:      MemberPhotoSlot
+  houseHome:   MemberPhotoSlot
+  housePerson: MemberPhotoSlot
+  other:       MemberPhotoSlot
+  otherName:   string  // ชื่อสำหรับ docType "other"
+  expanded:    boolean // แสดง/ซ่อน section นี้
+}
+
+// array ขนาดเดียวกับ householdMembers
+const memberPhotoRows = ref<MemberPhotoRow[]>([])
+
+function _blankPhotoSlot(): MemberPhotoSlot {
+  return { file: null, previewUrl: '', isLoading: false, error: '' }
+}
+
+function _blankMemberPhotoRow(): MemberPhotoRow {
+  return {
+    idCard:      _blankPhotoSlot(),
+    houseHome:   _blankPhotoSlot(),
+    housePerson: _blankPhotoSlot(),
+    other:       _blankPhotoSlot(),
+    otherName:   '',
+    expanded:    false,
+  }
+}
+
+// ดึง slot object จากชื่อ key
+function getPhotoSlot(row: MemberPhotoRow, slotKey: string): MemberPhotoSlot {
+  return row[slotKey as keyof Pick<MemberPhotoRow, 'idCard' | 'houseHome' | 'housePerson' | 'other'>] as MemberPhotoSlot
+}
+
+// สร้าง store key: "m{seq}_{docType}"
+function memberPhotoKey(memberSeq: number, docType: string): string {
+  return `m${memberSeq}_${docType}`
+}
+
+// slot key → docType (ตรงกับ MEMBER_ATTACHMENT_TYPE_MAP)
+const SLOT_TO_DOCTYPE: Record<string, string> = {
+  idCard:      'id_card',
+  houseHome:   'house_home',
+  housePerson: 'house_person',
+  other:       'other',
+}
+
+// preview: ใช้ local ก่อน ถ้าไม่มีใช้ blob URL จาก server (edit mode)
+function getMemberPhotoPreview(memberIdx: number, slotKey: string): string {
+  const row = memberPhotoRows.value[memberIdx]
+  const seq = householdMembers.value[memberIdx]?.seq
+  if (!row || !seq) return ''
+  const slot = getPhotoSlot(row, slotKey)
+  const docType = SLOT_TO_DOCTYPE[slotKey]
+  return slot.previewUrl || app.memberExistingImageUrls[memberPhotoKey(seq, docType)] || ''
+}
+
+// handler: user เลือกไฟล์รูป
+async function handleMemberPhotoSelect(memberIdx: number, slotKey: string, event: Event) {
+  const row = memberPhotoRows.value[memberIdx]
+  const seq = householdMembers.value[memberIdx]?.seq
+  if (!row || !seq) return
+
+  const slot    = getPhotoSlot(row, slotKey)
+  const docType = SLOT_TO_DOCTYPE[slotKey]
+  const key     = memberPhotoKey(seq, docType)
+
+  const input    = event.target as HTMLInputElement
+  const selected = input.files?.[0]
+  input.value = ''  // รีเซ็ต input เพื่อให้เลือกไฟล์เดิมซ้ำได้
+
+  if (!selected) return
+  if (!selected.type.startsWith('image/')) {
+    slot.error = 'กรุณาเลือกไฟล์รูปภาพเท่านั้น'
+    return
+  }
+  if (selected.size > 10 * 1024 * 1024) {
+    slot.error = `ไฟล์มีขนาด ${(selected.size / 1024 / 1024).toFixed(1)} MB เกินกว่าที่อนุญาต (สูงสุด 10 MB)`
+    return
+  }
+
+  slot.isLoading = true
+  slot.error     = ''
+
+  try {
+    if (slot.previewUrl) URL.revokeObjectURL(slot.previewUrl)
+    const result    = await compressImage(selected, { maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+    slot.file       = result.file
+    slot.previewUrl = result.previewUrl
+    // บันทึก File ลง store
+    app.addMemberFile(key, result.file)
+    // ล้าง existing image จาก server เมื่อ user upload รูปใหม่
+    app.clearMemberExistingImage(key)
+  } catch {
+    slot.error = 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'
+  } finally {
+    slot.isLoading = false
+  }
+}
+
+// handler: user ลบรูป
+function handleMemberPhotoClear(memberIdx: number, slotKey: string) {
+  const row = memberPhotoRows.value[memberIdx]
+  const seq = householdMembers.value[memberIdx]?.seq
+  if (!row || !seq) return
+
+  const slot    = getPhotoSlot(row, slotKey)
+  const docType = SLOT_TO_DOCTYPE[slotKey]
+  const key     = memberPhotoKey(seq, docType)
+
+  if (slot.previewUrl) URL.revokeObjectURL(slot.previewUrl)
+  slot.file       = null
+  slot.previewUrl = ''
+  slot.error      = ''
+
+  // ล้างทั้ง store
+  app.removeMemberFile(key)
+  app.clearMemberExistingImage(key)
+}
+
+// handler: user พิมพ์ชื่อ "อื่นๆ"
+function handleMemberOtherNameInput(memberIdx: number, name: string) {
+  const row = memberPhotoRows.value[memberIdx]
+  const seq = householdMembers.value[memberIdx]?.seq
+  if (!row || !seq) return
+  row.otherName = name
+  app.setMemberOtherName(memberPhotoKey(seq, 'other'), name)
+}
+
 function _blankMemberErrors(): MemberFieldErrors {
   return {
     prefixId: '', firstName: '', lastName: '', dateOfBirth: '',
@@ -183,6 +324,15 @@ function ensureMemberAuxState() {
     displayIncomeList.value.push('')
     memberErrorsList.value.push(_blankMemberErrors())
     nationalIdSuccessList.value.push('')
+    memberPhotoRows.value.push(_blankMemberPhotoRow())
+  }
+  // เมื่อลดสมาชิก — revoke blob URLs ของ slot ที่ถูกตัดออก เพื่อ free memory
+  while (memberPhotoRows.value.length > n) {
+    const removed = memberPhotoRows.value.pop()!
+    for (const slotKey of ['idCard', 'houseHome', 'housePerson', 'other'] as const) {
+      const slot = removed[slotKey]
+      if (slot.previewUrl) URL.revokeObjectURL(slot.previewUrl)
+    }
   }
   memberDobPartsList.value.splice(n)
   displayIncomeList.value.splice(n)
@@ -673,6 +823,41 @@ onMounted(async () => {
       // ใช้ restore() จาก useThaiAddress ซึ่ง await API fetch แต่ละระดับจนเสร็จก่อนตั้งค่าถัดไป
       // แก้ปัญหา nextTick() ไม่เพียงพอเพราะ API fetch เป็น async และใช้เวลานานกว่า 1 tick
       await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
+
+      // ─── Edit mode: โหลดรูปภาพสมาชิกจาก server (lazy fetch) ─────────────────
+      // ทำแบบ non-blocking: fetch รูปทั้งหมดแบบ parallel แล้วตั้งค่าลง store
+      if (app.editMode && app.editApplicantId) {
+        const applicantId = app.editApplicantId
+        for (let i = 0; i < householdMembers.value.length; i++) {
+          const seq = householdMembers.value[i]?.seq
+          if (!seq) continue
+          for (const [slotKey, docType] of Object.entries(SLOT_TO_DOCTYPE)) {
+            const storeKey  = memberPhotoKey(seq, docType)
+            const evidenceId = app.memberExistingEvidenceIds[storeKey]
+            // โหลดเฉพาะ slot ที่มี evidence ID และยังไม่มี blob URL
+            if (evidenceId && !app.memberExistingImageUrls[storeKey]) {
+              const row = memberPhotoRows.value[i]
+              if (row) {
+                const slot = getPhotoSlot(row, slotKey)
+                slot.isLoading = true
+                welfareApi.fetchEvidenceAsObjectUrl(applicantId, evidenceId)
+                  .then(url => {
+                    app.setMemberExistingImage(storeKey, url)
+                  })
+                  .catch(() => { /* ไม่แสดง error เพราะ edit mode เป็น optional */ })
+                  .finally(() => { slot.isLoading = false })
+              }
+            }
+            // โหลดชื่อ "อื่นๆ" จาก store
+            if (docType === 'other') {
+              const row = memberPhotoRows.value[i]
+              if (row && app.memberExistingOtherTypeNames[storeKey]) {
+                row.otherName = app.memberExistingOtherTypeNames[storeKey]
+              }
+            }
+          }
+        }
+      }
     }
   } finally {
     // ปิด skeleton เสมอ — ไม่ว่าจะโหลดสำเร็จหรือเกิดข้อผิดพลาด ผู้ใช้ต้องได้เห็นฟอร์ม
@@ -1544,6 +1729,129 @@ defineExpose({
                 </div>
                 <p v-if="householdMembersTouched && memberErrorsList[idx]?.selfCare" class="text-micro text-red-500 mt-0.5">{{ memberErrorsList[idx].selfCare }}</p>
               </div>
+            </div>
+
+            <!-- ─── ส่วนแนบรูปภาพเอกสารของสมาชิก ─────────────────────────── -->
+            <!-- แสดง/ซ่อนได้ด้วยปุ่ม expand — ไม่ required -->
+            <div class="mt-4 border-t border-slate-100 pt-3">
+              <!-- ปุ่ม toggle expand -->
+              <button
+                type="button"
+                @click="memberPhotoRows[idx] && (memberPhotoRows[idx].expanded = !memberPhotoRows[idx].expanded)"
+                class="flex items-center gap-2 w-full text-left group"
+              >
+                <div class="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-50 transition-colors flex-shrink-0">
+                  <svg
+                    class="w-3.5 h-3.5 text-slate-500 group-hover:text-[#1A56DB] transition-all duration-200"
+                    :class="memberPhotoRows[idx]?.expanded ? 'rotate-180' : ''"
+                    viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+                  >
+                    <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <span class="text-body-xs font-medium text-slate-600 group-hover:text-[#1A56DB] transition-colors">
+                  แนบรูปภาพเอกสาร (ไม่บังคับ)
+                </span>
+                <!-- แสดงจำนวนรูปที่แนบแล้ว -->
+                <span
+                  v-if="['idCard','houseHome','housePerson','other'].filter(s => getMemberPhotoPreview(idx, s)).length > 0"
+                  class="ml-auto text-micro bg-blue-100 text-[#1A56DB] font-bold px-2 py-0.5 rounded-full"
+                >
+                  {{ ['idCard','houseHome','housePerson','other'].filter(s => getMemberPhotoPreview(idx, s)).length }} รูป
+                </span>
+              </button>
+
+              <!-- ส่วน photo upload (แสดงเมื่อ expanded) -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 -translate-y-2"
+                enter-to-class="opacity-100 translate-y-0"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100 translate-y-0"
+                leave-to-class="opacity-0 -translate-y-1"
+              >
+                <div v-if="memberPhotoRows[idx]?.expanded" class="mt-3 space-y-3">
+                  <!-- รูปภาพบัตรประชาชน -->
+                  <PhotoUploadCard
+                    :upload-id="`member-idcard-${m.seq}`"
+                    title="รูปภาพบัตรประชาชน"
+                    icon="person"
+                    :required="false"
+                    :preview-url="getMemberPhotoPreview(idx, 'idCard')"
+                    :file-name="memberPhotoRows[idx]?.idCard.file?.name ?? ''"
+                    :file-size="memberPhotoRows[idx]?.idCard.file?.size ?? 0"
+                    :is-loading="memberPhotoRows[idx]?.idCard.isLoading ?? false"
+                    :error="memberPhotoRows[idx]?.idCard.error ?? ''"
+                    :replace-mode="!!getMemberPhotoPreview(idx, 'idCard')"
+                    @file-select="(e) => handleMemberPhotoSelect(idx, 'idCard', e)"
+                    @clear="handleMemberPhotoClear(idx, 'idCard')"
+                  />
+                  <!-- รูปทะเบียนบ้าน: รายการเกี่ยวกับบ้าน -->
+                  <PhotoUploadCard
+                    :upload-id="`member-househome-${m.seq}`"
+                    title="รูปภาพทะเบียนบ้าน"
+                    subtitle="รายการเกี่ยวกับบ้าน"
+                    icon="house"
+                    :required="false"
+                    :preview-url="getMemberPhotoPreview(idx, 'houseHome')"
+                    :file-name="memberPhotoRows[idx]?.houseHome.file?.name ?? ''"
+                    :file-size="memberPhotoRows[idx]?.houseHome.file?.size ?? 0"
+                    :is-loading="memberPhotoRows[idx]?.houseHome.isLoading ?? false"
+                    :error="memberPhotoRows[idx]?.houseHome.error ?? ''"
+                    :replace-mode="!!getMemberPhotoPreview(idx, 'houseHome')"
+                    @file-select="(e) => handleMemberPhotoSelect(idx, 'houseHome', e)"
+                    @clear="handleMemberPhotoClear(idx, 'houseHome')"
+                  />
+                  <!-- รูปทะเบียนบ้าน: รายการเกี่ยวกับบุคคล -->
+                  <PhotoUploadCard
+                    :upload-id="`member-houseperson-${m.seq}`"
+                    title="รูปภาพทะเบียนบ้าน"
+                    subtitle="รายการเกี่ยวกับบุคคล"
+                    icon="person"
+                    :required="false"
+                    :preview-url="getMemberPhotoPreview(idx, 'housePerson')"
+                    :file-name="memberPhotoRows[idx]?.housePerson.file?.name ?? ''"
+                    :file-size="memberPhotoRows[idx]?.housePerson.file?.size ?? 0"
+                    :is-loading="memberPhotoRows[idx]?.housePerson.isLoading ?? false"
+                    :error="memberPhotoRows[idx]?.housePerson.error ?? ''"
+                    :replace-mode="!!getMemberPhotoPreview(idx, 'housePerson')"
+                    @file-select="(e) => handleMemberPhotoSelect(idx, 'housePerson', e)"
+                    @clear="handleMemberPhotoClear(idx, 'housePerson')"
+                  />
+                  <!-- รูปภาพอื่น ๆ + ช่องกรอกชื่อ -->
+                  <PhotoUploadCard
+                    :upload-id="`member-other-${m.seq}`"
+                    title="รูปภาพอื่น ๆ"
+                    subtitle="ถ้ามี"
+                    icon="document"
+                    :required="false"
+                    :preview-url="getMemberPhotoPreview(idx, 'other')"
+                    :file-name="memberPhotoRows[idx]?.other.file?.name ?? ''"
+                    :file-size="memberPhotoRows[idx]?.other.file?.size ?? 0"
+                    :is-loading="memberPhotoRows[idx]?.other.isLoading ?? false"
+                    :error="memberPhotoRows[idx]?.other.error ?? ''"
+                    :replace-mode="!!getMemberPhotoPreview(idx, 'other')"
+                    @file-select="(e) => handleMemberPhotoSelect(idx, 'other', e)"
+                    @clear="handleMemberPhotoClear(idx, 'other')"
+                  >
+                    <!-- ช่องกรอกชื่อรูปภาพ (แสดงเสมอ ไม่ว่าจะมีรูปหรือไม่) -->
+                    <div class="mt-2">
+                      <label class="text-hint text-slate-600 mb-1 font-medium block">
+                        ชื่อรูปภาพ
+                        <span v-if="getMemberPhotoPreview(idx, 'other')" class="text-red-500"> *</span>
+                      </label>
+                      <input
+                        :value="memberPhotoRows[idx]?.otherName ?? ''"
+                        @input="(e) => handleMemberOtherNameInput(idx, (e.target as HTMLInputElement).value)"
+                        type="text"
+                        maxlength="100"
+                        placeholder="ระบุชื่อเอกสาร"
+                        class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+                      />
+                    </div>
+                  </PhotoUploadCard>
+                </div>
+              </Transition>
             </div>
           </div>
         </div>

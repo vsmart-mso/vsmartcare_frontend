@@ -48,6 +48,8 @@ function buildFilterFields(step: number): string[] {
     }
     // ค่าเช่าต้องการ housingType เพื่อ toggle เงื่อนไข
     if (names.has('housing_rent')) names.add('housing_type')
+    // รูปภาพเอกสารสมาชิก → แสดง section สมาชิกในครัวเรือน (ส่วน photo อยู่ใน card)
+    if (names.has('household_member_photos')) names.add('household_members')
   }
 
   if (step === 2) {
@@ -234,6 +236,13 @@ const allFieldsEdited = computed(() => {
     }
     // เงิน-only: แสดง alert อย่างเดียว ไม่บังคับเปลี่ยนค่า
     if (c.name === 'requested_assistance_money') continue
+    // ── household_members: ถือว่าแก้แล้วถ้ามีรูปสมาชิกใหม่ (ไม่ต้องแก้ข้อมูลตัวอักษร) ──
+    // เพราะ dirty check เทียบแค่ JSON ข้อมูลสมาชิก ไม่รู้จักรูปภาพที่อัปโหลดใหม่
+    if (
+      (c.name === 'household_members' || c.name === 'family_members_count') &&
+      app.memberFiles.size > 0
+    ) continue
+
     // ── field ข้อความ/ตัวเลือก: เทียบค่าปัจจุบันกับค่าตั้งต้นทีละ field ──
     const base = baseline.value[c.step]
     const cur  = snapshot(c.step)
