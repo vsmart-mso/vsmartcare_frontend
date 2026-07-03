@@ -1,39 +1,29 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { authApi, type ThaIDLoginStatusResponse, THAID_LAST_LOGIN_START_KEY } from '@/api/auth'
+import { authApi, THAID_LAST_LOGIN_START_KEY } from '@/api/auth'
 import { setThaidDevMockActive } from '@/dev/mock/constants'
 import { useAuthStore } from '@/stores/auth'
 import { resolveHomeRoute } from '@/router'
 import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
+import {
+  DEFAULT_AUTH_LOGIN_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+  userMessageForAuthApiError,
+  userMessageForAuthErrorCode,
+} from '@/utils/authUserMessages'
 import type { ThaiDUser } from '@/types/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const message = ref('กำลังเข้าสู่ระบบ…')
-const errorDetail = ref<string | null>(null)
 const isError = ref(false)
 const isProvinceBlocked = ref(false)
 
-const LOGIN_FAIL_SUMMARY = 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
-
-function showLoginFailure(detail: string) {
-  message.value = LOGIN_FAIL_SUMMARY
-  errorDetail.value = detail
+function showLoginFailure(userMessage: string = DEFAULT_AUTH_LOGIN_MESSAGE) {
+  message.value = userMessage
   isError.value = true
-}
-
-function formatPollStatus(status: ThaIDLoginStatusResponse): string {
-  const parts = [`poll status=${status.status}`]
-  if (status.error) parts.push(`error=${status.error}`)
-  return parts.join(', ')
-}
-
-function formatOAuthError(code: string, description?: string | null): string {
-  const parts = [`OAuth error=${code}`]
-  if (description) parts.push(`description=${description}`)
-  return parts.join(', ')
 }
 
 function markDevMockSessionIfApplicable() {
@@ -62,8 +52,7 @@ onMounted(async () => {
       return
     }
 
-    const desc = params.get('error_description')?.trim() || null
-    showLoginFailure(formatOAuthError(errorCode, desc))
+    showLoginFailure(userMessageForAuthErrorCode(errorCode))
     return
   }
 
@@ -79,11 +68,11 @@ onMounted(async () => {
           isError.value = true
           return
         }
-        showLoginFailure(formatPollStatus(status))
+        showLoginFailure(userMessageForAuthErrorCode(status.error ?? 'auth_error'))
         return
       }
       if (status.status !== 'complete' || !status.access_token) {
-        showLoginFailure(formatPollStatus(status))
+        showLoginFailure(DEFAULT_AUTH_LOGIN_MESSAGE)
         return
       }
       sessionStorage.setItem('auth_token', status.access_token)
@@ -103,7 +92,7 @@ onMounted(async () => {
       await router.replace({ name: await resolveHomeRoute(u.person_id) })
     } catch (err) {
       sessionStorage.removeItem('auth_token')
-      showLoginFailure(formatApiError(err))
+      showLoginFailure(userMessageForAuthApiError(err))
     }
     return
   }
@@ -112,7 +101,7 @@ onMounted(async () => {
   const expiresIn = Number(params.get('expires_in') ?? '0') || 0
 
   if (!accessToken) {
-    showLoginFailure('ไม่มี login_state หรือ access_token ใน URL หลัง redirect')
+    showLoginFailure(SESSION_EXPIRED_MESSAGE)
     return
   }
 
@@ -135,14 +124,12 @@ onMounted(async () => {
     await router.replace({ name: await resolveHomeRoute(u.person_id) })
   } catch (err) {
     sessionStorage.removeItem('auth_token')
-    showLoginFailure(formatApiError(err))
+    showLoginFailure(userMessageForAuthApiError(err))
   }
 })
 
 function goLogin() {
-  const query = errorDetail.value
-    ? { auth_error: `${LOGIN_FAIL_SUMMARY}\n${errorDetail.value}` }
-    : undefined
+  const query = isError.value ? { auth_error: message.value } : undefined
   void router.replace({ name: 'login', query })
 }
 </script>
@@ -176,11 +163,6 @@ function goLogin() {
         >
           {{ message }}
         </p>
-        <pre
-          v-if="errorDetail"
-          class="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-body-xs text-red-900 whitespace-pre-wrap break-all overflow-x-auto"
-          role="alert"
-        >{{ errorDetail }}</pre>
       </div>
       <button
         v-if="isError"

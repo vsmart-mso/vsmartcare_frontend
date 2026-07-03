@@ -8,7 +8,10 @@ import { redirectBrowserToThaIDLogin } from '@/api/auth'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
 import { isLoginBetaNoticeEnabled } from '@/config/env'
-import { formatApiError } from '@/utils/formatApiError'
+import {
+  normalizeAuthErrorQuery,
+  userMessageForAuthApiError,
+} from '@/utils/authUserMessages'
 
 // import โลโก้ช่องทาง login
 import logoThaID    from '@/assets/logo-thaid.png'
@@ -30,7 +33,7 @@ function dismissBetaNotice() {
 onMounted(() => {
   const err = route.query.auth_error
   if (typeof err === 'string' && err) {
-    thaidError.value = err
+    thaidError.value = normalizeAuthErrorQuery(err)
     // ลบ query ออกจาก URL ไม่ให้ค้างเมื่อ user refresh
     router.replace({ name: 'login' })
   }
@@ -46,7 +49,7 @@ async function handleThaID() {
     await redirectBrowserToThaIDLogin(router)
   } catch (e: unknown) {
     thaidLoading.value = false
-    thaidError.value = formatApiError(e)
+    thaidError.value = userMessageForAuthApiError(e)
   }
 }
 
@@ -164,7 +167,7 @@ function handleTangRath() {
 
           <div
             v-if="thaidError"
-            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-body-xs text-red-800 whitespace-pre-wrap break-all"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-body-sm text-red-800 leading-relaxed"
             role="alert"
           >
             {{ thaidError }}
