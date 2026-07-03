@@ -5,9 +5,9 @@
 const ocrBaseUrl = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, '') ?? 'http://localhost:8000/api-vsmartcare'
 
 function ocrAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const headers = { Accept: 'application/json', ...extra }
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra }
   const token = sessionStorage.getItem('auth_token')
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }
 

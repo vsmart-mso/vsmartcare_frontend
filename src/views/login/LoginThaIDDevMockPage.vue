@@ -2,9 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { THAID_DEV_MOCK_STORAGE_KEY, setThaidDevMockActive } from '@/dev/mock/constants'
-import type { MockProfilePreview, StoredDevMockLogin } from '@/dev/mock/types'
+import type { StoredDevMockLogin } from '@/dev/mock/types'
 
-type MockProfile = MockProfilePreview
 type StoredMock = StoredDevMockLogin
 
 const router = useRouter()
