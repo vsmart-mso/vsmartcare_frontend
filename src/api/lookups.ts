@@ -1,6 +1,6 @@
 // Master lookup ผ่าน BFF — path ในโค้ดเป็น `/v1/lookups/...` ต่อท้าย base ที่รวม prefix
 // (เช่น `VITE_API_URL=http://localhost:8000/api-vsmartcare` → `/api-vsmartcare/v1/lookups/...`)
-// ใช้ apiClient (แนบ X-API-Key เมื่อตั้ง VITE_BFF_API_KEY)
+// ใช้ apiClient (แนบ Bearer หลัง ThaiD login — CR-02 ไม่ใช้ API key ใน browser)
 
 import { apiClient } from './client'
 

@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { AuthUser, AuthMethod } from '@/types/auth'
+import { clearThaidDevMockActive } from '@/dev/mock/constants'
 
 // defineStore('auth', ...) — 'auth' คือชื่อ unique ของ store นี้
 export const useAuthStore = defineStore('auth', () => {
@@ -72,6 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.removeItem('auth_token')      // ลบ token จาก browser ด้วย
     sessionStorage.removeItem('auth_method')     // ลบ method ด้วยเสมอ
     sessionStorage.removeItem('auth_expires_at') // ลบ expiry ด้วย
+    clearThaidDevMockActive()
   }
 
   // คืนค่าทั้งหมดออกไปให้ component อื่นใช้ได้

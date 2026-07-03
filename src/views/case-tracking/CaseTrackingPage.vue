@@ -221,36 +221,22 @@ onMounted(async () => {
       return
     }
 
-    // 2. ดึงประวัติการเปลี่ยนสถานะและ count_037 (ถ้าล้มเหลว แสดงข้อมูลหลักได้ปกติ)
+    // 2. ดึงประวัติการเปลี่ยนสถานะ count_037 approve/edit comments (ถ้าล้มเหลว แสดงข้อมูลหลักได้ปกติ)
     try {
       const detail = await welfareApi.getCase(caseData.value.applicant_id)
       statusLogs.value = [...detail.welfare_request_status_logs].reverse()
       count037.value = detail.count_037 ?? 0
+
+      const sid = caseData.value.current_status?.id ?? 0
+      if (sid === 3 || sid === 4 || sid === DISBURSED_STATUS_ID) {
+        approveStatus.value = detail.latest_approve_status ?? false
+      }
+
+      if (caseData.value.current_status?.id === EDIT_DATA_STATUS_ID) {
+        app.reviewComments = detail.welfare_edit_request_comments ?? []
+      }
     } catch {
       // ใช้ข้อมูลจาก display แทน
-    }
-
-    // 2.1 ถ้าอยู่ในช่วงเบิก/เบิกจ่าย (status 3, 4, 10) ดึง approve_case มาแยก stage 33%/66%
-    const sid = caseData.value.current_status?.id ?? 0
-    if (sid === 3 || sid === 4 || sid === DISBURSED_STATUS_ID) {
-      try {
-        // backend เรียง row ด้วย id.desc() (ใหม่สุดอยู่ index 0)
-        // เช็กจาก "row ล่าสุด" เท่านั้น เพื่อสะท้อนสถานะอนุมัติปัจจุบันจริง
-        // (กันกรณีเคยอนุมัติ=true แล้วภายหลังมี row ใหม่=false → ต้องถือเป็นยังไม่อนุมัติ)
-        const approves = await welfareApi.getApproveCases(caseData.value.applicant_id)
-        approveStatus.value = approves[0]?.approve_status ?? false
-      } catch {
-        // ไม่ใช่ข้อมูลหลัก — ไม่ block การแสดงผล (default = ยังไม่อนุมัติ → 33%)
-      }
-    }
-
-    // 3. ถ้าสถานะ=8 (แก้ไขข้อมูล) ดึง review comments จากเจ้าหน้าที่
-    if (caseData.value.current_status?.id === EDIT_DATA_STATUS_ID) {
-      try {
-        app.reviewComments = await welfareApi.getEditRequestComments(caseData.value.applicant_id)
-      } catch {
-        // comments ไม่ใช่ข้อมูลหลัก — ไม่ block การแสดงผล
-      }
     }
 
     /* [ปิดใช้งานชั่วคราว] แบบประเมินหลังเบิกจ่าย — เดี๋ยวอนาคตจะกลับมาใช้

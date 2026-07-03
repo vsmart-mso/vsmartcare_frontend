@@ -20,10 +20,6 @@ export const apiClient = ofetch.create({
   // ใช้สำหรับแนบ JWT token อัตโนมัติ
   onRequest({ options }) {
     const headers = new Headers(options.headers as HeadersInit | undefined)
-    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
-    if (bffKey) {
-      headers.set('X-API-Key', bffKey)
-    }
     // sessionStorage ปลอดภัยกว่า localStorage เพราะ scoped ต่อ tab เดียว
     // และถูกลบอัตโนมัติเมื่อปิด tab (ป้องกัน token รั่วข้าม session)
     const token = sessionStorage.getItem('auth_token')
