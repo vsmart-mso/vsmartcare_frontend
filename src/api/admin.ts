@@ -1,4 +1,4 @@
-// API ฝั่ง admin (TASK-v-care-12062026-01) — เปิด/ปิดบริการรายจังหวัด
+// API ฝั่ง admin (TASK-v-care-12062026-01) — เปิด/ปิดบริการรายจังหวัด + สร้างเคสสุ่ม
 //
 // ใช้ ofetch instance แยกจาก citizen (`client.ts`) เพราะ:
 //   - token เก็บใน localStorage (ไม่ใช่ sessionStorage)
@@ -40,6 +40,21 @@ export interface ProvinceAccess {
   updated_at: string | null
 }
 
+export interface RandomCaseCreated {
+  applicant_id: number
+  case_number: string | null
+  persons_id: number
+  cid: string
+  full_name: string
+  province_id: number | null
+  province_name: string | null
+}
+
+export interface RandomCasesCreateResult {
+  created: number
+  cases: RandomCaseCreated[]
+}
+
 export const adminApi = {
   login(username: string, password: string) {
     return adminClient<AdminLoginResponse>('/v1/admin/auth/login', {
@@ -65,5 +80,16 @@ export const adminApi = {
       '/v1/admin/provinces/bulk',
       { method: 'PUT', body: { is_enabled: isEnabled } },
     )
+  },
+
+  /** สร้างคำร้องสุ่ม (dev/staging) */
+  createRandomCases(count: number, provinceId?: number | null) {
+    return adminClient<RandomCasesCreateResult>('/v1/admin/cases/random', {
+      method: 'POST',
+      body: {
+        count,
+        ...(provinceId != null ? { province_id: provinceId } : {}),
+      },
+    })
   },
 }
