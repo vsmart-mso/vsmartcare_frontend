@@ -173,6 +173,20 @@ interface MemberPhotoRow {
 // array ขนาดเดียวกับ householdMembers
 const memberPhotoRows = ref<MemberPhotoRow[]>([])
 
+// ─── Buffer สำหรับสมาชิกที่ถูกลดจำนวนออกชั่วคราว ─────────────────────────────
+// เมื่อผู้ใช้ลดจำนวนสมาชิก (เช่น 2 → 1) ข้อมูลของสมาชิกที่เกินจะถูกย้ายมาเก็บที่นี่
+// แทนการลบทิ้งทันที — ถ้าผู้ใช้เพิ่มจำนวนกลับมา จะกู้คืนข้อมูลเดิมแทนที่จะสร้างช่องว่างใหม่
+// key = seq (ตำแหน่งที่เคยอยู่) — อยู่ในหน่วยความจำของ component นี้เท่านั้น (หายเมื่อออกจากหน้า)
+interface MemberBufferEntry {
+  member:            HouseholdMemberForm
+  dobParts:          { day: string; month: string; year: string }
+  displayIncome:     string
+  errors:            MemberFieldErrors
+  nationalIdSuccess: string
+  photoRow:          MemberPhotoRow
+}
+const memberBuffer = new Map<number, MemberBufferEntry>()
+
 function _blankPhotoSlot(): MemberPhotoSlot {
   return { file: null, previewUrl: '', isLoading: false, error: '' }
 }
@@ -248,10 +262,13 @@ async function handleMemberPhotoSelect(memberIdx: number, slotKey: string, event
     const result    = await compressImage(selected, { maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
     slot.file       = result.file
     slot.previewUrl = result.previewUrl
+    // ล้าง existing image จาก server เมื่อ user upload รูปใหม่ (ต้องเรียกก่อน addMemberFile
+    // เพราะ clearMemberExistingImage มาร์ค key ว่า "ถูกลบ" ถ้ายังมี evidence เดิมอยู่ — ต้องให้
+    // addMemberFile ที่ถอดมาร์คนี้ออกทำงานทีหลังสุด ไม่งั้น key จะค้างอยู่ใน removedEvidenceKeys
+    // ทั้งที่มีไฟล์ใหม่มาแทนแล้วจริง)
+    app.clearMemberExistingImage(key)
     // บันทึก File ลง store
     app.addMemberFile(key, result.file)
-    // ล้าง existing image จาก server เมื่อ user upload รูปใหม่
-    app.clearMemberExistingImage(key)
   } catch {
     slot.error = 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'
   } finally {
@@ -277,6 +294,12 @@ function handleMemberPhotoClear(memberIdx: number, slotKey: string) {
   // ล้างทั้ง store
   app.removeMemberFile(key)
   app.clearMemberExistingImage(key)
+
+  // ลบรูป "อื่นๆ" ทิ้ง → ล้างชื่อเอกสารไปด้วย (ต่างจากตอน "แทนที่รูป" ที่ไม่ควรล้างชื่อ)
+  if (slotKey === 'other') {
+    row.otherName = ''
+    app.setMemberOtherName(key, '')
+  }
 }
 
 // handler: user พิมพ์ชื่อ "อื่นๆ"
@@ -311,7 +334,7 @@ function isValidThaiNationalId(id: string): boolean {
 
 function _blankMember(seq: number): HouseholdMemberForm {
   return {
-    seq, nationalId: '', prefixId: '', prefixOther: '',
+    id: null, seq, nationalId: '', prefixId: '', prefixOther: '',
     firstName: '', lastName: '', dateOfBirth: '',
     relationToApplicantId: null, occupationTypeId: null, occupation: '', monthlyIncome: '',
     physicalCondition: '', selfCare: null,
@@ -344,15 +367,62 @@ function ensureMemberAuxState() {
 function syncMembersToCount() {
   const count = parseInt(householdMemberCount.value, 10) || 0
   const current = householdMembers.value.length
+
   if (count > current) {
+    // เพิ่มจำนวน — กู้คืนข้อมูลจาก buffer ก่อน (ถ้าเคยลดจำนวนออกไป) ถ้าไม่มีค่อยสร้างช่องว่างใหม่
     for (let i = current; i < count; i++) {
-      householdMembers.value.push(_blankMember(i + 1))
+      const seq = i + 1
+      const cached = memberBuffer.get(seq)
+      if (cached) {
+        householdMembers.value.push(cached.member)
+        memberDobPartsList.value.push(cached.dobParts)
+        displayIncomeList.value.push(cached.displayIncome)
+        memberErrorsList.value.push(cached.errors)
+        nationalIdSuccessList.value.push(cached.nationalIdSuccess)
+        memberPhotoRows.value.push(cached.photoRow)
+        memberBuffer.delete(seq)
+        // นำไฟล์รูปที่ถอดออกจาก store ตอนลดจำนวน กลับเข้า store อีกครั้ง
+        for (const [slotKey, docType] of Object.entries(SLOT_TO_DOCTYPE)) {
+          const file = getPhotoSlot(cached.photoRow, slotKey).file
+          if (file) app.addMemberFile(memberPhotoKey(seq, docType), file)
+        }
+      } else {
+        householdMembers.value.push(_blankMember(seq))
+        memberDobPartsList.value.push({ day: '', month: '', year: '' })
+        displayIncomeList.value.push('')
+        memberErrorsList.value.push(_blankMemberErrors())
+        nationalIdSuccessList.value.push('')
+        memberPhotoRows.value.push(_blankMemberPhotoRow())
+      }
     }
   } else if (count < current) {
+    // ลดจำนวน — ย้ายข้อมูลของสมาชิกที่เกินไปเก็บใน buffer แทนการลบทิ้ง
+    // (ไม่ revoke previewUrl ตรงนี้ เพราะอาจต้องใช้ต่อถ้าผู้ใช้เพิ่มจำนวนกลับมา)
+    for (let i = count; i < current; i++) {
+      const seq = i + 1
+      memberBuffer.set(seq, {
+        member:            householdMembers.value[i],
+        dobParts:          memberDobPartsList.value[i],
+        displayIncome:     displayIncomeList.value[i],
+        errors:            memberErrorsList.value[i],
+        nationalIdSuccess: nationalIdSuccessList.value[i],
+        photoRow:          memberPhotoRows.value[i],
+      })
+      // ถอดไฟล์รูปของสมาชิกที่ถูกลดออกจาก store ชั่วคราว — กัน submit ไปอัปโหลดรูปของ
+      // สมาชิกที่ไม่มีอยู่จริงในคำขอ (ไฟล์ยังอยู่ใน photoRow ที่ buffer ไว้ ไม่ได้หายไปไหน)
+      for (const docType of Object.values(SLOT_TO_DOCTYPE)) {
+        app.memberFiles.delete(memberPhotoKey(seq, docType))
+      }
+    }
     householdMembers.value.splice(count)
+    memberDobPartsList.value.splice(count)
+    displayIncomeList.value.splice(count)
+    memberErrorsList.value.splice(count)
+    nationalIdSuccessList.value.splice(count)
+    memberPhotoRows.value.splice(count)
   }
+
   householdMembers.value.forEach((m, i) => { m.seq = i + 1 })
-  ensureMemberAuxState()
 }
 
 function handleHouseholdCountInput(e: Event) {
@@ -549,7 +619,15 @@ function isMemberComplete(m: HouseholdMemberForm, idx: number): boolean {
   }
   const dob = new Date(m.dateOfBirth)
   if (isNaN(dob.getTime()) || dob > new Date()) return false
+  // มีรูป "อื่นๆ" ต้องระบุชื่อเอกสารด้วย — backend บังคับชื่อเมื่อ attachment_type_id = 99 (อื่นๆ)
+  // ไม่เช็คตรงนี้จะกดถัดไป/บันทึกผ่านได้ แต่ยิง API แล้วเจอ 422 (file_other_type_name_required_for_other_attachment)
+  if (memberOtherNameRequired(idx)) return false
   return true
+}
+
+// เช็คว่า slot รูป "อื่นๆ" ของสมาชิกคนนี้มีรูปแล้วแต่ยังไม่ได้ระบุชื่อเอกสารหรือไม่
+function memberOtherNameRequired(idx: number): boolean {
+  return !!getMemberPhotoPreview(idx, 'other') && !memberPhotoRows.value[idx]?.otherName?.trim()
 }
 
 function isHouseholdSectionValid(): boolean {
@@ -813,6 +891,27 @@ onMounted(async () => {
         displayIncomeList.value[i] = formatIncomeDisplay(m.monthlyIncome)
       })
 
+      // ─── restore รูปสมาชิกจาก store (user กลับมาจาก step อื่นในเซสชันเดียวกัน) ──
+      // File object ยังอยู่ใน app.memberFiles (Map) แต่ memberPhotoRows ถูกสร้างใหม่ว่างๆ
+      // ทุกครั้งที่ component นี้ mount ใหม่ — ต้องดึง file + สร้าง previewUrl ใหม่เอง
+      householdMembers.value.forEach((m, i) => {
+        const seq = m.seq
+        const row = memberPhotoRows.value[i]
+        if (!row || !seq) return
+        for (const [slotKey, docType] of Object.entries(SLOT_TO_DOCTYPE)) {
+          const key = memberPhotoKey(seq, docType)
+          const stored = app.getMemberFile(key)
+          if (stored) {
+            const slot = getPhotoSlot(row, slotKey)
+            slot.file = stored
+            slot.previewUrl = URL.createObjectURL(stored)
+          }
+          if (docType === 'other' && app.memberExistingOtherTypeNames[key]) {
+            row.otherName = app.memberExistingOtherTypeNames[key]
+          }
+        }
+      })
+
       // ใช้ restore() จาก useThaiAddress ซึ่ง await API fetch แต่ละระดับจนเสร็จก่อนตั้งค่าถัดไป
       // แก้ปัญหา nextTick() ไม่เพียงพอเพราะ API fetch เป็น async และใช้เวลานานกว่า 1 tick
       await addr.restore(s.address.province, s.address.district, s.address.subdistrict)
@@ -827,8 +926,9 @@ onMounted(async () => {
           for (const [slotKey, docType] of Object.entries(SLOT_TO_DOCTYPE)) {
             const storeKey  = memberPhotoKey(seq, docType)
             const evidenceId = app.memberExistingEvidenceIds[storeKey]
-            // โหลดเฉพาะ slot ที่มี evidence ID และยังไม่มี blob URL
-            if (evidenceId && !app.memberExistingImageUrls[storeKey]) {
+            // โหลดเฉพาะ slot ที่มี evidence ID, ยังไม่มี blob URL, และผู้ใช้ไม่ได้กด "ลบ" ทิ้งไว้
+            // (ถ้าลบไปแล้ว evidenceId ยังอยู่เพื่อรอสั่งลบตอน submit แต่ไม่ควร fetch กลับมาโชว์ซ้ำ)
+            if (evidenceId && !app.memberExistingImageUrls[storeKey] && !app.memberRemovedEvidenceKeys.has(storeKey)) {
               const row = memberPhotoRows.value[i]
               if (row) {
                 const slot = getPhotoSlot(row, slotKey)
@@ -839,13 +939,6 @@ onMounted(async () => {
                   })
                   .catch(() => { /* ไม่แสดง error เพราะ edit mode เป็น optional */ })
                   .finally(() => { slot.isLoading = false })
-              }
-            }
-            // โหลดชื่อ "อื่นๆ" จาก store
-            if (docType === 'other') {
-              const row = memberPhotoRows.value[i]
-              if (row && app.memberExistingOtherTypeNames[storeKey]) {
-                row.otherName = app.memberExistingOtherTypeNames[storeKey]
               }
             }
           }
@@ -1775,7 +1868,7 @@ defineExpose({
                     :file-size="memberPhotoRows[idx]?.idCard.file?.size ?? 0"
                     :is-loading="memberPhotoRows[idx]?.idCard.isLoading ?? false"
                     :error="memberPhotoRows[idx]?.idCard.error ?? ''"
-                    :replace-mode="!!getMemberPhotoPreview(idx, 'idCard')"
+                    :replace-mode="app.editMode"
                     @file-select="(e) => handleMemberPhotoSelect(idx, 'idCard', e)"
                     @clear="handleMemberPhotoClear(idx, 'idCard')"
                   />
@@ -1791,7 +1884,7 @@ defineExpose({
                     :file-size="memberPhotoRows[idx]?.houseHome.file?.size ?? 0"
                     :is-loading="memberPhotoRows[idx]?.houseHome.isLoading ?? false"
                     :error="memberPhotoRows[idx]?.houseHome.error ?? ''"
-                    :replace-mode="!!getMemberPhotoPreview(idx, 'houseHome')"
+                    :replace-mode="app.editMode"
                     @file-select="(e) => handleMemberPhotoSelect(idx, 'houseHome', e)"
                     @clear="handleMemberPhotoClear(idx, 'houseHome')"
                   />
@@ -1807,7 +1900,7 @@ defineExpose({
                     :file-size="memberPhotoRows[idx]?.housePerson.file?.size ?? 0"
                     :is-loading="memberPhotoRows[idx]?.housePerson.isLoading ?? false"
                     :error="memberPhotoRows[idx]?.housePerson.error ?? ''"
-                    :replace-mode="!!getMemberPhotoPreview(idx, 'housePerson')"
+                    :replace-mode="app.editMode"
                     @file-select="(e) => handleMemberPhotoSelect(idx, 'housePerson', e)"
                     @clear="handleMemberPhotoClear(idx, 'housePerson')"
                   />
@@ -1823,7 +1916,7 @@ defineExpose({
                     :file-size="memberPhotoRows[idx]?.other.file?.size ?? 0"
                     :is-loading="memberPhotoRows[idx]?.other.isLoading ?? false"
                     :error="memberPhotoRows[idx]?.other.error ?? ''"
-                    :replace-mode="!!getMemberPhotoPreview(idx, 'other')"
+                    :replace-mode="app.editMode"
                     @file-select="(e) => handleMemberPhotoSelect(idx, 'other', e)"
                     @clear="handleMemberPhotoClear(idx, 'other')"
                   >
@@ -1839,8 +1932,16 @@ defineExpose({
                         type="text"
                         maxlength="100"
                         placeholder="ระบุชื่อเอกสาร"
-                        class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]"
+                        :class="[
+                          'w-full bg-white border rounded-xl px-3 py-2 text-body-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors',
+                          householdMembersTouched && memberOtherNameRequired(idx)
+                            ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                            : 'border-slate-200 focus:ring-[#1A56DB]/30 focus:border-[#1A56DB]'
+                        ]"
                       />
+                      <p v-if="householdMembersTouched && memberOtherNameRequired(idx)" class="text-micro text-red-500 mt-1">
+                        กรุณาระบุชื่อเอกสาร
+                      </p>
                     </div>
                   </PhotoUploadCard>
                 </div>
