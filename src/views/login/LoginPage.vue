@@ -53,12 +53,6 @@ async function handleThaID() {
   }
 }
 
-// ฟังก์ชันเมื่อกดปุ่ม ทางรัฐ
-function handleTangRath() {
-  // TODO: เปิด DGA Liveness SDK และจัดการ flow การสแกนใบหน้า
-  // ตอนนี้พาไปหน้า check-self ชั่วคราวเพื่อทดสอบ UI
-  router.push({ name: 'check-self' })
-}
 </script>
 
 <template>
@@ -93,24 +87,7 @@ function handleTangRath() {
       <div class="flex flex-col px-5 pt-6 pb-8">
 
         <!-- ประกาศช่วงทดลองใช้งาน -->
-        <div class="mb-5 bg-amber-50 border border-amber-300 rounded-xl p-4">
-          <!-- หัวข้อพร้อมไอคอน — จัดกึ่งกลาง เหมือนกล่องเอกสารด้านล่าง -->
-          <div class="flex items-center justify-center gap-2 mb-2">
-            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-              <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 1.998-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.502-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <p class="text-[16px] font-bold text-amber-800 leading-snug">
-              ช่วงทดลองการใช้งานระบบ เฉพาะ 9 พื้นที่เท่านั้น
-            </p>
-          </div>
-          <!-- รายชื่อจังหวัด -->
-          <p class="text-[14px] text-amber-800 text-center leading-relaxed">
-            (สมุทรปราการ, หนองคาย, เชียงใหม่, แพร่, เชียงราย, กาญจนบุรี, นครราชสีมา, สงขลา, พัทลุง)
-          </p>
-        </div>
-
+        
         <!-- ส่วนที่ 2: Title -->
         <div class="text-center mb-7">
           <!-- h1 — token H2-section (1.25rem) ใต้ Display brand -->
@@ -180,37 +157,44 @@ function handleTangRath() {
             <div class="flex-1 h-px bg-slate-200" />
           </div>
 
-          <!-- ปุ่ม ทางรัฐ (โครงสร้างเดียวกับ ThaID แต่ใช้สีเขียว) -->
+          <!-- ปุ่ม ทางรัฐ — ยังไม่เปิดให้บริการ (สื่อด้วยภาพเท่านั้น) -->
           <button
-            @click="handleTangRath"
-            class="group w-full flex items-center gap-4 bg-white rounded-2xl border-2 border-green-200 p-4 text-left shadow-sm transition-all duration-150 hover:border-green-400 hover:shadow-md active:scale-[0.98] active:bg-green-50"
-            aria-label="เข้าสู่ระบบด้วย ทางรัฐ"
+            type="button"
+            disabled
+            class="w-full flex items-center gap-4 bg-slate-50 rounded-2xl border-2 border-slate-200 p-4 text-left cursor-not-allowed"
+            aria-label="เข้าสู่ระบบด้วย ทางรัฐ ยังไม่เปิดให้บริการ"
+            aria-disabled="true"
           >
-            <!-- โลโก้ ทางรัฐ -->
-            <div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-              <img :src="logoThangrath" alt="ทางรัฐ" class="w-full h-full object-contain" />
+            <!-- โลโก้ ทางรัฐ (จางลง สื่อว่ายังไม่พร้อมใช้) -->
+            <div class="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white border border-slate-100">
+              <img
+                :src="logoThangrath"
+                alt=""
+                class="w-full h-full object-contain opacity-40 grayscale"
+              />
             </div>
 
-            <!-- ข้อความ -->
+            <!-- ชื่อช่องทางเท่านั้น -->
             <div class="flex-1 min-w-0">
-              <p class="text-body font-semibold text-slate-900 leading-snug">
+              <p class="text-body font-semibold text-slate-400 leading-snug">
                 เข้าสู่ระบบด้วย ทางรัฐ
               </p>
-              <p class="text-body-xs text-slate-500 mt-0.5 leading-snug">
-                ยืนยันตัวตนด้วย Face Recognition (Liveness)
-              </p>
             </div>
 
-            <!-- ลูกศรชี้ขวา -->
+            <!-- ไอคอนกุญแจ — สื่อว่ายังไม่เปิดใช้งาน -->
             <svg
-              class="w-5 h-5 text-slate-300 flex-shrink-0 transition-colors group-hover:text-green-500"
+              class="w-5 h-5 text-slate-300 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              stroke-width="2.5"
+              stroke-width="1.75"
               aria-hidden="true"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+              />
             </svg>
           </button>
         </div>
