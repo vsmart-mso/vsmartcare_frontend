@@ -9,11 +9,9 @@ import { apiClient } from './client'
 async function _postMultipart<T = unknown>(path: string, form: FormData): Promise<T> {
   const baseURL = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
   const token   = sessionStorage.getItem('auth_token')
-  const bffKey  = import.meta.env.VITE_BFF_API_KEY as string | undefined
 
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (token)  headers['Authorization'] = `Bearer ${token}`
-  if (bffKey) headers['X-API-Key']     = bffKey
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
   const res = await fetch(`${baseURL}${path}`, { method: 'POST', headers, body: form })
   const data = await res.json().catch(() => ({}))
@@ -331,6 +329,10 @@ export interface FullCaseDetail {
   latest_welfare_request_status: StatusLogItem | null
   created_at: string | null
   count_037: number
+  /** approve_status ของแถว approve_case ล่าสุด — null = ยังไม่มีประวัติ */
+  latest_approve_status?: boolean | null
+  /** comment ล่าสุดจากการส่งกลับแก้ไข (status=8) */
+  welfare_edit_request_comments?: ReviewComment[]
 }
 
 // ─── Approve Case (การอนุมัติเคสของเจ้าหน้าที่) ─────────────────────────────────
@@ -453,10 +455,8 @@ export const welfareApi = {
   async deleteEvidence(applicantId: number, evidenceId: number): Promise<void> {
     const baseURL = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
     const token   = sessionStorage.getItem('auth_token')
-    const bffKey  = import.meta.env.VITE_BFF_API_KEY as string | undefined
     const headers: Record<string, string> = {}
-    if (token)  headers['Authorization'] = `Bearer ${token}`
-    if (bffKey) headers['X-API-Key']     = bffKey
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`${baseURL}/v1/cases/${applicantId}/evidences/${evidenceId}`, { method: 'DELETE', headers })
     if (!res.ok) {
       const err = new Error(`${res.status} ${res.statusText}`) as Error & { data: unknown }
@@ -531,10 +531,8 @@ export const welfareApi = {
   async fetchEvidenceAsObjectUrl(applicantId: number, evidenceId: number): Promise<string> {
     const base = ((import.meta.env.VITE_API_URL as string) ?? '').replace(/\/$/, '')
     const token  = sessionStorage.getItem('auth_token')
-    const bffKey = import.meta.env.VITE_BFF_API_KEY as string | undefined
     const headers: Record<string, string> = {}
-    if (token)  headers['Authorization'] = `Bearer ${token}`
-    if (bffKey) headers['X-API-Key']     = bffKey
+    if (token) headers['Authorization'] = `Bearer ${token}`
     try {
       const res = await fetch(`${base}/v1/cases/${applicantId}/evidences/${evidenceId}/file`, { headers })
       if (!res.ok) return ''

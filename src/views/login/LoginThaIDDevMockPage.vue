@@ -1,20 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { THAID_DEV_MOCK_STORAGE_KEY } from '@/api/auth'
+import { THAID_DEV_MOCK_STORAGE_KEY, setThaidDevMockActive } from '@/dev/mock/constants'
+import type { StoredDevMockLogin } from '@/dev/mock/types'
 
-type MockProfile = {
-  pid: string
-  given_name: string
-  family_name: string
-  title_th: string
-}
-
-type StoredMock = {
-  authorization_url: string
-  state: string
-  mock_profile?: MockProfile
-}
+type StoredMock = StoredDevMockLogin
 
 const router = useRouter()
 const stored = ref<StoredMock | null>(null)
@@ -40,6 +30,7 @@ function confirmMockLogin() {
   const u = stored.value?.authorization_url
   if (!u) return
   sessionStorage.removeItem(THAID_DEV_MOCK_STORAGE_KEY)
+  setThaidDevMockActive()
   window.location.assign(u)
 }
 
@@ -57,7 +48,7 @@ function goBack() {
         role="note"
       >
         <strong class="font-semibold">โหมดพัฒนา (mock ThaiD)</strong>
-        — QR นี้ชี้ไปขั้นตอนจำลองบน auth service (ไม่ใช่เซิร์ฟเวอร์ ThaiD จริง)
+        — โปรไฟล์คงที่จาก fixture (ชื่อจับคู่กับรูปสมุดบัญชีตัวอย่างใน Step 4)
       </div>
 
       <button
@@ -90,6 +81,24 @@ function goBack() {
             <li><span class="text-slate-500">title_th</span> {{ stored.mock_profile.title_th }}</li>
             <li><span class="text-slate-500">given_name</span> {{ stored.mock_profile.given_name }}</li>
             <li><span class="text-slate-500">family_name</span> {{ stored.mock_profile.family_name }}</li>
+            <li>
+              <span class="text-slate-500">birthdate</span>
+              <template v-if="stored.mock_profile.birthdate_label">
+                {{ stored.mock_profile.birthdate_label }}
+              </template>
+              <template v-else-if="stored.mock_profile.birthdate">
+                {{ stored.mock_profile.birthdate }}
+              </template>
+              <template v-else>
+                (ไม่ส่งมา)
+              </template>
+            </li>
+            <li v-if="stored.mock_profile.gender">
+              <span class="text-slate-500">gender</span> {{ stored.mock_profile.gender }}
+            </li>
+            <li v-if="stored.mock_profile.address" class="break-words">
+              <span class="text-slate-500">address</span> {{ stored.mock_profile.address }}
+            </li>
           </ul>
         </div>
 

@@ -8,6 +8,7 @@ import { useAdminAuthStore } from '@/stores/adminAuth'
 import { authApi } from '@/api/auth'
 import { welfareApi } from '@/api/welfare'
 import type { ThaiDUser } from '@/types/auth'
+import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -145,7 +146,7 @@ router.beforeEach(async (to) => {
         title:     me.title_th,
         fname:     me.given_name,
         lname:     me.family_name,
-        dob:       me.birthdate  ?? '',
+        dob:       normalizeThaiDBirthdateForApp(me.birthdate ?? ''),
         gender:    me.gender     ?? '',
         person_id: me.person_id  ?? 0,
       }

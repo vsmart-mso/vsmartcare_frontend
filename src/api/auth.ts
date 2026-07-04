@@ -3,6 +3,7 @@
 import type { Router } from 'vue-router'
 import { apiClient } from './client'
 import type { ThaiDUser, DGAUser } from '@/types/auth'
+import { THAID_DEV_MOCK_STORAGE_KEY } from '@/dev/mock/constants'
 
 /** ตอบจาก thaid-auth-service / BFF `POST /v1/auth/thaid/login` */
 export interface ThaIDLoginStartResponse {
@@ -16,6 +17,11 @@ export interface ThaIDLoginStartResponse {
     given_name: string
     family_name: string
     title_th: string
+    birthdate?: string
+    gender?: string
+    address?: string
+    birthdate_scenario?: 'full' | 'year_be' | 'year_month_no_day'
+    birthdate_label?: string
   }
 }
 
@@ -109,12 +115,12 @@ export const authApi = {
   },
 
   logout() {
-    return apiClient('/auth/logout', { method: 'POST' })
+    return apiClient('/v1/auth/logout', { method: 'POST', body: {} })
   },
 }
 
 /** sessionStorage key สำหรับหน้า dev mock */
-export const THAID_DEV_MOCK_STORAGE_KEY = 'thaid_dev_mock'
+export { THAID_DEV_MOCK_STORAGE_KEY } from '@/dev/mock/constants'
 /** sessionStorage key สำหรับเก็บค่า start login ล่าสุด (ช่วย debug) */
 export const THAID_LAST_LOGIN_START_KEY = 'thaid_last_login_start'
 

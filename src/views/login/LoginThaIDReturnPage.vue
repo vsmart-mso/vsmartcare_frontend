@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { authApi } from '@/api/auth'
+import { authApi, THAID_LAST_LOGIN_START_KEY } from '@/api/auth'
+import { setThaidDevMockActive } from '@/dev/mock/constants'
 import { useAuthStore } from '@/stores/auth'
 import { resolveHomeRoute } from '@/router'
+import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
+import {
+  DEFAULT_AUTH_LOGIN_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+  userMessageForAuthApiError,
+  userMessageForAuthErrorCode,
+} from '@/utils/authUserMessages'
 import type { ThaiDUser } from '@/types/auth'
 
 const router = useRouter()
@@ -11,50 +19,92 @@ const authStore = useAuthStore()
 
 const message = ref('กำลังเข้าสู่ระบบ…')
 const isError = ref(false)
-// จังหวัดยังไม่เปิดบริการ (TASK-v-care-12062026-01) — แสดงข้อความเฉพาะบนหน้านี้
 const isProvinceBlocked = ref(false)
 
-function resolveThaiDErrorMessage(_error: string, _description?: string | null): string {
-  return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
+function showLoginFailure(userMessage: string = DEFAULT_AUTH_LOGIN_MESSAGE) {
+  message.value = userMessage
+  isError.value = true
+}
+
+function markDevMockSessionIfApplicable() {
+  try {
+    const raw = sessionStorage.getItem(THAID_LAST_LOGIN_START_KEY)
+    if (!raw) return
+    const start = JSON.parse(raw) as { flow?: string; authorization_url?: string }
+    if (start.flow === 'dev_mock' || start.authorization_url?.includes('/mock/continue')) {
+      setThaidDevMockActive()
+    }
+  } catch {
+    // ignore
+  }
 }
 
 onMounted(async () => {
   const params = new URLSearchParams(window.location.search)
 
-  // ThaiD ส่ง error กลับมา (เช่น ผู้ใช้กดปฏิเสธในแอป) → พากลับหน้า login พร้อม error message
   const errorCode = params.get('error')?.trim()
   if (errorCode) {
     history.replaceState(null, '', window.location.pathname)
 
-    // จังหวัดยังไม่เปิดบริการ — แสดงข้อความมาตรฐานบนหน้านี้ (ไม่เด้งกลับ login)
     if (errorCode === 'province_not_enabled') {
       isProvinceBlocked.value = true
       isError.value = true
       return
     }
 
-    const desc = params.get('error_description')?.trim() || null
-    await router.replace({ name: 'login', query: { auth_error: resolveThaiDErrorMessage(errorCode, desc) } })
+    showLoginFailure(userMessageForAuthErrorCode(errorCode))
+    return
+  }
+
+  const loginState = params.get('login_state')?.trim()
+  history.replaceState(null, '', window.location.pathname)
+
+  if (loginState) {
+    try {
+      const status = await authApi.pollThaIDLoginStatus(loginState)
+      if (status.status === 'error') {
+        if (status.error === 'province_not_enabled') {
+          isProvinceBlocked.value = true
+          isError.value = true
+          return
+        }
+        showLoginFailure(userMessageForAuthErrorCode(status.error ?? 'auth_error'))
+        return
+      }
+      if (status.status !== 'complete' || !status.access_token) {
+        showLoginFailure(DEFAULT_AUTH_LOGIN_MESSAGE)
+        return
+      }
+      sessionStorage.setItem('auth_token', status.access_token)
+      const me = await authApi.fetchMe()
+      const u: ThaiDUser = {
+        pid:       me.pid,
+        title:     me.title_th,
+        fname:     me.given_name,
+        lname:     me.family_name,
+        dob:       normalizeThaiDBirthdateForApp(me.birthdate ?? ''),
+        gender:    me.gender     ?? '',
+        person_id: me.person_id  ?? 0,
+      }
+      authStore.setAuth(u, status.access_token, 'thaid', status.expires_in || undefined)
+      markDevMockSessionIfApplicable()
+      message.value = 'กำลังตรวจสอบข้อมูล...'
+      await router.replace({ name: await resolveHomeRoute(u.person_id) })
+    } catch (err) {
+      sessionStorage.removeItem('auth_token')
+      showLoginFailure(userMessageForAuthApiError(err))
+    }
     return
   }
 
   const accessToken = params.get('access_token')?.trim()
-  // อ่านอายุ token (หน่วย "วินาที") ที่ backend แนบมาพร้อม redirect
   const expiresIn = Number(params.get('expires_in') ?? '0') || 0
 
-  // ลบ query string ออกจาก URL ทันที เพราะมี access_token อยู่
-  // ถ้าไม่ลบ token จะค้างอยู่ใน browser history และอาจรั่วผ่าน Referer header
-  history.replaceState(null, '', window.location.pathname)
-
   if (!accessToken) {
-    // ไม่มี error และไม่มี access_token — backend ไม่ได้ส่งอะไรมา
-    await router.replace({ name: 'login', query: { auth_error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' } })
+    showLoginFailure(SESSION_EXPIRED_MESSAGE)
     return
   }
 
-  // เก็บ token ชั่วคราวใน sessionStorage เพื่อให้ apiClient แนบ Authorization header
-  // ได้อัตโนมัติตอนเรียก fetchMe() ด้านล่าง
-  // ใช้ sessionStorage (ไม่ใช่ localStorage) เพราะปลอดภัยกว่า — scoped ต่อ tab เดียว
   sessionStorage.setItem('auth_token', accessToken)
 
   try {
@@ -64,31 +114,28 @@ onMounted(async () => {
       title:     me.title_th,
       fname:     me.given_name,
       lname:     me.family_name,
-      dob:       me.birthdate  ?? '',
+      dob:       normalizeThaiDBirthdateForApp(me.birthdate ?? ''),
       gender:    me.gender     ?? '',
       person_id: me.person_id  ?? 0,
     }
-    // setAuth จะเขียน token ลง sessionStorage อีกครั้ง (พร้อมข้อมูลหมดอายุ)
     authStore.setAuth(u, accessToken, 'thaid', expiresIn || undefined)
-
-    // เลือกหน้าปลายทางอัตโนมัติตามสถานะของผู้ใช้
+    markDevMockSessionIfApplicable()
     message.value = 'กำลังตรวจสอบข้อมูล...'
     await router.replace({ name: await resolveHomeRoute(u.person_id) })
-  } catch {
-    // fetchMe ล้มเหลว — ลบ token ออกเพื่อไม่ให้ค้างอยู่ใน storage แล้วพากลับหน้า login
+  } catch (err) {
     sessionStorage.removeItem('auth_token')
-    await router.replace({ name: 'login', query: { auth_error: 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' } })
+    showLoginFailure(userMessageForAuthApiError(err))
   }
 })
 
 function goLogin() {
-  void router.replace({ name: 'login' })
+  const query = isError.value ? { auth_error: message.value } : undefined
+  void router.replace({ name: 'login', query })
 }
 </script>
 
 <template>
   <div class="min-h-dvh flex flex-col items-center justify-center bg-[#F8FAFC] px-5">
-    <!-- จังหวัดยังไม่เปิดบริการ — ข้อความมาตรฐาน -->
     <template v-if="isProvinceBlocked">
       <div class="text-center max-w-sm">
         <p class="text-h1-page font-semibold text-slate-800 mb-2">
@@ -108,14 +155,15 @@ function goLogin() {
       </button>
     </template>
 
-    <!-- สถานะปกติ / error อื่น ๆ -->
     <template v-else>
-      <p
-        class="text-center text-body leading-relaxed max-w-sm"
-        :class="isError ? 'text-red-800' : 'text-slate-600'"
-      >
-        {{ message }}
-      </p>
+      <div class="w-full max-w-md text-center">
+        <p
+          class="text-body leading-relaxed"
+          :class="isError ? 'text-red-800 font-medium' : 'text-slate-600'"
+        >
+          {{ message }}
+        </p>
+      </div>
       <button
         v-if="isError"
         type="button"
