@@ -40,6 +40,10 @@ export const REQUESTER_RELATION_MAP: Readonly<Record<string, number>> = {
 
 // ข้อมูลสมาชิกครัวเรือน 1 แถว (ปสค.๒)
 export interface HouseholdMemberForm {
+  id: number | null                                       // household_member.id เดิม — null = สมาชิกใหม่
+  // ต้องส่งกลับไปตอน PATCH เพื่อจับคู่แทน seq ล้วนๆ ไม่งั้น backend จะมองว่าทุกคนเป็นสมาชิกใหม่
+  // แล้ว delete+recreate household_members ทั้งหมด → cascade ลบ welfare_evidences ของทุกคนไปด้วย
+  // (แม้แต่รูปที่ไม่ได้แก้ไขอะไรเลย) ดู HouseholdMemberInCase.id ฝั่ง backend
   seq: number
   nationalId: string                                      // '' = ไม่มี → null
   prefixId: string                                        // '' = ใช้ prefixOther
@@ -245,6 +249,11 @@ export const useApplicationStore = defineStore('application', () => {
   // ชื่อเอกสาร other_doc_0/1/2 (persist ได้) — key = 'other_doc_0' | 'other_doc_1' | 'other_doc_2'
   const existingOtherTypeNames = ref<Record<string, string>>(saved?.existingOtherTypeNames ?? {})
 
+  // docType ของเอกสารหลักที่ผู้ใช้กด "ลบ" รูปเดิมจาก server ทิ้งโดยไม่ได้อัปโหลดรูปใหม่แทน (edit mode)
+  // ใช้กับ slot ที่ไม่บังคับ เช่น other_doc_0/1/2 — ตอน submit จะได้รู้ว่าต้องสั่งลบ evidence
+  // นี้บน server ด้วย ไม่งั้นจะเข้าใจผิดว่า "ยังไม่ได้แก้ไข" แล้วปล่อยไฟล์ค้างอยู่ (memory only)
+  const removedEvidenceKeys = ref<Set<string>>(new Set())
+
   // ── Member Photo State ────────────────────────────────────────────────────
   // key รูปแบบ "m{seq}_{docType}" เช่น "m1_id_card", "m2_house_home", "m3_other"
 
@@ -263,6 +272,11 @@ export const useApplicationStore = defineStore('application', () => {
   const memberExistingOtherTypeNames = ref<Record<string, string>>(
     saved?.memberExistingOtherTypeNames ?? {}
   )
+
+  // key ของรูปสมาชิกที่ผู้ใช้กด "ลบ" รูปเดิมจาก server ทิ้งโดยไม่ได้อัปโหลดรูปใหม่แทน (edit mode)
+  // ต้องจำไว้ต่างหาก (ไม่ลบ memberExistingEvidenceIds ทันที) เพื่อให้ตอน submit รู้ว่าต้องสั่งลบ
+  // evidence นี้บน server ด้วย ไม่งั้นไฟล์จะค้างอยู่แบบไม่มีใครอ้างถึงในหน้า UI อีกเลย (memory only)
+  const memberRemovedEvidenceKeys = ref<Set<string>>(new Set())
 
   // ── Bank Book OCR State (ไม่ persist เพราะ re-OCR ใหม่ทุกครั้ง) ──────────
   // เก็บผล OCR จากรูปสมุดบัญชี — ใช้ข้าม step (Step3 → Step5)
@@ -359,6 +373,12 @@ export const useApplicationStore = defineStore('application', () => {
       documentsMeta.value.push(meta)
     }
     files.value.set(meta.id, file)
+    // มีไฟล์ใหม่มาแทนแล้ว — ไม่ถือว่าเป็นการ "ลบทิ้งเฉยๆ" อีกต่อไป (ไปใช้ path แทนที่แทน)
+    if (removedEvidenceKeys.value.has(meta.docType)) {
+      const next = new Set(removedEvidenceKeys.value)
+      next.delete(meta.docType)
+      removedEvidenceKeys.value = next
+    }
   }
 
   // ลบเอกสาร
@@ -445,6 +465,7 @@ export const useApplicationStore = defineStore('application', () => {
     })
 
     const householdMembersList = (s1?.householdMembers ?? []).map((m, i) => ({
+      id:                   m.id ?? null,
       seq:                  m.seq || i + 1,
       national_id:          m.nationalId || null,
       prefix_id:            Number(m.prefixId) || null,
@@ -564,6 +585,7 @@ export const useApplicationStore = defineStore('application', () => {
       // แปลง Decimal string จาก backend เป็น integer string (ตัดทศนิยมทิ้ง)
       rentPerMonth:  eco?.housing_types_rent ? String(Math.round(Number(eco.housing_types_rent))) : '',
       householdMembers: (caseData.household_members ?? []).map((m, i) => ({
+        id:                   m.id ?? null,
         seq:                  m.seq ?? i + 1,
         nationalId:           m.national_id ?? '',
         // prefix_id มีค่า → ใช้ id; ไม่มีแต่มี prefix_other → 'none' (อื่นๆ/ไม่ระบุ); ไม่มีทั้งคู่ → '' (ยังไม่เลือก)
@@ -671,10 +693,14 @@ export const useApplicationStore = defineStore('application', () => {
     existingImageUrls.value = { ...existingImageUrls.value, [docType]: url }
   }
 
-  // user กด "ลบ" รูปเดิม
+  // user กด "ลบ" รูปเดิมจาก server (edit mode) โดยไม่ได้อัปโหลดรูปใหม่แทน
+  // จำ docType ไว้ใน removedEvidenceKeys เพื่อให้ตอน submit รู้ว่าต้องสั่งลบ evidence นี้ด้วย
   function clearExistingImage(docType: string) {
     const { [docType]: _, ...rest } = existingImageUrls.value
     existingImageUrls.value = rest
+    if (existingEvidenceIds.value[docType]) {
+      removedEvidenceKeys.value = new Set(removedEvidenceKeys.value).add(docType)
+    }
   }
 
   // ─── Member Photo Actions ─────────────────────────────────────────────────
@@ -682,17 +708,17 @@ export const useApplicationStore = defineStore('application', () => {
   // บันทึก File object ของรูปสมาชิก — key = "m{seq}_{docType}"
   function addMemberFile(key: string, file: File) {
     memberFiles.value.set(key, file)
+    // มีไฟล์ใหม่มาแทนแล้ว — ไม่ถือว่าเป็นการ "ลบทิ้งเฉยๆ" อีกต่อไป (ไปใช้ path แทนที่แทน)
+    if (memberRemovedEvidenceKeys.value.has(key)) {
+      const next = new Set(memberRemovedEvidenceKeys.value)
+      next.delete(key)
+      memberRemovedEvidenceKeys.value = next
+    }
   }
 
-  // ลบ File object และ evidence ID ของรูปสมาชิก
+  // ลบ File object ของรูปสมาชิก (local เท่านั้น — ไม่ยุ่งกับ evidence เดิมบน server)
   function removeMemberFile(key: string) {
     memberFiles.value.delete(key)
-    const { [key]: _, ...rest } = memberExistingEvidenceIds.value
-    memberExistingEvidenceIds.value = rest
-    const { [key]: _2, ...rest2 } = memberExistingImageUrls.value
-    memberExistingImageUrls.value = rest2
-    const { [key]: _3, ...rest3 } = memberExistingOtherTypeNames.value
-    memberExistingOtherTypeNames.value = rest3
   }
 
   // รับ File object ของรูปสมาชิก
@@ -705,13 +731,20 @@ export const useApplicationStore = defineStore('application', () => {
     memberExistingImageUrls.value = { ...memberExistingImageUrls.value, [key]: url }
   }
 
-  // user กด "ลบ" รูปสมาชิกเดิม
+  // user กด "ลบ" รูปสมาชิกเดิมจาก server (edit mode) โดยไม่ได้อัปโหลดรูปใหม่แทน
+  // ไม่ลบ memberExistingEvidenceIds ทิ้งทันที — เก็บ key ไว้ใน memberRemovedEvidenceKeys
+  // เพื่อให้ตอน submit รู้ว่าต้องสั่งลบ evidence นี้บน server ด้วย กันไฟล์ค้าง
+  // หมายเหตุ: ไม่ล้าง memberExistingOtherTypeNames ที่นี่ — ฟังก์ชันนี้ถูกเรียกทั้งตอน "แทนที่รูป"
+  // (handleMemberPhotoSelect) และตอน "ลบรูป" (handleMemberPhotoClear) ถ้าล้างชื่อที่นี่ ตอนแทนที่รูป
+  // ชื่อใน store จะถูกลบทิ้งทั้งที่ row.otherName (ค่าที่โชว์ในช่อง) ไม่ได้ถูกลบด้วย ทำให้ค่าที่เห็น
+  // กับค่าที่ persist ไม่ตรงกัน พอ remount ใหม่แล้วอ่านจาก store จะเจอค่าว่าง ทั้งที่เพิ่งพิมพ์ไป —
+  // ฟังก์ชันที่ต้องการลบชื่อจริงๆ (ลบรูปทิ้ง) ให้เรียก setMemberOtherName(key, '') เพิ่มเองแทน
   function clearMemberExistingImage(key: string) {
     const { [key]: _, ...rest } = memberExistingImageUrls.value
     memberExistingImageUrls.value = rest
-    // ลบ evidence ID ออกด้วยเพื่อไม่ให้ edit mode สับสน
-    const { [key]: _2, ...rest2 } = memberExistingEvidenceIds.value
-    memberExistingEvidenceIds.value = rest2
+    if (memberExistingEvidenceIds.value[key]) {
+      memberRemovedEvidenceKeys.value = new Set(memberRemovedEvidenceKeys.value).add(key)
+    }
   }
 
   // บันทึกชื่อ "อื่นๆ" ของรูปสมาชิก — key = "m{seq}_other"
@@ -751,12 +784,14 @@ export const useApplicationStore = defineStore('application', () => {
     Object.values(existingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
     existingImageUrls.value     = {}
     existingOtherTypeNames.value = {}
+    removedEvidenceKeys.value = new Set()
     // ล้าง member photos
     memberFiles.value = new Map()
     memberExistingEvidenceIds.value = {}
     Object.values(memberExistingImageUrls.value).forEach(url => URL.revokeObjectURL(url))
     memberExistingImageUrls.value = {}
     memberExistingOtherTypeNames.value = {}
+    memberRemovedEvidenceKeys.value = new Set()
     clearBankBookOcr()
     sessionStorage.removeItem(DRAFT_KEY)
   }
@@ -775,11 +810,13 @@ export const useApplicationStore = defineStore('application', () => {
     existingEvidenceIds,
     existingImageUrls,
     existingOtherTypeNames,
+    removedEvidenceKeys,
     // member photos state
     memberFiles,
     memberExistingEvidenceIds,
     memberExistingImageUrls,
     memberExistingOtherTypeNames,
+    memberRemovedEvidenceKeys,
     bankBookOcrResult,
     bankBookOcrLoading,
     bankBookOcrResultId,
