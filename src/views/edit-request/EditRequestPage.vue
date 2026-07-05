@@ -30,8 +30,8 @@ function buildFilterFields(step: number): string[] {
     app.reviewComments
       .filter(c => {
         if (c.step !== step || c.name === 'remarks') return false
-        // คำขอใหม่ไม่รองรับ KTB — ข้าม comment นี้ถ้าเคสไม่เคยมีรูป KTB
-        if (c.name === 'doc_ktb_corporate' && !app.existingEvidenceIds['ktb_form']) return false
+        // doc_ktb_corporate ปิดใช้งานแล้ว (is_active = false) — ข้าม comment นี้เสมอ ไม่ว่าเคสจะเคย reject ไว้หรือไม่
+        if (c.name === 'doc_ktb_corporate') return false
         return true
       })
       .map(c => c.name)
