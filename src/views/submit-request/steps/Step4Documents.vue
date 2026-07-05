@@ -323,6 +323,7 @@ onMounted(async () => {
         if (id === 'ktb_form' && !showKtbUpload.value) return
         if (!show(field)) return                     // slot ไม่ถูกแสดง — ไม่ต้องโหลด
         if (app.existingImageUrls[id]) return       // มี cache แล้ว
+        if (app.removedEvidenceKeys.has(id)) return // ผู้ใช้กด "ลบ" ทิ้งไปแล้ว — ไม่โหลดกลับมาโชว์ซ้ำ
         const evidenceId = app.existingEvidenceIds[id]
         if (!evidenceId) return                      // ไม่มีรูปเดิม
         const url = await welfareApi.fetchEvidenceAsObjectUrl(app.editApplicantId!, evidenceId)

@@ -149,6 +149,10 @@ export interface CaseIncomeSourcePayload {
 export type PhysicalCondition = 'normal' | 'disabled' | 'chronic_illness'
 
 export interface HouseholdMemberPayload {
+  // household_member.id เดิม (null = สมาชิกใหม่) — บังคับส่งกลับเพื่อจับคู่แทน seq ล้วนๆ
+  // ไม่งั้น backend จะมองว่าทุกคนเป็นสมาชิกใหม่หมด แล้ว delete+recreate household_members ทั้งชุด
+  // ซึ่ง cascade ลบ welfare_evidences ของทุกคนไปด้วย (แม้รูปที่ไม่ได้แก้ไขอะไรเลยก็หายไปด้วย)
+  id?: number | null
   seq: number
   national_id?: string | null
   prefix_id?: number | null
@@ -416,11 +420,11 @@ export const welfareApi = {
     })
   },
 
-  // เพิ่ม log สถานะใหม่ — ใช้ endpoint ของ case_for_staff ที่มีอยู่แล้ว
-  addStatusLog(applicantId: number, currentStatusId: number) {
-    return apiClient<StatusLogItem>('/v1/case_for_staff/welfare-request-status', {
+  // ยืนยันคำร้องหลังแก้ไขข้อมูลที่ถูกตีกลับ — reset สถานะกลับเป็น "รอรับเรื่อง"
+  // (endpoint ฝั่งประชาชนโดยเฉพาะ — ต่างจาก /v1/case_for_staff/welfare-request-status ที่เป็นของเจ้าหน้าที่)
+  resubmitCase(applicantId: number) {
+    return apiClient<StatusLogItem>(`/v1/cases/${applicantId}/resubmit`, {
       method: 'POST',
-      body: { applicant_id: applicantId, current_status_id: currentStatusId },
     })
   },
 

@@ -218,8 +218,8 @@ async function handleSubmit() {
       const { initial_current_status_id: _unused, ...updatePayload } = payload
       await welfareApi.updateCase(app.editApplicantId, updatePayload)
 
-      // เพิ่ม log สถานะ "รอรับเรื่อง" (id=1) ผ่าน endpoint ที่มีอยู่แล้ว
-      await welfareApi.addStatusLog(app.editApplicantId, 1)
+      // reset สถานะกลับเป็น "รอรับเรื่อง" — endpoint ฝั่งประชาชนโดยเฉพาะ
+      await welfareApi.resubmitCase(app.editApplicantId)
 
       // อัปโหลดเฉพาะไฟล์ใหม่ที่ผู้ใช้เลือก (slots ที่ไม่มี File = ยังใช้รูปเดิมจาก server)
       for (const meta of app.documentsMeta) {
@@ -234,13 +234,17 @@ async function handleSubmit() {
         await welfareApi.uploadEvidence(app.editApplicantId, attachmentTypeId, file, meta.otherTypeName)
       }
 
-      // กรณีแก้แค่ชื่อเอกสาร "อื่นๆ" แต่ไม่ได้เปลี่ยนรูป → PATCH ชื่อโดยไม่ต้อง re-upload
-      // รองรับสูงสุด 3 slot (other_doc_0 / other_doc_1 / other_doc_2)
+      // จัดการ slot "รูปอื่นๆ" ที่ไม่มีไฟล์ใหม่ — รองรับสูงสุด 3 slot (other_doc_0/1/2)
       for (const key of ['other_doc_0', 'other_doc_1', 'other_doc_2'] as const) {
         const hasNewFile = app.documentsMeta.some(m => m.id === key)
         const evidenceId = app.existingEvidenceIds[key]
         const name = app.existingOtherTypeNames[key]
-        if (!hasNewFile && evidenceId && name) {
+        if (hasNewFile || !evidenceId) continue
+        // ลบแล้ว = กด "ลบ" รูปตรงๆ (removedEvidenceKeys) หรือกด "ลบช่องนี้" ทั้ง slot (ชื่อว่าง)
+        if (app.removedEvidenceKeys.has(key) || !name) {
+          await welfareApi.deleteEvidence(app.editApplicantId, evidenceId)
+        } else {
+          // มีชื่อ และไม่ได้ถูกลบ → แค่แก้ชื่อ (ไม่ได้เปลี่ยนรูป)
           await welfareApi.updateEvidenceName(app.editApplicantId, evidenceId, name)
         }
       }
@@ -271,6 +275,16 @@ async function handleSubmit() {
         const evidenceId = app.memberExistingEvidenceIds[key]
         if (!hasNewFile && evidenceId && name) {
           await welfareApi.updateEvidenceName(app.editApplicantId, evidenceId, name)
+        }
+      }
+
+      // ลบรูปสมาชิกที่ผู้ใช้กด "ลบ" ทิ้งจากของเดิมโดยไม่ได้อัปโหลดรูปใหม่แทน
+      // (ถ้ามีไฟล์ใหม่มาแทนแล้ว ลูปด้านบนลบ+อัปโหลดให้เรียบร้อยแล้ว ไม่ต้องทำซ้ำตรงนี้)
+      for (const key of app.memberRemovedEvidenceKeys) {
+        if (app.memberFiles.has(key)) continue
+        const evidenceId = app.memberExistingEvidenceIds[key]
+        if (evidenceId) {
+          await welfareApi.deleteEvidence(app.editApplicantId, evidenceId)
         }
       }
 

@@ -381,8 +381,8 @@ async function handleSave() {
 
     await welfareApi.updateCase(app.editApplicantId!, partialUpdate)
 
-    // 3. reset สถานะกลับเป็น "รอรับเรื่อง"
-    await welfareApi.addStatusLog(app.editApplicantId!, 1)
+    // 3. reset สถานะกลับเป็น "รอรับเรื่อง" — endpoint ฝั่งประชาชนโดยเฉพาะ
+    await welfareApi.resubmitCase(app.editApplicantId!)
 
     // 4. อัปโหลดไฟล์ใหม่ (step4) — ลบเดิมก่อน แล้ว upload ใหม่
     if (showStep4.value) {
@@ -403,11 +403,50 @@ async function handleSave() {
         const evidenceId = app.existingEvidenceIds[key]
         const name = app.existingOtherTypeNames[key]
         if (hasNewFile || !evidenceId) continue
-        if (name) {
-          // มีชื่อ → แค่อัปเดตชื่อ (ไม่ได้เปลี่ยนรูป)
-          await welfareApi.updateEvidenceName(app.editApplicantId!, evidenceId, name)
+        // ลบแล้ว = กด "ลบ" รูปตรงๆ (removedEvidenceKeys) หรือกด "ลบช่องนี้" ทั้ง slot (ชื่อว่าง)
+        if (app.removedEvidenceKeys.has(key) || !name) {
+          await welfareApi.deleteEvidence(app.editApplicantId!, evidenceId)
         } else {
-          // ชื่อว่าง = slot ถูกลบด้วยปุ่ม "ลบช่องนี้" → ลบ evidence จาก server ด้วย
+          // มีชื่อ และไม่ได้ถูกลบ → แค่อัปเดตชื่อ (ไม่ได้เปลี่ยนรูป)
+          await welfareApi.updateEvidenceName(app.editApplicantId!, evidenceId, name)
+        }
+      }
+    }
+
+    // 4.5 อัปโหลด/อัปเดต/ลบรูปภาพเอกสารของสมาชิกในครัวเรือน (household_members อยู่ใน step 1)
+    if (showStep1.value) {
+      const memberDocTypeMap: Record<string, number> = {
+        id_card: 12, house_home: 6, house_person: 7, other: 99,
+      }
+      for (const [key, file] of app.memberFiles.entries()) {
+        const match = key.match(/^m(\d+)_(.+)$/)
+        if (!match) continue
+        const seq      = Number(match[1])
+        const docType  = match[2]
+        const attachmentTypeId = memberDocTypeMap[docType]
+        if (!attachmentTypeId) continue
+        // ลบ evidence เดิมก่อน (ถ้ามี) เพื่อไม่ให้มีรูปซ้ำซ้อนใน DB และ disk
+        const oldEvidenceId = app.memberExistingEvidenceIds[key]
+        if (oldEvidenceId) {
+          await welfareApi.deleteEvidence(app.editApplicantId!, oldEvidenceId)
+        }
+        const otherName = docType === 'other' ? app.memberExistingOtherTypeNames[key] : undefined
+        await welfareApi.uploadMemberEvidence(app.editApplicantId!, seq, attachmentTypeId, file, otherName)
+      }
+      // กรณีแก้แค่ชื่อ "อื่นๆ" ของสมาชิกโดยไม่ได้เปลี่ยนรูป → PATCH ชื่อโดยไม่ต้อง re-upload
+      for (const [key, name] of Object.entries(app.memberExistingOtherTypeNames)) {
+        if (!key.endsWith('_other')) continue
+        const hasNewFile = app.memberFiles.has(key)
+        const evidenceId = app.memberExistingEvidenceIds[key]
+        if (!hasNewFile && evidenceId && name) {
+          await welfareApi.updateEvidenceName(app.editApplicantId!, evidenceId, name)
+        }
+      }
+      // ลบรูปสมาชิกที่ผู้ใช้กด "ลบ" ทิ้งจากของเดิมโดยไม่ได้อัปโหลดรูปใหม่แทน
+      for (const key of app.memberRemovedEvidenceKeys) {
+        if (app.memberFiles.has(key)) continue
+        const evidenceId = app.memberExistingEvidenceIds[key]
+        if (evidenceId) {
           await welfareApi.deleteEvidence(app.editApplicantId!, evidenceId)
         }
       }
