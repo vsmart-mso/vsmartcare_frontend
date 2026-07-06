@@ -30,8 +30,8 @@ function buildFilterFields(step: number): string[] {
     app.reviewComments
       .filter(c => {
         if (c.step !== step || c.name === 'remarks') return false
-        // คำขอใหม่ไม่รองรับ KTB — ข้าม comment นี้ถ้าเคสไม่เคยมีรูป KTB
-        if (c.name === 'doc_ktb_corporate' && !app.existingEvidenceIds['ktb_form']) return false
+        // doc_ktb_corporate ปิดใช้งานแล้ว (is_active = false) — ข้าม comment นี้เสมอ ไม่ว่าเคสจะเคย reject ไว้หรือไม่
+        if (c.name === 'doc_ktb_corporate') return false
         return true
       })
       .map(c => c.name)
@@ -214,10 +214,12 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
 const allFieldsEdited = computed(() => {
   const comments = app.reviewComments.filter(c => {
     if (c.name === 'remarks') return false
-    if (c.name === 'doc_ktb_corporate' && !app.existingEvidenceIds['ktb_form']) return false
+    // doc_ktb_corporate ปิดใช้งานแล้ว — ข้ามเสมอ ไม่บังคับให้แก้ไข (สอดคล้องกับ buildFilterFields)
+    if (c.name === 'doc_ktb_corporate') return false
     return true
   })
-  if (comments.length === 0) return false // ไม่มีอะไรให้แก้ (ปกติ guard redirect ไปแล้ว)
+  // ไม่มีอะไรต้องบังคับแก้ไข (เช่น comment เดียวคือ doc_ktb_corporate ที่ปิดใช้งานแล้ว) → ให้บันทึกได้เลย
+  if (comments.length === 0) return true
 
   for (const c of comments) {
     // ── field รูปภาพ (step 4): ต้องอัปโหลดไฟล์ใหม่ทับ ──
