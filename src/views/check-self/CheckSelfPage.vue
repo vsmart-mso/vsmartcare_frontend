@@ -405,11 +405,6 @@ function handleBack() {
           </p>
           <p class="text-body text-red-800 leading-relaxed">
             ระบบไม่สามารถดำเนินการต่อได้
-            หากต้องการสอบถามเพิ่มเติม กรุณาโทร.&nbsp;<a
-              href="tel:1300"
-              class="font-bold underline underline-offset-2 hover:opacity-80 active:opacity-60"
-              aria-label="โทรหาสายด่วน ๑๓๐๐"
-            >๑๓๐๐</a>
           </p>
         </div>
       </div>
