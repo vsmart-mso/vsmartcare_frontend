@@ -2,11 +2,12 @@
 // <script setup> คือรูปแบบใหม่ของ Vue 3 (Composition API)
 // โค้ดในนี้ทำงานครั้งเดียวตอน component ถูกสร้าง
 
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { redirectBrowserToThaIDLogin } from '@/api/auth'
+import { authApi, redirectBrowserToThaIDLogin } from '@/api/auth'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { isLoginBetaNoticeEnabled } from '@/config/env'
 import {
   normalizeAuthErrorQuery,
@@ -25,6 +26,16 @@ const thaidError = ref<string | null>(null)
 const thaidLoading = ref(false)
 const showBetaNotice = ref(isLoginBetaNoticeEnabled())
 
+// โหมดพัฒนาเท่านั้น — เลือกจังหวัดของที่อยู่จำลอง ThaID เพื่อทดสอบ province gate
+// (TASK-v-care-12062026-01) รายชื่อมาจาก mock_profile_seed.json ฝั่ง thaid-auth-service
+const isDevMode = import.meta.env.DEV
+const mockProvinces = ref<string[]>([])
+const selectedMockProvince = ref('')
+const mockProvinceOptions = computed(() => [
+  { value: '', label: '(ค่าเริ่มต้น — สมุทรปราการ)' },
+  ...mockProvinces.value.map((p) => ({ value: p, label: p })),
+])
+
 function dismissBetaNotice() {
   showBetaNotice.value = false
 }
@@ -38,6 +49,13 @@ onMounted(() => {
     router.replace({ name: 'login' })
   }
 
+  if (isDevMode) {
+    // เงียบถ้า backend ไม่ได้อยู่โหมด mock (404) — ไม่ใช่ error ที่ต้องแจ้ง user
+    authApi
+      .fetchMockProvinces()
+      .then((res) => { mockProvinces.value = res.provinces })
+      .catch(() => { mockProvinces.value = [] })
+  }
 })
 
 /** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
@@ -46,7 +64,7 @@ async function handleThaID() {
   thaidError.value = null
   thaidLoading.value = true
   try {
-    await redirectBrowserToThaIDLogin(router)
+    await redirectBrowserToThaIDLogin(router, { mock_province: selectedMockProvince.value })
   } catch (e: unknown) {
     thaidLoading.value = false
     thaidError.value = userMessageForAuthApiError(e)
@@ -101,6 +119,22 @@ async function handleThaID() {
 
         <!-- ส่วนที่ 3: ปุ่มเลือกวิธี Login -->
         <div class="space-y-3 mb-5">
+
+          <!-- โหมดพัฒนาเท่านั้น — ค้นหา/เลือกจังหวัดจำลองเพื่อทดสอบเปิด/ปิดบริการรายจังหวัด -->
+          <!-- ใช้ SearchableSelect เดียวกับที่หน้ายื่นคำขอใช้เลือกจังหวัดจริง (Step1PersonalInfo.vue) -->
+          <div
+            v-if="isDevMode && mockProvinces.length > 0"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2"
+          >
+            <label class="block text-body-xs font-semibold text-amber-950 mb-1">
+              โหมดพัฒนา — ค้นหาจังหวัด mock สำหรับทดสอบ ({{ mockProvinces.length }} จังหวัด)
+            </label>
+            <SearchableSelect
+              v-model="selectedMockProvince"
+              :options="mockProvinceOptions"
+              placeholder="(ค่าเริ่มต้น — สมุทรปราการ)"
+            />
+          </div>
 
           <!-- ปุ่ม ThaID -->
           <!--
