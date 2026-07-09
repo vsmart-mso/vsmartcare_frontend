@@ -1,11 +1,12 @@
 import { thaidDevMockActive } from './constants'
+import { isThaIDDevMockEnabled } from '@/config/env'
 
 const BANK_BOOK_FIXTURE_PATH = '/dev-fixtures/bank-book-ocr-sample.jpg'
 const BANK_BOOK_FIXTURE_FILENAME = 'bank-book-ocr-sample.jpg'
 
 /** True when the current session logged in via dev mock ThaiD. */
 export function isDevMockSession(): boolean {
-  return import.meta.env.DEV && thaidDevMockActive()
+  return isThaIDDevMockEnabled() && thaidDevMockActive()
 }
 
 /** Fetch the dev bank-book sample image as a File for upload/OCR. */

@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { authApi } from '@/api/auth'
 import { welfareApi } from '@/api/welfare'
+import { isThaIDDevMockEnabled } from '@/config/env'
 import type { ThaiDUser } from '@/types/auth'
 import { normalizeThaiDBirthdateForApp } from '@/utils/birthdate'
 
@@ -23,9 +24,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/login/LoginThaIDReturnPage.vue'),
     meta: { public: true },
   },
-  // หน้านี้มีเฉพาะตอน dev (vite dev server) — ใน production build จะไม่มี route นี้
-  // ป้องกันไม่ให้ผู้ใช้จริงเข้าหน้าจำลองได้
-  ...(import.meta.env.DEV
+  // หน้านี้จะถูกเปิดเมื่อเปิด ThaiD dev mock flag เท่านั้น
+  // ป้องกันไม่ให้ผู้ใช้จริงเข้าหน้าจำลองเมื่อไม่ได้ตั้งค่า env
+  ...(isThaIDDevMockEnabled()
     ? [{
         path: '/login/thaid/dev-mock',
         name: 'login-thaid-dev-mock',
