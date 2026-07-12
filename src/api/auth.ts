@@ -4,6 +4,7 @@ import type { Router } from 'vue-router'
 import { apiClient } from './client'
 import type { ThaiDUser, DGAUser } from '@/types/auth'
 import { THAID_DEV_MOCK_STORAGE_KEY } from '@/dev/mock/constants'
+import { isThaIDDevMockEnabled } from '@/config/env'
 
 /** ตอบจาก thaid-auth-service / BFF `POST /v1/auth/thaid/login` */
 export interface ThaIDLoginStartResponse {
@@ -82,6 +83,8 @@ export const authApi = {
     post_login_redirect?: string | null
     /** ฐาน URL ของ BFF ที่เบราว์เซอร์เรียกได้ — ใช้ประกอบลิงก์ mock (ต้องตรงกับ VITE_API_URL) */
     browser_oauth_base?: string | null
+    /** เฉพาะ mock OIDC (dev) — เลือกที่อยู่จำลองตามจังหวัด เพื่อทดสอบเปิด/ปิดบริการรายจังหวัด */
+    mock_province?: string | null
   }) {
     const body: Record<string, string> = {}
     if (payload?.post_login_redirect != null && payload.post_login_redirect !== '') {
@@ -90,10 +93,18 @@ export const authApi = {
     if (payload?.browser_oauth_base != null && payload.browser_oauth_base !== '') {
       body.browser_oauth_base = payload.browser_oauth_base
     }
+    if (payload?.mock_province != null && payload.mock_province !== '') {
+      body.mock_province = payload.mock_province
+    }
     return apiClient<ThaIDLoginStartResponse>('/v1/auth/thaid/login', {
       method: 'POST',
       body,
     })
+  },
+
+  /** เฉพาะ dev/mock OIDC — รายชื่อจังหวัดที่มีที่อยู่ตัวอย่างให้เลือกทดสอบ province gate */
+  fetchMockProvinces() {
+    return apiClient<{ provinces: string[] }>('/v1/auth/thaid/mock/provinces', { method: 'GET' })
   },
 
   fetchMe() {
@@ -131,30 +142,24 @@ function resolveThaIDLoginFlow(start: ThaIDLoginStartResponse): 'thaid' | 'dev_m
   return 'thaid'
 }
 
-/**
- * เริ่มล็อกอิน ThaiD: ถ้า backend อยู่โหมด mock จะไปหน้าจำลอง QR/ปุ่ม — ถ้าเป็น OIDC จริงจะ redirect ไป ThaiD ทันที
- */
-export async function redirectBrowserToThaIDLogin(router: Router) {
+function buildThaIDLoginStartPayload(options?: { mock_province?: string | null }) {
   const returnUrl = `${window.location.origin}/login/thaid/return`
   const apiBase = resolveApiBaseUrl()
 
-  // บน production ใช้ GET endpoint ของ backend โดยตรง (synchronous — ไม่มี await ก่อน navigate)
-  // เพราะ iOS Safari จะ honor Universal Link (เปิดแอป ThaiD) ได้ก็ต่อเมื่อ
-  // การ navigate เกิดจาก user gesture โดยตรง ไม่ผ่าน async/Promise
-  // backend จะสร้าง state แล้วทำ 302 redirect ไป ThaiD ให้เอง
-  if (!import.meta.env.DEV) {
-    const loginUrl = new URL(`${apiBase}/v1/auth/thaid/login`)
-    loginUrl.searchParams.set('post_login_redirect', returnUrl)
-    loginUrl.searchParams.set('browser_oauth_base', apiBase)
-    window.location.assign(loginUrl.toString())
-    return
+  return {
+    returnUrl,
+    apiBase,
+    payload: {
+      post_login_redirect: returnUrl,
+      browser_oauth_base: apiBase,
+      mock_province: options?.mock_province,
+    },
   }
+}
 
-  // บน dev ยังต้องใช้ POST เพื่อดัก flow "dev_mock" และแสดงหน้าจำลอง QR/ปุ่ม
-  const start = await authApi.startThaIDLogin({
-    post_login_redirect: returnUrl,
-    browser_oauth_base: apiBase,
-  })
+export async function startThaIDLoginFlow(options?: { mock_province?: string | null }) {
+  const { payload } = buildThaIDLoginStartPayload(options)
+  const start = await authApi.startThaIDLogin(payload)
 
   try {
     sessionStorage.setItem(THAID_LAST_LOGIN_START_KEY, JSON.stringify(start))
@@ -162,7 +167,40 @@ export async function redirectBrowserToThaIDLogin(router: Router) {
     // ignore
   }
 
-  if (resolveThaIDLoginFlow(start) === 'dev_mock') {
+  return {
+    start,
+    flow: resolveThaIDLoginFlow(start),
+  }
+}
+
+/**
+ * เริ่มล็อกอิน ThaiD: ถ้า backend อยู่โหมด mock จะไปหน้าจำลอง QR/ปุ่ม — ถ้าเป็น OIDC จริงจะ redirect ไป ThaiD ทันที
+ */
+export async function redirectBrowserToThaIDLogin(
+  router: Router,
+  options?: { mock_province?: string | null },
+) {
+  const { returnUrl, apiBase } = buildThaIDLoginStartPayload(options)
+
+  // บน production ใช้ GET endpoint ของ backend โดยตรง (synchronous — ไม่มี await ก่อน navigate)
+  // เพราะ iOS Safari จะ honor Universal Link (เปิดแอป ThaiD) ได้ก็ต่อเมื่อ
+  // การ navigate เกิดจาก user gesture โดยตรง ไม่ผ่าน async/Promise
+  // backend จะสร้าง state แล้วทำ 302 redirect ไป ThaiD ให้เอง
+  if (!isThaIDDevMockEnabled()) {
+    const loginUrl = new URL(`${apiBase}/v1/auth/thaid/login`)
+    loginUrl.searchParams.set('post_login_redirect', returnUrl)
+    loginUrl.searchParams.set('browser_oauth_base', apiBase)
+    if (options?.mock_province) {
+      loginUrl.searchParams.set('mock_province', options.mock_province)
+    }
+    window.location.assign(loginUrl.toString())
+    return
+  }
+
+  // เมื่อเปิด ThaiD dev mock flag ให้ใช้ POST เพื่อดัก flow "dev_mock" และแสดงหน้าจำลอง QR/ปุ่ม
+  const { start, flow } = await startThaIDLoginFlow(options)
+
+  if (flow === 'dev_mock') {
     sessionStorage.setItem(
       THAID_DEV_MOCK_STORAGE_KEY,
       JSON.stringify({

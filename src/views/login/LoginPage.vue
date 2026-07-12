@@ -7,7 +7,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { redirectBrowserToThaIDLogin } from '@/api/auth'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
-import { isLoginBetaNoticeEnabled } from '@/config/env'
+import { isLoginBetaNoticeEnabled, isThaIDDevMockEnabled } from '@/config/env'
 import {
   normalizeAuthErrorQuery,
   userMessageForAuthApiError,
@@ -25,6 +25,9 @@ const thaidError = ref<string | null>(null)
 const thaidLoading = ref(false)
 const showBetaNotice = ref(isLoginBetaNoticeEnabled())
 
+// เมื่อเปิด flag ThaiD dev mock ปุ่ม ThaID จะพาไปหน้าจำลองแทน
+const isThaIDDevMock = isThaIDDevMockEnabled()
+
 function dismissBetaNotice() {
   showBetaNotice.value = false
 }
@@ -37,7 +40,6 @@ onMounted(() => {
     // ลบ query ออกจาก URL ไม่ให้ค้างเมื่อ user refresh
     router.replace({ name: 'login' })
   }
-
 })
 
 /** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
@@ -46,6 +48,12 @@ async function handleThaID() {
   thaidError.value = null
   thaidLoading.value = true
   try {
+    if (isThaIDDevMock) {
+      await router.push({ name: 'login-thaid-dev-mock' })
+      thaidLoading.value = false
+      return
+    }
+
     await redirectBrowserToThaIDLogin(router)
   } catch (e: unknown) {
     thaidLoading.value = false
