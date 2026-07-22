@@ -3,6 +3,8 @@ import { computed, watch, onMounted, ref } from 'vue'
 import { useImageUpload, compressImage } from '@/composables/useImageUpload'
 import PhotoUploadCard from '../components/PhotoUploadCard.vue'
 import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
+import BankBookManualForm from '../components/BankBookManualForm.vue'
+import BankBookOcrDecisionModal from '../components/BankBookOcrDecisionModal.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { useApplicationStore } from '@/stores/application'
@@ -87,6 +89,47 @@ const ocrTargetName = computed(() => {
 
 // หยุด OCR ชั่วคราวระหว่าง compress หรือ fetch จาก server
 const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
+
+// ─── OCR fail → Modal ตัดสินใจ (อัปโหลดใหม่ / กรอกเอง) ────────────────────────
+const thaiDUser = computed(() => auth.user as ThaiDUser | null)
+const showDecisionModal = ref(false)
+
+// OCR ผลไม่ผ่านจนต้องให้ผู้ใช้ตัดสินใจ — mismatch/blurry/no_text หรือข้อมูลไม่ครบ
+// (ยกเว้นกรณีขาดแค่ประเภทเงินฝาก ซึ่งมี dropdown ให้เลือกตรงนั้นอยู่แล้ว)
+const ocrHardFail = computed(() => {
+  const info = app.bankBookOcrResult?.bank_info
+  if (!info) return false
+  const s = info.match_status
+  if (s === 'mismatch' || s === 'blurry' || s === 'no_text') return true
+  if (s === 'match' || s === 'review') {
+    const completeExceptType = !!(
+      info.bank_name?.trim() &&
+      info.account_number?.trim() &&
+      info.account_name?.trim() &&
+      info.branch_name?.trim()
+    )
+    return !completeExceptType
+  }
+  return false
+})
+
+// เปิด modal เมื่อ OCR fail (rising edge) และยังไม่ได้อยู่โหมดกรอกเอง
+watch(ocrHardFail, (bad, prev) => {
+  if (bad && !prev && !app.bankManualEntry) showDecisionModal.value = true
+})
+
+function chooseReupload() {
+  showDecisionModal.value = false
+  clearBankBook()
+}
+function chooseManual() {
+  showDecisionModal.value = false
+  app.setBankManualEntry(true)
+}
+// ออกจากโหมดกรอกเอง กลับไปอัปโหลดรูปใหม่
+function exitManualEntry() {
+  clearBankBook()
+}
 
 // OCR auto-fill: เขียนค่าลง store โดยตรง (Step3 unmount แล้ว — ใช้ setBankInfo)
 function handleOcrAutoFill(payload: {
@@ -609,6 +652,7 @@ defineExpose({
 
           <!-- OCR Status component — จัดการ OCR ใน background + แสดงผลเทียบชื่อ -->
           <BankBookOcrStatus
+            v-show="!app.bankManualEntry"
             ref="ocrRef"
             :file="bankBook.file.value"
             :target-name="ocrTargetName"
@@ -619,9 +663,25 @@ defineExpose({
             @auto-fill="handleOcrAutoFill"
           />
 
-          <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
+          <!-- ฟอร์มกรอกข้อมูลบัญชีเอง (เมื่อผู้ใช้เลือกจาก Modal ตัดสินใจ) -->
+          <template v-if="app.bankManualEntry">
+            <BankBookManualForm
+              :bank-options="bankOptions"
+              :account-type-options="accountTypeOptions"
+              :thai-d="thaiDUser"
+            />
+            <button
+              type="button"
+              class="mt-2 text-micro font-medium text-[#1A56DB] hover:text-blue-700 active:scale-95 transition-all"
+              @click="exitManualEntry"
+            >
+              ต้องการอัปโหลดรูปสมุดบัญชีใหม่แทน
+            </button>
+          </template>
+
+          <!-- ขาดแค่ประเภทเงินฝาก — เลือกจาก dropdown ตรงนี้ (ไม่ต้องกรอกเองทั้งหมด) -->
           <div
-            v-if="showManualAccountType"
+            v-if="showManualAccountType && !app.bankManualEntry"
             class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3"
           >
             <label class="block text-body-xs font-semibold text-amber-800 mb-1.5">
@@ -677,6 +737,14 @@ defineExpose({
             accept="image/*"
             class="hidden"
             @change="bankBook.handleFileSelect"
+          />
+
+          <!-- Modal ตัดสินใจเมื่อ OCR ไม่ผ่าน -->
+          <BankBookOcrDecisionModal
+            :open="showDecisionModal"
+            @reupload="chooseReupload"
+            @manual="chooseManual"
+            @close="showDecisionModal = false"
           />
         </div>
 
