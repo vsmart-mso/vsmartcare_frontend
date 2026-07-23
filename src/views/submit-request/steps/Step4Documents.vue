@@ -131,10 +131,6 @@ function chooseManual() {
   showDecisionModal.value = false
   app.setBankManualEntry(true)
 }
-// ออกจากโหมดกรอกเอง กลับไปอัปโหลดรูปใหม่
-function exitManualEntry() {
-  clearBankBook()
-}
 
 // OCR auto-fill: เขียนค่าลง store โดยตรง (Step3 unmount แล้ว — ใช้ setBankInfo)
 function handleOcrAutoFill(payload: {
@@ -676,13 +672,6 @@ defineExpose({
               :account-type-options="accountTypeOptions"
               :thai-d="thaiDUser"
             />
-            <button
-              type="button"
-              class="mt-2 text-micro font-medium text-[#1A56DB] hover:text-blue-700 active:scale-95 transition-all"
-              @click="exitManualEntry"
-            >
-              ต้องการอัปโหลดรูปสมุดบัญชีใหม่แทน
-            </button>
           </template>
 
           <!-- ขาดแค่ประเภทเงินฝาก — เลือกจาก dropdown ตรงนี้ (ไม่ต้องกรอกเองทั้งหมด) -->
