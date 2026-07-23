@@ -118,6 +118,11 @@ watch(ocrHardFail, (bad, prev) => {
   if (bad && !prev && !app.bankManualEntry) showDecisionModal.value = true
 })
 
+// OCR service ล่ม/เรียกไม่สำเร็จ — result เป็น null (ocrHardFail ไม่จับ) เปิด modal ตรงนี้
+function handleOcrError() {
+  if (!app.bankManualEntry) showDecisionModal.value = true
+}
+
 function chooseReupload() {
   showDecisionModal.value = false
   clearBankBook()
@@ -661,6 +666,7 @@ defineExpose({
             :manual-account-type-id="bankAccountTypeId"
             :disabled="ocrDisabled"
             @auto-fill="handleOcrAutoFill"
+            @ocr-error="handleOcrError"
           />
 
           <!-- ฟอร์มกรอกข้อมูลบัญชีเอง (เมื่อผู้ใช้เลือกจาก Modal ตัดสินใจ) -->
