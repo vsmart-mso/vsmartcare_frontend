@@ -78,8 +78,20 @@ const steps = [
 // ─── Step 4 OCR Status (อ่านจาก store — sync โดย BankBookOcrStatus ใน Step4) ─
 type Step3OcrState = 'loading' | 'ok' | 'review' | 'bad'
 
+// รูปสมุดบัญชียังอยู่ (local file หรือ server blob) — ใช้ยืนยันโหมดกรอกเอง
+const hasBankBookImage = computed(() =>
+  !!app.getFile('bank_book') || !!app.existingImageUrls['bank_book']
+)
+
+// โหมดกรอกเอง: ผู้ใช้เลือกกรอกข้อมูลบัญชีเอง + กรอกครบ + ยังมีรูป → ผ่าน gate
+const bankManualOk = computed(() =>
+  app.bankManualEntry && app.bankManualValid && hasBankBookImage.value
+)
+
 const step3OcrState = computed<Step3OcrState>(() => {
   if (app.bankBookOcrLoading) return 'loading'
+  // กรอกข้อมูลบัญชีเอง (OCR ไม่ผ่าน แต่ผู้ใช้กรอกครบ) → ถือว่าผ่าน
+  if (app.bankManualEntry) return bankManualOk.value ? 'ok' : 'bad'
   const r = app.bankBookOcrResult
   if (!r) return 'ok' // ยังไม่มีผล หรือล้างแล้ว — แสดงปกติ
   const info = r.bank_info
@@ -148,7 +160,9 @@ function handleNext() {
 
   // ── Guard: OCR ผลไม่ดี → ห้ามผ่าน step 4 (สมุดบัญชีย้ายมาที่นี่แล้ว) ────────
   if (currentStep.value === 4 && ocrBlocksSubmit.value) {
-    submitError.value = 'กรุณาอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้องก่อนดำเนินการต่อ'
+    submitError.value = app.bankManualEntry
+      ? 'กรุณากรอกข้อมูลบัญชีให้ครบถ้วน และชื่อบัญชีต้องตรงกับผู้ยื่นคำขอ'
+      : 'กรุณาอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้องก่อนดำเนินการต่อ'
     return
   }
 
@@ -205,7 +219,9 @@ async function handleSubmit() {
   }
 
   if (ocrBlocksSubmit.value) {
-    submitError.value = 'กรุณากลับไป Step 4 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
+    submitError.value = app.bankManualEntry
+      ? 'กรุณากลับไป Step 4 และกรอกข้อมูลบัญชีให้ครบถ้วน (ชื่อบัญชีต้องตรงกับผู้ยื่นคำขอ)'
+      : 'กรุณากลับไป Step 4 และอัปโหลดรูปสมุดบัญชีธนาคารที่ถูกต้อง'
     return
   }
 
