@@ -6,7 +6,7 @@
  * เขียนค่าลง store โดยตรง (setBankInfo) + แจ้งความครบถ้วนผ่าน setBankManualValid
  * ชื่อบัญชีต้อง match ชื่อ ThaiD (validate ฝั่ง frontend — ดู utils/thaiName)
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { useApplicationStore } from '@/stores/application'
 import { bankNameMatchesThaiD } from '@/utils/thaiName'
@@ -19,13 +19,18 @@ const props = defineProps<{
   thaiD: { title?: string; fname?: string; lname?: string } | null
 }>()
 
-// ─── Field state — เริ่มว่างทุกช่อง (ไม่ prefill ค่า OCR เพราะ OCR อ่านผิด/ไม่ครบ)
-// ยกเว้นชื่อบัญชีที่ prefill จาก ThaiD ตอน onMounted (ยังไงก็ต้อง match ThaiD)
-const bankNameId    = ref('')
-const accountNumber = ref('')
-const accountName   = ref('')
-const accountTypeId = ref('')
-const branchName    = ref('')
+// ─── Field state ──────────────────────────────────────────────────────────────
+// hydrate จาก store ตอน setup (ก่อน watch ยิง) — กันข้อมูลหายเมื่อกด Next/Prev กลับมา
+// ค่า OCR เก่าถูกล้างที่ Step4.chooseManual() ตอนเข้าโหมดครั้งแรกแล้ว จึง hydrate ได้ปลอดภัย
+const s0 = app.step3
+const bankNameId    = ref(s0?.bankNameId ?? '')
+const accountNumber = ref(s0?.bankAccount ?? '')
+const accountTypeId = ref(s0?.bankAccountTypeId ?? '')
+const branchName    = ref(s0?.bankBranchName ?? '')
+// ชื่อบัญชีไม่เก็บใน store (validate frontend เท่านั้น) — prefill จาก ThaiD ทุกครั้ง (ต้อง match)
+const accountName   = ref(
+  props.thaiD?.fname && props.thaiD?.lname ? `${props.thaiD.fname} ${props.thaiD.lname}` : '',
+)
 
 const touched = ref(false)
 
@@ -39,12 +44,22 @@ const accountTypeOptionsWithHint = computed(() => [
 ])
 
 // ─── Validation ───────────────────────────────────────────────────────────────
+// เลขบัญชีธนาคารไทย 10-15 หลัก — สั้นกว่านี้ถือว่ากรอกไม่ครบ
+const ACCOUNT_MIN_LEN = 10
+
 const nameMatches = computed(() => bankNameMatchesThaiD(accountName.value, props.thaiD))
 const accountNumberDigits = computed(() => accountNumber.value.replace(/\D/g, ''))
 
+// strip อักขระที่ไม่ใช่ตัวเลขทันทีที่พิมพ์ (กันตัวอักษร/ช่องว่าง/ขีด)
+function onAccountInput() {
+  const digits = accountNumber.value.replace(/\D/g, '')
+  if (digits !== accountNumber.value) accountNumber.value = digits
+  markTouched()
+}
+
 const errors = computed(() => ({
   bank:        !bankNameId.value,
-  account:     !accountNumberDigits.value,
+  account:     accountNumberDigits.value.length < ACCOUNT_MIN_LEN,
   name:        !accountName.value.trim() || !nameMatches.value,
   accountType: !accountTypeId.value,
   branch:      !branchName.value.trim(),
@@ -53,7 +68,7 @@ const errors = computed(() => ({
 const isComplete = computed(() => !Object.values(errors.value).some(Boolean))
 
 // ─── Sync ลง store ────────────────────────────────────────────────────────────
-// immediate: true → ล้างค่า OCR เก่าใน store ทันทีที่เข้าโหมดกรอกเอง (กันส่งค่าที่ OCR อ่านผิด)
+// immediate: true → เขียนค่าที่ hydrate มากลับลง store ทันที (normalize เลขบัญชีเป็น digit)
 watch(
   [bankNameId, accountNumberDigits, accountTypeId, branchName],
   () => {
@@ -68,14 +83,6 @@ watch(
 )
 
 watch(isComplete, (v) => app.setBankManualValid(v), { immediate: true })
-
-// prefill ชื่อบัญชีจาก ThaiD (ผู้ใช้แก้ได้ แต่ต้อง match)
-onMounted(() => {
-  if (props.thaiD?.fname && props.thaiD?.lname) {
-    accountName.value = `${props.thaiD.fname} ${props.thaiD.lname}`
-  }
-  app.setBankManualValid(isComplete.value)
-})
 
 function markTouched() { touched.value = true }
 defineExpose({ touchAll: () => { touched.value = true } })
@@ -118,8 +125,12 @@ defineExpose({ touchAll: () => { touched.value = true } })
         placeholder="กรอกเลขที่บัญชี (ตัวเลขเท่านั้น)"
         class="w-full rounded-lg border px-3 py-2 text-body-xs focus:outline-none focus:ring-2 focus:ring-[#1A56DB]/30"
         :class="touched && errors.account ? 'border-red-300' : 'border-slate-200'"
+        @input="onAccountInput"
         @blur="markTouched"
       />
+      <p v-if="touched && errors.account && accountNumberDigits.length > 0" class="text-micro text-red-500 mt-1">
+        เลขที่บัญชีต้องมีอย่างน้อย {{ ACCOUNT_MIN_LEN }} หลัก
+      </p>
     </div>
 
     <!-- ชื่อบัญชี -->
