@@ -28,6 +28,12 @@ function isThaiDUser(u: unknown): u is ThaiDUser {
 
 // ถ้ามี ?step=X ใน URL ให้เริ่มที่ step นั้น (ใช้เมื่อกลับมาแก้ไขจาก case-tracking)
 onMounted(async () => {
+  // TASK_211: flow แก้ไขหลังตีกลับต้องใช้ /edit-request (มี confirmation panel)
+  if (app.editMode && app.editApplicantId && app.reviewComments.length > 0) {
+    router.replace({ name: 'edit-request' })
+    return
+  }
+
   const personId = isThaiDUser(auth.user) ? auth.user.person_id : 0
   if (personId) {
     try {

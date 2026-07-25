@@ -4,6 +4,7 @@
 
 import { ref } from 'vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 
 // สถานะแสดง/ซ่อน lightbox preview เต็มจอ
 const showPreview = ref(false)
@@ -21,6 +22,7 @@ defineProps<{
   isLoading?: boolean
   error?: string
   alertReason?: string  // comment จากเจ้าหน้าที่ — แสดง FieldAlert ข้าง title
+  confirmField?: string // ชื่อ field สำหรับติ๊กยืนยันในหน้า edit-request
   replaceMode?: boolean // edit-request: ปุ่มแก้ไขแทนลบ — เปิด file picker โดยไม่ล้างรูปเดิม
 }>()
 
@@ -74,6 +76,7 @@ function formatBytes(bytes: number): string {
           <FieldAlert v-if="alertReason" :reason="alertReason" />
         </p>
         <p v-if="subtitle" class="text-body-xs text-slate-500 mt-0.5">{{ subtitle }}</p>
+        <EditFieldConfirm v-if="confirmField" :field="confirmField" variant="block" />
       </div>
     </div>
 

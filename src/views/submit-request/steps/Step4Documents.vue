@@ -6,6 +6,7 @@ import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
 import BankBookManualForm from '../components/BankBookManualForm.vue'
 import BankBookOcrDecisionModal from '../components/BankBookOcrDecisionModal.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { useApplicationStore } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -464,6 +465,7 @@ defineExpose({
           :is-loading="exterior.isLoading.value || fetchingImages"
           :error="exterior.error.value"
           :alert-reason="commentMap.get('evidence_house_exterior')"
+          confirm-field="evidence_house_exterior"
           @file-select="exterior.handleFileSelect"
           @clear="clrImg(exterior, 'exterior')"
         />
@@ -483,6 +485,7 @@ defineExpose({
           :is-loading="interior.isLoading.value || fetchingImages"
           :error="interior.error.value"
           :alert-reason="commentMap.get('evidence_house_interior')"
+          confirm-field="evidence_house_interior"
           @file-select="interior.handleFileSelect"
           @clear="clrImg(interior, 'interior')"
         />
@@ -502,6 +505,7 @@ defineExpose({
           :is-loading="person.isLoading.value || fetchingImages"
           :error="person.error.value"
           :alert-reason="commentMap.get('evidence_person_photo')"
+          confirm-field="evidence_person_photo"
           @file-select="person.handleFileSelect"
           @clear="clrImg(person, 'person')"
         />
@@ -521,6 +525,7 @@ defineExpose({
           :is-loading="problem.isLoading.value || fetchingImages"
           :error="problem.error.value"
           :alert-reason="commentMap.get('evidence_problem_photo')"
+          confirm-field="evidence_problem_photo"
           @file-select="problem.handleFileSelect"
           @clear="clrImg(problem, 'problem')"
         />
@@ -540,6 +545,7 @@ defineExpose({
           :is-loading="family.isLoading.value || fetchingImages"
           :error="family.error.value"
           :alert-reason="commentMap.get('evidence_family_photo')"
+          confirm-field="evidence_family_photo"
           @file-select="family.handleFileSelect"
           @clear="clrImg(family, 'family')"
         />
@@ -576,6 +582,7 @@ defineExpose({
           <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
+            <EditFieldConfirm field="bank_book_photo" />
           </label>
 
           <div
@@ -761,6 +768,7 @@ defineExpose({
           :is-loading="houseHome.isLoading.value || fetchingImages"
           :error="houseHome.error.value"
           :alert-reason="commentMap.get('doc_house_registration_house')"
+          confirm-field="doc_house_registration_house"
           @file-select="houseHome.handleFileSelect"
           @clear="clrImg(houseHome, 'house_home')"
         />
@@ -780,6 +788,7 @@ defineExpose({
           :is-loading="housePerson.isLoading.value || fetchingImages"
           :error="housePerson.error.value"
           :alert-reason="commentMap.get('doc_house_registration_person')"
+          confirm-field="doc_house_registration_person"
           @file-select="housePerson.handleFileSelect"
           @clear="clrImg(housePerson, 'house_person')"
         />
@@ -799,6 +808,7 @@ defineExpose({
           :is-loading="ktbForm.isLoading.value || fetchingImages"
           :error="ktbForm.error.value"
           :alert-reason="commentMap.get('doc_ktb_corporate')"
+          confirm-field="doc_ktb_corporate"
           @file-select="ktbForm.handleFileSelect"
           @clear="clrImg(ktbForm, 'ktb_form')"
         />
@@ -819,6 +829,7 @@ defineExpose({
             :is-loading="otherDoc.isLoading.value || fetchingImages"
             :error="otherDoc.error.value"
             :alert-reason="commentMap.get('doc_other')"
+          confirm-field="doc_other"
             @file-select="otherDoc.handleFileSelect"
             @clear="clrImg(otherDoc, 'other_doc_0')"
           >

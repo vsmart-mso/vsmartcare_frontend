@@ -359,6 +359,16 @@ export interface ReviewComment {
   reason: string  // เหตุผลที่ต้องแก้ไข
 }
 
+/** การยืนยันต่อฟิลด์ตอน resubmit (TASK_211) */
+export interface FieldConfirmationItem {
+  review_field_id: number
+  confirmation_type: 'unchanged_ok' | 'edited'
+}
+
+export interface WelfareCaseResubmitBody {
+  field_confirmations: FieldConfirmationItem[]
+}
+
 // ─── API functions ─────────────────────────────────────────────────────────────
 
 export const welfareApi = {
@@ -422,9 +432,11 @@ export const welfareApi = {
 
   // ยืนยันคำร้องหลังแก้ไขข้อมูลที่ถูกตีกลับ — reset สถานะกลับเป็น "รอรับเรื่อง"
   // (endpoint ฝั่งประชาชนโดยเฉพาะ — ต่างจาก /v1/case_for_staff/welfare-request-status ที่เป็นของเจ้าหน้าที่)
-  resubmitCase(applicantId: number) {
+  // TASK_211: ต้องส่ง field_confirmations เมื่อสถานะเป็น 8 (idempotent retry เมื่อเป็น 1 แล้ว body optional)
+  resubmitCase(applicantId: number, body?: WelfareCaseResubmitBody) {
     return apiClient<StatusLogItem>(`/v1/cases/${applicantId}/resubmit`, {
       method: 'POST',
+      body,
     })
   },
 
