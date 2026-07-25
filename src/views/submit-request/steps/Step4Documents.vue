@@ -129,6 +129,9 @@ function chooseReupload() {
 }
 function chooseManual() {
   showDecisionModal.value = false
+  // ล้างค่า OCR เก่าครั้งเดียวตอนเข้าโหมดกรอกเอง (OCR อ่านผิด/ไม่ครบ) — ฟอร์มจะเริ่มว่าง
+  // หลังจากนี้ฟอร์ม hydrate จาก store เอง ทำให้กด Next/Prev แล้วข้อมูลไม่หาย
+  app.setBankInfo('', '', '', '')
   app.setBankManualEntry(true)
 }
 
