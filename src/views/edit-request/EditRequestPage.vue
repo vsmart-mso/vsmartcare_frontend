@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
+import type { ReviewComment } from '@/api/welfare'
 import { linkOcrResult } from '@/api/ocr'
 import Step1PersonalInfo from '@/views/submit-request/steps/Step1PersonalInfo.vue'
 import Step2Economics   from '@/views/submit-request/steps/Step2Economics.vue'
 import Step3Problem     from '@/views/submit-request/steps/Step3Problem.vue'
 import Step4Documents   from '@/views/submit-request/steps/Step4Documents.vue'
+import EditFieldConfirmPanel from '@/components/edit-request/EditFieldConfirmPanel.vue'
+import { EDIT_FIELD_CONFIRM_KEY } from '@/composables/useEditFieldConfirm'
 
 const router = useRouter()
 const app    = useApplicationStore()
@@ -99,10 +102,8 @@ const allReady = computed(() =>
   (!showStep4.value || step4Ready.value)
 )
 
-// ─── Dirty check: ต้องแก้ไข "ทุก" field ที่ถูกตีกลับก่อน จึงจะบันทึกได้ ────────────
-// เก็บ snapshot ค่า "ตั้งต้น" ของแต่ละ step ทันทีที่ restore เสร็จ (loading = false)
-// แล้วเทียบทีละ field ตอนจะบันทึก — ถ้ายังมี field ใดที่ค่าเท่าเดิม = ยังไม่ได้แก้ → ห้ามบันทึก
-// (เทียบผ่าน getData() ทั้งคู่ จึง normalize เหมือนกัน ไม่เกิด false dirty จากการแปลงค่า)
+// ─── Dirty snapshot: ใช้คำนวณ confirmation_type (edited vs unchanged_ok) เท่านั้น
+// ไม่ใช้เป็นเงื่อนไขบล็อกการส่งกลับอีกต่อไป (TASK_211)
 const baseline = ref<Record<number, string | null>>({})
 
 /** อ่าน instance ของ step component ตามหมายเลข (null = ยังไม่ mount) */
@@ -124,7 +125,7 @@ function captureBaseline(step: number) {
   baseline.value = { ...baseline.value, [step]: snapshot(step) }
 }
 
-// field รูปภาพ (step 4) → docType ใน documentsMeta — ถือว่า "แก้ไข" เมื่อมีไฟล์ใหม่ถูกอัปโหลด
+// field รูปภาพ (step 4) → docType ใน documentsMeta — dirty เมื่อมีไฟล์ใหม่
 const FILE_FIELD_DOCTYPE: Record<string, string> = {
   evidence_house_exterior:       'exterior',
   evidence_house_interior:       'interior',
@@ -139,7 +140,7 @@ const FILE_FIELD_DOCTYPE: Record<string, string> = {
 }
 
 // แปลงชื่อ field (จาก reviewComments) → ค่าที่ใช้เทียบ จาก object ผลของ getData()
-// คืน null = ไม่รู้จัก field นี้ (จะถูกข้าม ไม่นำมาบังคับ — กันเคส field ที่ยังไม่มีในฟอร์ม)
+// คืน null = ไม่รู้จัก field นี้ (จะถูกข้าม)
 function fieldValue(name: string, data: Record<string, unknown> | null): string | null {
   if (!data) return null
   const a = (data.address as Record<string, unknown>) ?? {}
@@ -163,12 +164,10 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
     case 'marital_status':              return String(data.maritalStatus ?? '')
     case 'housing_type':                return String(data.housingType ?? '')
     case 'housing_rent': {
-      // ไม่บังคับแก้ค่าเช่าเมื่อเปลี่ยนเป็นประเภทที่ไม่ใช่บ้านเช่าแล้ว
       if (data.isRentHousing === false) return null
       return String(data.rentPerMonth ?? '')
     }
     case 'household_members':           return JSON.stringify(data.householdMembers ?? [])
-    // backward compat: comment เก่าที่ยังใช้ชื่อเดิมก่อน migration 0060
     case 'family_members_count':        return JSON.stringify(data.householdMembers ?? [])
     // ── Step 2: เศรษฐกิจ / สวัสดิการ ──
     case 'family_occupation':   return String(data.familyOccupation ?? '')
@@ -196,7 +195,6 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
         on:   (data.aidTypes as string[] | undefined)?.includes('3') ?? false,
         text: data.aidOtherText ?? '',
       })
-    // legacy: รวม aidTypes + aidOtherText + aidInKindText
     case 'requested_assistance_type':
     case 'requested_assistance_detail':
       return JSON.stringify({
@@ -210,54 +208,174 @@ function fieldValue(name: string, data: Record<string, unknown> | null): string 
   }
 }
 
-// true = แก้ไขครบ "ทุก" field ที่ถูกตีกลับแล้ว (ถ้ายังเหลือ field ที่ค่าเท่าเดิม → false)
-const allFieldsEdited = computed(() => {
-  const comments = app.reviewComments.filter(c => {
-    if (c.name === 'remarks') return false
-    // doc_ktb_corporate ปิดใช้งานแล้ว — ข้ามเสมอ ไม่บังคับให้แก้ไข (สอดคล้องกับ buildFilterFields)
-    if (c.name === 'doc_ktb_corporate') return false
-    return true
-  })
-  // ไม่มีอะไรต้องบังคับแก้ไข (เช่น comment เดียวคือ doc_ktb_corporate ที่ปิดใช้งานแล้ว) → ให้บันทึกได้เลย
-  if (comments.length === 0) return true
-
-  for (const c of comments) {
-    // ── field รูปภาพ (step 4): ต้องอัปโหลดไฟล์ใหม่ทับ ──
-    const docType = FILE_FIELD_DOCTYPE[c.name]
-    if (docType) {
-      // รูปอื่นๆ รองรับหลาย slot (other_doc_0/1/2) — ถือว่าแก้แล้วถ้ามีไฟล์ใหม่ใน slot ใดก็ได้
-      if (docType === 'other_doc') {
-        const hasAny = app.documentsMeta.some(
-          m => m.id === 'other_doc_0' || m.id === 'other_doc_1' || m.id === 'other_doc_2'
-        )
-        if (!hasAny) return false
-        continue
-      }
-      if (!app.documentsMeta.some(m => m.id === docType)) return false
-      continue
+/** true = ค่าปัจจุบันต่างจาก baseline (หรือมีไฟล์ใหม่) */
+function isFieldDirty(name: string): boolean {
+  const docType = FILE_FIELD_DOCTYPE[name]
+  if (docType) {
+    if (docType === 'other_doc') {
+      return app.documentsMeta.some(
+        m => m.id === 'other_doc_0' || m.id === 'other_doc_1' || m.id === 'other_doc_2'
+      )
     }
-    // เงิน-only: แสดง alert อย่างเดียว ไม่บังคับเปลี่ยนค่า
-    if (c.name === 'requested_assistance_money') continue
-    // ── household_members: ถือว่าแก้แล้วถ้ามีรูปสมาชิกใหม่ (ไม่ต้องแก้ข้อมูลตัวอักษร) ──
-    // เพราะ dirty check เทียบแค่ JSON ข้อมูลสมาชิก ไม่รู้จักรูปภาพที่อัปโหลดใหม่
-    if (
-      (c.name === 'household_members' || c.name === 'family_members_count') &&
-      app.memberFiles.size > 0
-    ) continue
-
-    // ── field ข้อความ/ตัวเลือก: เทียบค่าปัจจุบันกับค่าตั้งต้นทีละ field ──
-    const base = baseline.value[c.step]
-    const cur  = snapshot(c.step)
-    if (base == null || cur == null) return false // restore ยังไม่เสร็จ → ยังบันทึกไม่ได้
-    const curData = JSON.parse(cur) as Record<string, unknown>
-    // ค่าเช่า: ถ้าเปลี่ยนเป็นที่อยู่ที่ไม่ใช่บ้านเช่าแล้ว ถือว่าแก้ครบ (ไม่บังคับแก้ตัวเลขค่าเช่า)
-    if (c.name === 'housing_rent' && curData.isRentHousing === false) continue
-    const baseVal = fieldValue(c.name, JSON.parse(base) as Record<string, unknown>)
-    const curVal  = fieldValue(c.name, curData)
-    if (baseVal == null) continue        // resolver ไม่รู้จัก field → ข้าม ไม่บังคับ
-    if (baseVal === curVal) return false  // field นี้ยังไม่ถูกแก้ → ห้ามบันทึก
+    return app.documentsMeta.some(m => m.id === docType)
   }
-  return true
+
+  if (name === 'requested_assistance_money') return false
+
+  if (
+    (name === 'household_members' || name === 'family_members_count') &&
+    (app.memberFiles.size > 0 || app.memberRemovedEvidenceKeys.size > 0)
+  ) {
+    return true
+  }
+
+  const comment = app.reviewComments.find(c => c.name === name)
+  const step = comment?.step
+  if (step == null || step === 4) return false
+
+  const base = baseline.value[step]
+  const cur  = snapshot(step)
+  if (base == null || cur == null) return false
+
+  const curData = JSON.parse(cur) as Record<string, unknown>
+  if (name === 'housing_rent' && curData.isRentHousing === false) {
+    // เปลี่ยนประเภทที่อยู่แล้ว — ถือว่ามีการแก้
+    const baseData = JSON.parse(base) as Record<string, unknown>
+    return baseData.isRentHousing !== false
+  }
+
+  const baseVal = fieldValue(name, JSON.parse(base) as Record<string, unknown>)
+  const curVal  = fieldValue(name, curData)
+  if (baseVal == null) return false
+  return baseVal !== curVal
+}
+
+// ─── TASK_211: ยืนยันต่อฟิลด์ (แทน dirty-check เป็น gate) ─────────────────────
+// ต้องตรงกับ case-service `_SKIP_CONFIRM_FIELD_NAMES` — ห้ามส่ง id ที่ไม่อยู่ใน required
+// ไม่งั้นได้ 422 field_confirmations_invalid_field
+const SKIP_CONFIRM_NAMES = new Set([
+  'remarks',
+  'doc_ktb_corporate',
+  'requested_assistance_money', // ล็อกเลือกไว้เสมอ — BE ไม่รับ confirmation ของฟิลด์นี้
+])
+
+/**
+ * ฟิลด์ลูกที่โชว์ตามเงื่อนไข (ต้องเลือก parent ก่อนถึงจะเห็น)
+ * — ไม่บังคับติ๊กยืนยันใน UI เพราะมักถูกซ่อนแล้วผู้ใช้พลาด
+ * — ตอน resubmit ยังส่ง confirmation อัตโนมัติตาม dirty state (BE บังคับมี)
+ */
+const CONDITIONAL_CONFIRM_NAMES = new Set([
+  'housing_rent',           // โชว์เมื่อเลือกประเภทที่อยู่ = เช่า
+  'income_source_other',    // โชว์เมื่อเลือกที่มาของรายได้ = อื่นๆ
+  'dependents_other',       // โชว์เมื่อเลือกภาระอุปการะ = อื่นๆ
+  'gov_aid_count',          // โชว์เมื่อเคยรับความช่วยเหลือ
+  'gov_aid_amount',
+  'gov_aid_types',
+  'gov_aid_type_detail',
+])
+
+/** ฟิลด์ที่ผู้ใช้ต้องติ๊ก “ตรวจสอบแล้ว” บนหน้าจอ */
+const requiredConfirmFields = computed((): ReviewComment[] =>
+  app.reviewComments.filter(
+    c => !SKIP_CONFIRM_NAMES.has(c.name) && !CONDITIONAL_CONFIRM_NAMES.has(c.name),
+  )
+)
+
+/** ฟิลด์ที่ต้องส่งใน field_confirmations (รวมเงื่อนไขที่ auto-confirm) */
+const resubmitConfirmFields = computed((): ReviewComment[] =>
+  app.reviewComments.filter(c => !SKIP_CONFIRM_NAMES.has(c.name))
+)
+
+/** review_field_id → ติ๊กยืนยันแล้ว */
+const fieldConfirmations = ref<Record<number, boolean>>({})
+
+const fieldIdByName = computed((): Record<string, number> => {
+  const out: Record<string, number> = {}
+  for (const f of requiredConfirmFields.value) out[f.name] = f.review_field_id
+  return out
+})
+
+function toggleFieldConfirmation(fieldId: number, checked: boolean) {
+  fieldConfirmations.value = { ...fieldConfirmations.value, [fieldId]: checked }
+}
+
+function toggleManyFieldConfirmations(fieldIds: number[], checked: boolean) {
+  if (fieldIds.length === 0) return
+  const updated = { ...fieldConfirmations.value }
+  for (const id of fieldIds) updated[id] = checked
+  fieldConfirmations.value = updated
+}
+
+const allFieldsConfirmed = computed(() => {
+  const fields = requiredConfirmFields.value
+  if (fields.length === 0) return true
+  return fields.every(f => fieldConfirmations.value[f.review_field_id])
+})
+
+/** เมื่อค่าฟิลด์เปลี่ยนหลังติ๊กแล้ว → ล้าง confirmation ของฟิลด์นั้น */
+const interactionTick = ref(0)
+function bumpInteraction() {
+  interactionTick.value++
+}
+
+const confirmationTypes = computed((): Record<number, 'edited' | 'unchanged_ok'> => {
+  void interactionTick.value
+  void app.documentsMeta.length
+  void app.memberFiles.size
+  void app.memberRemovedEvidenceKeys.size
+  const out: Record<number, 'edited' | 'unchanged_ok'> = {}
+  for (const f of requiredConfirmFields.value) {
+    out[f.review_field_id] = isFieldDirty(f.name) ? 'edited' : 'unchanged_ok'
+  }
+  return out
+})
+
+provide(EDIT_FIELD_CONFIRM_KEY, {
+  confirmations: fieldConfirmations,
+  confirmationTypes,
+  fieldIdByName,
+  toggle: toggleFieldConfirmation,
+  toggleMany: toggleManyFieldConfirmations,
+})
+
+function confirmationTypeFor(field: ReviewComment): 'edited' | 'unchanged_ok' {
+  return isFieldDirty(field.name) ? 'edited' : 'unchanged_ok'
+}
+
+const dirtySignature = computed(() => {
+  void interactionTick.value
+  // ผูก reactive deps ของไฟล์ / รูปสมาชิก
+  void app.documentsMeta.length
+  void app.memberFiles.size
+  void app.memberRemovedEvidenceKeys.size
+  return requiredConfirmFields.value
+    .map(f => `${f.review_field_id}:${isFieldDirty(f.name) ? 1 : 0}`)
+    .join('|')
+})
+
+watch(dirtySignature, (next, prev) => {
+  if (prev == null || prev === '' || next === prev) return
+  const prevMap = new Map(
+    prev.split('|').filter(Boolean).map(s => {
+      const [id, dirty] = s.split(':')
+      return [Number(id), dirty === '1'] as const
+    })
+  )
+  const nextMap = new Map(
+    next.split('|').filter(Boolean).map(s => {
+      const [id, dirty] = s.split(':')
+      return [Number(id), dirty === '1'] as const
+    })
+  )
+  let changed = false
+  const updated = { ...fieldConfirmations.value }
+  for (const [id, dirty] of nextMap) {
+    if (prevMap.get(id) !== dirty && updated[id]) {
+      updated[id] = false
+      changed = true
+    }
+  }
+  if (changed) fieldConfirmations.value = updated
 })
 
 // ─── สถานะการโหลดของแต่ละ step ──────────────────────────────────────────────
@@ -305,14 +423,21 @@ async function handleSave() {
   if (!allReady.value) {
     if (showStep1.value) (step1Ref.value as unknown as StepExpose)?.touchAll?.()
     if (showStep3.value) (step3Ref.value as unknown as StepExpose)?.touchAll?.()
-    submitError.value = 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน'
+    const missing: string[] = []
+    if (showStep1.value && !step1Ready.value) missing.push('ส่วนที่ 1 (ที่อยู่ / ครอบครัว / ที่อยู่อาศัย)')
+    if (showStep2.value && !step2Ready.value) missing.push('ส่วนที่ 2 (เศรษฐกิจ / สวัสดิการ)')
+    if (showStep3.value && !step3Ready.value) missing.push('ส่วนที่ 3 (ปัญหา / ความช่วยเหลือ)')
+    if (showStep4.value && !step4Ready.value) missing.push('ส่วนที่ 4 (เอกสารและรูป)')
+    submitError.value = missing.length > 0
+      ? `กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วนใน: ${missing.join(', ')}`
+      : 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน'
     return
   }
   if (isSubmitting.value) return
 
-  // ต้องแก้ไขครบทุก field ที่ถูกตีกลับก่อน — ถ้ายังมีหัวข้อที่ค่าเท่าเดิม ไม่ให้บันทึก
-  if (!allFieldsEdited.value) {
-    submitError.value = 'กรุณาแก้ไขข้อมูลให้ครบทุกหัวข้อที่ถูกตีกลับก่อนกดบันทึก'
+  // ต้องยืนยันครบทุกฟิลด์ที่ถูกสั่งแก้ (TASK_211) — ไม่บังคับเปลี่ยนค่า
+  if (!allFieldsConfirmed.value) {
+    submitError.value = 'กรุณายืนยันการตรวจสอบให้ครบทุกหัวข้อที่เจ้าหน้าที่ระบุ'
     return
   }
 
@@ -383,8 +508,16 @@ async function handleSave() {
 
     await welfareApi.updateCase(app.editApplicantId!, partialUpdate)
 
-    // 3. reset สถานะกลับเป็น "รอรับเรื่อง" — endpoint ฝั่งประชาชนโดยเฉพาะ
-    await welfareApi.resubmitCase(app.editApplicantId!)
+    // 3. reset สถานะกลับเป็น "รอรับเรื่อง" — พร้อม field_confirmations (TASK_211)
+    // รวมฟิลด์เงื่อนไขที่ไม่ได้บังคับติ๊กใน UI (auto ตาม dirty)
+    const field_confirmations = resubmitConfirmFields.value.map(f => ({
+      review_field_id: f.review_field_id,
+      confirmation_type: confirmationTypeFor(f),
+    }))
+    await welfareApi.resubmitCase(
+      app.editApplicantId!,
+      field_confirmations.length > 0 ? { field_confirmations } : undefined,
+    )
 
     // 4. อัปโหลดไฟล์ใหม่ (step4) — ลบเดิมก่อน แล้ว upload ใหม่
     if (showStep4.value) {
@@ -502,7 +635,11 @@ const STEP_LABELS: Record<number, string> = {
       aria-hidden="true"
     />
 
-    <main class="pt-[4.5rem] pb-32 px-4 space-y-4">
+    <main
+      class="pt-[4.5rem] pb-32 px-4 space-y-4"
+      @input="bumpInteraction"
+      @change="bumpInteraction"
+    >
 
       <!-- Banner แจ้งผู้ใช้ -->
       <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-5 mt-2">
@@ -510,12 +647,20 @@ const STEP_LABELS: Record<number, string> = {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
         <div>
-          <p class="text-body-xs font-semibold text-amber-800">กรุณาแก้ไขเฉพาะส่วนที่ไฮไลต์</p>
+          <p class="text-body-xs font-semibold text-amber-800">กรุณาตรวจสอบและยืนยันข้อมูลที่ถูกระบุ</p>
           <p class="text-hint text-amber-700 mt-1 leading-relaxed">
-            เจ้าหน้าที่ระบุส่วนที่ต้องแก้ไขไว้แล้ว กรุณากรอกให้ครบถ้วนแล้วกด "บันทึกการแก้ไข"
+            เจ้าหน้าที่ระบุส่วนที่ต้องตรวจสอบไว้แล้ว — สามารถแก้ค่าหรือยืนยันว่าข้อมูลเดิมถูกต้อง
+            แล้วติ๊ก “ตรวจสอบแล้ว” ให้ครบทุกหัวข้อก่อนกดบันทึก
           </p>
         </div>
       </div>
+
+      <!-- สรุปความคืบหน้าการยืนยัน (checkbox อยู่คู่กับแต่ละฟิลด์) -->
+      <EditFieldConfirmPanel
+        v-if="requiredConfirmFields.length > 0"
+        v-model="fieldConfirmations"
+        :fields="requiredConfirmFields"
+      />
 
       <!-- ─── Section Step 1 ─── -->
       <template v-if="showStep1">
@@ -609,7 +754,7 @@ const STEP_LABELS: Record<number, string> = {
           @click="handleSave"
           :disabled="isSubmitting || anyLoading || ocrBlocksSubmit"
           class="flex-1 py-3 rounded-xl text-body-md font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          :class="allReady && allFieldsEdited && !isSubmitting && !anyLoading && !ocrBlocksSubmit
+          :class="allReady && allFieldsConfirmed && !isSubmitting && !anyLoading && !ocrBlocksSubmit
             ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-blue-700'
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
         >

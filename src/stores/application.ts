@@ -285,6 +285,10 @@ export const useApplicationStore = defineStore('application', () => {
   const bankBookOcrLoading = ref(false)
   // OCR result ID จาก POST response — ใช้สำหรับ PATCH link หลัง submit
   const bankBookOcrResultId = ref<number | null>(null)
+  // ผู้ใช้เลือก "กรอกข้อมูลบัญชีเอง" หลัง OCR ไม่ผ่าน — bypass OCR gate เมื่อกรอกครบ
+  const bankManualEntry = ref(false)
+  // ฟอร์มกรอกเองครบทุกช่อง + ชื่อบัญชี match ThaiD (set โดย BankBookManualForm) — ใช้ปลดล็อก submit
+  const bankManualValid = ref(false)
 
   // ── Auto-save ลง sessionStorage ──────────────────────────────────────────
   // deep: true = ตรวจจับการเปลี่ยนแปลงภายใน object ด้วย (เช่น step1.address.houseNo)
@@ -764,6 +768,18 @@ export const useApplicationStore = defineStore('application', () => {
     bankBookOcrResult.value = null
     bankBookOcrResultId.value = null
     bankBookOcrLoading.value = false
+    // รูปใหม่/ล้างรูป → ออกจากโหมดกรอกเอง (จะ OCR ใหม่)
+    bankManualEntry.value = false
+    bankManualValid.value = false
+  }
+  // สลับโหมดกรอกข้อมูลบัญชีเอง (เรียกจาก Modal ตัดสินใจใน Step4)
+  function setBankManualEntry(on: boolean) {
+    bankManualEntry.value = on
+    if (!on) bankManualValid.value = false
+  }
+  // แจ้งว่าฟอร์มกรอกเองครบ+ชื่อ match (เรียกจาก BankBookManualForm)
+  function setBankManualValid(valid: boolean) {
+    bankManualValid.value = valid
   }
 
   // ล้างข้อมูลทั้งหมด — เรียกหลัง submit สำเร็จ
@@ -820,6 +836,8 @@ export const useApplicationStore = defineStore('application', () => {
     bankBookOcrResult,
     bankBookOcrLoading,
     bankBookOcrResultId,
+    bankManualEntry,
+    bankManualValid,
     reviewComments,
     // actions
     setPdpa,
@@ -847,5 +865,7 @@ export const useApplicationStore = defineStore('application', () => {
     setBankBookOcrLoading,
     setBankBookOcrResult,
     clearBankBookOcr,
+    setBankManualEntry,
+    setBankManualValid,
   }
 })

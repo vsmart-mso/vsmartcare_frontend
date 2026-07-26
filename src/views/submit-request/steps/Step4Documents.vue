@@ -3,7 +3,10 @@ import { computed, watch, onMounted, ref } from 'vue'
 import { useImageUpload, compressImage } from '@/composables/useImageUpload'
 import PhotoUploadCard from '../components/PhotoUploadCard.vue'
 import BankBookOcrStatus from '../components/BankBookOcrStatus.vue'
+import BankBookManualForm from '../components/BankBookManualForm.vue'
+import BankBookOcrDecisionModal from '../components/BankBookOcrDecisionModal.vue'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { useApplicationStore } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -87,6 +90,51 @@ const ocrTargetName = computed(() => {
 
 // หยุด OCR ชั่วคราวระหว่าง compress หรือ fetch จาก server
 const ocrDisabled = computed(() => bankBook.isLoading.value || fetchingBankBook.value)
+
+// ─── OCR fail → Modal ตัดสินใจ (อัปโหลดใหม่ / กรอกเอง) ────────────────────────
+const thaiDUser = computed(() => auth.user as ThaiDUser | null)
+const showDecisionModal = ref(false)
+
+// OCR ผลไม่ผ่านจนต้องให้ผู้ใช้ตัดสินใจ — mismatch/blurry/no_text หรือข้อมูลไม่ครบ
+// (ยกเว้นกรณีขาดแค่ประเภทเงินฝาก ซึ่งมี dropdown ให้เลือกตรงนั้นอยู่แล้ว)
+const ocrHardFail = computed(() => {
+  const info = app.bankBookOcrResult?.bank_info
+  if (!info) return false
+  const s = info.match_status
+  if (s === 'mismatch' || s === 'blurry' || s === 'no_text') return true
+  if (s === 'match' || s === 'review') {
+    const completeExceptType = !!(
+      info.bank_name?.trim() &&
+      info.account_number?.trim() &&
+      info.account_name?.trim() &&
+      info.branch_name?.trim()
+    )
+    return !completeExceptType
+  }
+  return false
+})
+
+// เปิด modal เมื่อ OCR fail (rising edge) และยังไม่ได้อยู่โหมดกรอกเอง
+watch(ocrHardFail, (bad, prev) => {
+  if (bad && !prev && !app.bankManualEntry) showDecisionModal.value = true
+})
+
+// OCR service ล่ม/เรียกไม่สำเร็จ — result เป็น null (ocrHardFail ไม่จับ) เปิด modal ตรงนี้
+function handleOcrError() {
+  if (!app.bankManualEntry) showDecisionModal.value = true
+}
+
+function chooseReupload() {
+  showDecisionModal.value = false
+  clearBankBook()
+}
+function chooseManual() {
+  showDecisionModal.value = false
+  // ล้างค่า OCR เก่าครั้งเดียวตอนเข้าโหมดกรอกเอง (OCR อ่านผิด/ไม่ครบ) — ฟอร์มจะเริ่มว่าง
+  // หลังจากนี้ฟอร์ม hydrate จาก store เอง ทำให้กด Next/Prev แล้วข้อมูลไม่หาย
+  app.setBankInfo('', '', '', '')
+  app.setBankManualEntry(true)
+}
 
 // OCR auto-fill: เขียนค่าลง store โดยตรง (Step3 unmount แล้ว — ใช้ setBankInfo)
 function handleOcrAutoFill(payload: {
@@ -417,6 +465,7 @@ defineExpose({
           :is-loading="exterior.isLoading.value || fetchingImages"
           :error="exterior.error.value"
           :alert-reason="commentMap.get('evidence_house_exterior')"
+          confirm-field="evidence_house_exterior"
           @file-select="exterior.handleFileSelect"
           @clear="clrImg(exterior, 'exterior')"
         />
@@ -436,6 +485,7 @@ defineExpose({
           :is-loading="interior.isLoading.value || fetchingImages"
           :error="interior.error.value"
           :alert-reason="commentMap.get('evidence_house_interior')"
+          confirm-field="evidence_house_interior"
           @file-select="interior.handleFileSelect"
           @clear="clrImg(interior, 'interior')"
         />
@@ -455,6 +505,7 @@ defineExpose({
           :is-loading="person.isLoading.value || fetchingImages"
           :error="person.error.value"
           :alert-reason="commentMap.get('evidence_person_photo')"
+          confirm-field="evidence_person_photo"
           @file-select="person.handleFileSelect"
           @clear="clrImg(person, 'person')"
         />
@@ -474,6 +525,7 @@ defineExpose({
           :is-loading="problem.isLoading.value || fetchingImages"
           :error="problem.error.value"
           :alert-reason="commentMap.get('evidence_problem_photo')"
+          confirm-field="evidence_problem_photo"
           @file-select="problem.handleFileSelect"
           @clear="clrImg(problem, 'problem')"
         />
@@ -493,6 +545,7 @@ defineExpose({
           :is-loading="family.isLoading.value || fetchingImages"
           :error="family.error.value"
           :alert-reason="commentMap.get('evidence_family_photo')"
+          confirm-field="evidence_family_photo"
           @file-select="family.handleFileSelect"
           @clear="clrImg(family, 'family')"
         />
@@ -529,6 +582,7 @@ defineExpose({
           <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>รูปหน้าสมุดบัญชีธนาคาร <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('bank_book_photo')" :reason="commentMap.get('bank_book_photo')!" />
+            <EditFieldConfirm field="bank_book_photo" />
           </label>
 
           <div
@@ -609,6 +663,7 @@ defineExpose({
 
           <!-- OCR Status component — จัดการ OCR ใน background + แสดงผลเทียบชื่อ -->
           <BankBookOcrStatus
+            v-show="!app.bankManualEntry"
             ref="ocrRef"
             :file="bankBook.file.value"
             :target-name="ocrTargetName"
@@ -617,11 +672,21 @@ defineExpose({
             :manual-account-type-id="bankAccountTypeId"
             :disabled="ocrDisabled"
             @auto-fill="handleOcrAutoFill"
+            @ocr-error="handleOcrError"
           />
 
-          <!-- ปุ่มอัปโหลดเมื่อยังไม่มีรูป -->
+          <!-- ฟอร์มกรอกข้อมูลบัญชีเอง (เมื่อผู้ใช้เลือกจาก Modal ตัดสินใจ) -->
+          <template v-if="app.bankManualEntry">
+            <BankBookManualForm
+              :bank-options="bankOptions"
+              :account-type-options="accountTypeOptions"
+              :thai-d="thaiDUser"
+            />
+          </template>
+
+          <!-- ขาดแค่ประเภทเงินฝาก — เลือกจาก dropdown ตรงนี้ (ไม่ต้องกรอกเองทั้งหมด) -->
           <div
-            v-if="showManualAccountType"
+            v-if="showManualAccountType && !app.bankManualEntry"
             class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3"
           >
             <label class="block text-body-xs font-semibold text-amber-800 mb-1.5">
@@ -678,6 +743,14 @@ defineExpose({
             class="hidden"
             @change="bankBook.handleFileSelect"
           />
+
+          <!-- Modal ตัดสินใจเมื่อ OCR ไม่ผ่าน -->
+          <BankBookOcrDecisionModal
+            :open="showDecisionModal"
+            @reupload="chooseReupload"
+            @manual="chooseManual"
+            @close="showDecisionModal = false"
+          />
         </div>
 
         <!-- ทะเบียนบ้าน (รายการบ้าน) -->
@@ -695,6 +768,7 @@ defineExpose({
           :is-loading="houseHome.isLoading.value || fetchingImages"
           :error="houseHome.error.value"
           :alert-reason="commentMap.get('doc_house_registration_house')"
+          confirm-field="doc_house_registration_house"
           @file-select="houseHome.handleFileSelect"
           @clear="clrImg(houseHome, 'house_home')"
         />
@@ -714,6 +788,7 @@ defineExpose({
           :is-loading="housePerson.isLoading.value || fetchingImages"
           :error="housePerson.error.value"
           :alert-reason="commentMap.get('doc_house_registration_person')"
+          confirm-field="doc_house_registration_person"
           @file-select="housePerson.handleFileSelect"
           @clear="clrImg(housePerson, 'house_person')"
         />
@@ -733,6 +808,7 @@ defineExpose({
           :is-loading="ktbForm.isLoading.value || fetchingImages"
           :error="ktbForm.error.value"
           :alert-reason="commentMap.get('doc_ktb_corporate')"
+          confirm-field="doc_ktb_corporate"
           @file-select="ktbForm.handleFileSelect"
           @clear="clrImg(ktbForm, 'ktb_form')"
         />
@@ -753,6 +829,7 @@ defineExpose({
             :is-loading="otherDoc.isLoading.value || fetchingImages"
             :error="otherDoc.error.value"
             :alert-reason="commentMap.get('doc_other')"
+          confirm-field="doc_other"
             @file-select="otherDoc.handleFileSelect"
             @clear="clrImg(otherDoc, 'other_doc_0')"
           >

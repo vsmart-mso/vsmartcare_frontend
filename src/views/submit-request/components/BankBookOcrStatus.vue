@@ -38,6 +38,8 @@ const emit = defineEmits<{
     bankAccountTypeId: string
     branchName: string
   }]
+  // OCR service ล่ม/เรียกไม่สำเร็จ — ให้ parent เปิด Modal ตัดสินใจ
+  'ocr-error': []
 }>()
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -136,6 +138,7 @@ watch(
       if (err instanceof DOMException && err.name === 'AbortError') return
       ocrError.value = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการตรวจสอบรูป'
       app.setBankBookOcrResult(null)
+      emit('ocr-error')
     } finally {
       if (seq === _seq) {
         ocrLoading.value = false

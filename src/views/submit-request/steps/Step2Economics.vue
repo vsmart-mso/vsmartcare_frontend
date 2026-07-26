@@ -4,6 +4,7 @@ import { useApplicationStore } from '@/stores/application'
 import { lookupsApi } from '@/api/lookups'
 import type { LookupItem } from '@/api/lookups'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
 const app = useApplicationStore()
@@ -117,7 +118,14 @@ const isReady = computed(() => {
   if (show('family_occupation') && familyOccupationTypeId.value === null) return false
   if (show('family_occupation') && familyOccupationTypeId.value === OCCUPATION_OTHER_ID && !familyOccupation.value.trim()) return false
   if (show('family_income') && !monthlyIncome.value) return false
-  if (show('income_sources') && incomeSources.value.length === 0) return false
+  // income_sources: บังคับมีอย่างน้อย 1 ข้อ
+  // — flow ปกติ หรือเมื่อเจ้าหน้าที่ระบุ income_sources โดยตรง
+  // — ถ้าโชว์แค่เพราะ expand จาก income_source_other ไม่บังคับจนกว่าจะเลือก "อื่นๆ"
+  if (show('income_sources') && incomeSources.value.length === 0) {
+    const directlyReviewed = !props.filterFields
+      || app.reviewComments.some(c => c.name === 'income_sources')
+    if (directlyReviewed) return false
+  }
   if (show('income_source_other') && incomeOtherVal.value && incomeSources.value.includes(incomeOtherVal.value) && !incomeSourceOther.value.trim()) return false
   if (show('dependents_other') && caregiverOtherVal.value && caregiverRoles.value.includes(caregiverOtherVal.value) && !caregiverOther.value.trim()) return false
   if (show('gov_aid_received') && govAidHistory.value === 'received') {
@@ -230,6 +238,7 @@ defineExpose({
           <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>อาชีพหลักของครอบครัว <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('family_occupation')" :reason="commentMap.get('family_occupation')!" />
+            <EditFieldConfirm field="family_occupation" />
           </label>
           <select
             v-model="familyOccupationTypeId"
@@ -264,6 +273,7 @@ defineExpose({
           <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
             <span>รายได้เฉลี่ยต่อเดือนของครอบครัว (บาท) <span class="text-red-500">*</span></span>
             <FieldAlert v-if="commentMap.has('family_income')" :reason="commentMap.get('family_income')!" />
+            <EditFieldConfirm field="family_income" />
           </label>
           <div class="relative">
             <input
@@ -288,6 +298,7 @@ defineExpose({
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">6.2</span>
           <span class="text-h3-legend font-medium text-slate-600">ที่มาของรายได้</span>
           <FieldAlert v-if="commentMap.has('income_sources')" :reason="commentMap.get('income_sources')!" />
+          <EditFieldConfirm field="income_sources" />
         </div>
         <p v-if="show('income_sources') || show('income_source_other')" class="text-hint text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
 
@@ -325,6 +336,7 @@ defineExpose({
             <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ระบุที่มาของรายได้อื่น ๆ <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('income_source_other')" :reason="commentMap.get('income_source_other')!" />
+              <EditFieldConfirm field="income_source_other" />
             </label>
             <input
               v-model="incomeSourceOther"
@@ -359,6 +371,7 @@ defineExpose({
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">7.1</span>
           <span class="text-h3-legend font-medium text-slate-600">ภาระการอุปการะ</span>
           <FieldAlert v-if="commentMap.has('dependents')" :reason="commentMap.get('dependents')!" />
+          <EditFieldConfirm field="dependents" />
         </div>
         <p class="text-hint text-slate-500 mb-3">เลือกได้หลายข้อ</p>
 
@@ -396,6 +409,7 @@ defineExpose({
             <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
               <span>ระบุการอุปการะอื่น ๆ <span class="text-red-500">*</span></span>
               <FieldAlert v-if="commentMap.has('dependents_other')" :reason="commentMap.get('dependents_other')!" />
+              <EditFieldConfirm field="dependents_other" />
             </label>
             <input
               v-model="caregiverOther"
@@ -430,6 +444,7 @@ defineExpose({
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">8.1</span>
           <span class="text-h3-legend font-medium text-slate-600">ประวัติการได้รับ</span>
           <FieldAlert v-if="commentMap.has('gov_aid_received')" :reason="commentMap.get('gov_aid_received')!" />
+          <EditFieldConfirm field="gov_aid_received" />
         </div>
 
         <div class="flex gap-3">
@@ -470,6 +485,7 @@ defineExpose({
                   <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
                     <span>จำนวนครั้งในปีงบประมาณนี้ <span class="text-red-500">*</span></span>
                     <FieldAlert v-if="commentMap.has('gov_aid_count')" :reason="commentMap.get('gov_aid_count')!" />
+                    <EditFieldConfirm field="gov_aid_count" />
                   </label>
                   <div class="relative">
                     <input
@@ -488,6 +504,7 @@ defineExpose({
                   <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
                     <span>รวมเป็นเงิน (บาท) <span class="text-red-500">*</span></span>
                     <FieldAlert v-if="commentMap.has('gov_aid_amount')" :reason="commentMap.get('gov_aid_amount')!" />
+                    <EditFieldConfirm field="gov_aid_amount" />
                   </label>
                   <div class="relative">
                     <input
@@ -510,6 +527,7 @@ defineExpose({
                 <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">8.3</span>
                 <span class="text-h3-legend font-medium text-slate-600">ประเภทความช่วยเหลือที่เคยได้รับ</span>
                 <FieldAlert v-if="commentMap.has('gov_aid_types')" :reason="commentMap.get('gov_aid_types')!" />
+                <EditFieldConfirm field="gov_aid_types" />
               </div>
               <p class="text-hint text-slate-500 mb-3">เลือกได้หลายข้อ <span class="text-red-500">*</span></p>
 
@@ -550,6 +568,7 @@ defineExpose({
                       <label class="flex items-center gap-1 text-body text-slate-600 mb-1.5 font-medium">
                         <span>ระบุรายละเอียด <span class="text-red-500">*</span></span>
                         <FieldAlert v-if="commentMap.has('gov_aid_type_detail')" :reason="commentMap.get('gov_aid_type_detail')!" />
+                        <EditFieldConfirm field="gov_aid_type_detail" />
                       </label>
                       <input
                         :value="aidTypeDetails[opt.value] ?? ''"

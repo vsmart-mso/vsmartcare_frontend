@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useApplicationStore } from '@/stores/application'
 import FieldAlert from '@/components/ui/FieldAlert.vue'
+import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 import StepFormSkeleton from '../components/StepFormSkeleton.vue'
 
 const app = useApplicationStore()
@@ -97,14 +98,17 @@ const isReady = computed(() => {
   if (show('family_problems') && !problemDescription.value.trim()) return false
   if (isLegacyAssistanceReview.value) {
     if (aidTypes.value.length === 0) return false
+    // ไม่บังคับเลือก — ถ้าเลือกแล้วต้องกรอกรายละเอียด
     if (isOtherAidSelected.value && !aidOtherText.value.trim()) return false
     if (isInKindAidSelected.value && !aidInKindText.value.trim()) return false
   } else if (showAssistanceSection.value) {
-    if (show('requested_assistance_in_kind')) {
-      if (!isInKindAidSelected.value || !aidInKindText.value.trim()) return false
+    // edit-request: เจ้าหน้าที่อาจให้ "ตรวจสอบ" โดยไม่บังคับเลือกประเภทนั้น
+    // → บังคับกรอกเฉพาะเมื่อผู้ใช้เลือกประเภทนั้นอยู่แล้ว
+    if (show('requested_assistance_in_kind') && isInKindAidSelected.value && !aidInKindText.value.trim()) {
+      return false
     }
-    if (show('requested_assistance_other')) {
-      if (!isOtherAidSelected.value || !aidOtherText.value.trim()) return false
+    if (show('requested_assistance_other') && isOtherAidSelected.value && !aidOtherText.value.trim()) {
+      return false
     }
   }
   return true
@@ -169,10 +173,11 @@ defineExpose({
       <div class="p-4">
 
         <!-- 9.1 รายละเอียดปัญหา -->
-        <div class="flex items-center gap-2 mb-3">
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
           <span class="bg-blue-100 text-[#1A56DB] text-micro font-bold px-2 py-0.5 rounded-md">9.1</span>
           <span class="text-h3-legend font-medium text-slate-600">รายละเอียดปัญหา</span>
           <FieldAlert v-if="commentMap.has('family_problems')" :reason="commentMap.get('family_problems')!" />
+          <EditFieldConfirm field="family_problems" />
         </div>
 
         <label class="block text-body text-slate-600 mb-1.5 font-medium">
@@ -218,6 +223,10 @@ defineExpose({
             <div>
               <div v-if="moneyAssistanceAlert" class="mb-2">
                 <FieldAlert :reason="moneyAssistanceAlert" />
+                <EditFieldConfirm
+                  :field="['requested_assistance_money', 'requested_assistance_type', 'requested_assistance_detail']"
+                  variant="block"
+                />
               </div>
               <!-- ล็อกไว้เสมอ: เลือกอัตโนมัติ ถอดออกไม่ได้ (cursor-default, ไม่มี @click) -->
               <label class="flex items-center gap-3 border border-[#1A56DB] bg-blue-50 rounded-xl px-4 py-3 cursor-default">
@@ -234,6 +243,7 @@ defineExpose({
             <div>
               <div v-if="otherAssistanceAlert" class="mb-2">
                 <FieldAlert :reason="otherAssistanceAlert" />
+                <EditFieldConfirm field="requested_assistance_other" variant="block" />
               </div>
               <label
                 class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
@@ -271,6 +281,7 @@ defineExpose({
             <div>
               <div v-if="inKindAssistanceAlert" class="mb-2">
                 <FieldAlert :reason="inKindAssistanceAlert" />
+                <EditFieldConfirm field="requested_assistance_in_kind" variant="block" />
               </div>
               <label
                 class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150"
