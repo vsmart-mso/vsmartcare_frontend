@@ -13,11 +13,23 @@ const auth   = useAuthStore()
 // snapshot ครั้งเดียวตอน setup เพราะ history.state ไม่ reactive และไม่เปลี่ยนระหว่างอยู่หน้านี้
 const applicantId = ref<number>(Number(window.history.state?.caseId) || 0)
 
-// วันที่ยื่น = ตอนนี้เลย (เพิ่งยื่นสำเร็จ)
-const submittedDate = new Date().toLocaleDateString('th-TH', {
-  day: 'numeric', month: 'long', year: 'numeric',
-  hour: '2-digit', minute: '2-digit',
-})
+// วันที่ยื่น = datetime_create จาก DB (ตัวเดียวกับที่ระบบ staff แสดง) — โหลดพร้อม case ใน onMounted
+const submittedDate = ref('—')
+
+const TH_MONTHS = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+]
+
+// parse ISO ตรงๆ (ไม่ผ่าน new Date()) เพื่อกัน timezone shift — อ่าน string เหมือน format_vsmart_care_datetime ฝั่ง backend
+// รูปแบบ: "29 กรกฎาคม 2569 เวลา 16:30 น." (พ.ศ. = ค.ศ.+543)
+function formatSubmittedDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!m) return '—'
+  const [, y, mo, d, hh, mm] = m
+  const monthName = TH_MONTHS[Number(mo) - 1]
+  return `${Number(d)} ${monthName} ${Number(y) + 543} เวลา ${hh}:${mm} น.`
+}
 
 // ─── โหลด case_number + is_existing_case จาก API ───────────────────────────────
 const caseNumber    = ref<string | null>(null)
@@ -46,6 +58,7 @@ onMounted(async () => {
     if (found) {
       caseNumber.value     = found.case_number
       isExistingCase.value = found.is_existing_case
+      submittedDate.value  = formatSubmittedDate(found.datetime_create)
     }
   } catch {
     // ถ้าโหลดไม่ได้ แสดง applicant_id แทน — ไม่ block หน้า
