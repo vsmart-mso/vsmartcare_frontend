@@ -8,6 +8,7 @@ import BankBookOcrDecisionModal from '../components/BankBookOcrDecisionModal.vue
 import FieldAlert from '@/components/ui/FieldAlert.vue'
 import EditFieldConfirm from '@/components/edit-request/EditFieldConfirm.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
+import { DOC_WATERMARK } from '@/constants/watermark'
 import { useApplicationStore } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
 import type { ThaiDUser } from '@/types/auth'
@@ -49,13 +50,14 @@ const problem  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.80
 const family   = useImageUpload({ maxWidth: 1200, maxHeight: 900,  quality: 0.80 })
 
 // ─── Section 14: เอกสารแนบเพิ่มเติม (ไม่บังคับ) ────────────────────────────
-const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+// เอกสารในส่วนนี้ใส่ลายน้ำตั้งแต่ตอนอัปโหลด (ยกเว้น KTB) — ดู @/constants/watermark
+const houseHome    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85, watermark: DOC_WATERMARK })
+const housePerson  = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85, watermark: DOC_WATERMARK })
 const ktbForm      = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
 // รูปอื่น ๆ รองรับสูงสุด 3 รูป (other_doc_0 / other_doc_1 / other_doc_2)
-const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const otherDoc1    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
-const otherDoc2    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85 })
+const otherDoc     = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85, watermark: DOC_WATERMARK })
+const otherDoc1    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85, watermark: DOC_WATERMARK })
+const otherDoc2    = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.85, watermark: DOC_WATERMARK })
 const otherDocName  = ref('') // ชื่อเอกสาร slot 0 — backend บังคับส่งเมื่ออัปโหลด
 const otherDocName1 = ref('') // ชื่อเอกสาร slot 1
 const otherDocName2 = ref('') // ชื่อเอกสาร slot 2
@@ -63,7 +65,8 @@ const otherDocCount = ref(1)  // จำนวน slot ที่แสดง (1�
 
 // ─── รูปหน้าสมุดบัญชีธนาคาร (ย้ายมาจาก Step3 ตามมติประชุม 2026-05-19) ─────────
 // compress: max 1200×1600px, WebP quality 82% — เหมือนเดิมตอนอยู่ Step3
-const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
+// ใส่ลายน้ำเหมือนเอกสารอื่น แต่ OCR ใช้ bankBook.rawFile (ไม่มีลายน้ำ) เพื่อไม่ให้อ่านเลขบัญชีพลาด
+const bankBook = useImageUpload({ maxWidth: 1200, maxHeight: 1600, quality: 0.82, watermark: DOC_WATERMARK })
 const fetchingBankBook = ref(false)
 const loadingBankBookFixture = ref(false)
 const showDevMockBankBookHint = computed(() => isDevMockSession())
@@ -184,8 +187,8 @@ async function applyBankBookFixture() {
   try {
     if (bankBook.previewUrl.value) URL.revokeObjectURL(bankBook.previewUrl.value)
     const raw = await loadBankBookFixture()
-    const result = await compressImage(raw, { maxWidth: 1200, maxHeight: 1600, quality: 0.82 })
-    bankBook.restore(result.file)
+    const result = await compressImage(raw, { maxWidth: 1200, maxHeight: 1600, quality: 0.82, watermark: DOC_WATERMARK })
+    bankBook.restore(result.file, result.rawFile)
   } catch (err) {
     bankBook.error.value = 'โหลดรูปตัวอย่างไม่สำเร็จ'
     console.error(err)
@@ -665,7 +668,7 @@ defineExpose({
           <BankBookOcrStatus
             v-show="!app.bankManualEntry"
             ref="ocrRef"
-            :file="bankBook.file.value"
+            :file="bankBook.rawFile.value"
             :target-name="ocrTargetName"
             :bank-options="bankOptions"
             :account-type-options="accountTypeOptions"
