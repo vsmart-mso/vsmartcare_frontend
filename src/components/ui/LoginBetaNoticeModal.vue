@@ -33,7 +33,7 @@ watch(
         aria-describedby="login-beta-notice-body"
       >
         <div
-          class="login-beta-notice-card flex w-full max-w-md flex-col overflow-hidden rounded-2xl border-2 border-yellow-400 bg-yellow-50 shadow-2xl shadow-yellow-900/25"
+          class="login-beta-notice-card flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-yellow-400 bg-yellow-50 shadow-2xl shadow-yellow-900/25"
           @click.stop
         >
           <!-- หัวข้อเตือน — ธีมเหลือง -->
@@ -56,7 +56,7 @@ watch(
               id="login-beta-notice-heading"
               class="text-h2-section font-bold leading-snug text-yellow-950"
             >
-              ประกาศแจ้งเตือน
+              ประกาศแจ้งเตือนการทดสอบระบบรักษาความปลอดภัย 🚨
             </h2>
           </div>
 
@@ -67,13 +67,17 @@ watch(
               class="rounded-xl border border-yellow-300 bg-white px-4 py-4 text-center sm:px-5 sm:py-5"
             >
               <p class="text-body-md font-semibold leading-relaxed text-yellow-950 sm:text-body">
-                ⚠️ ระบบอยู่ระหว่างการทดสอบ ยังไม่สามารถใช้ในการขอรับบริการจริงได้ค่ะ/ครับ
+                📌 ในวันที่ 19 สิงหาคม 2569 สำหรับระบบยื่นคำขอฯ (พม. CARE)
+                <a
+                  href="https://vsmart-care.m-society.go.th/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block break-all font-bold text-[#1A56DB] underline decoration-blue-300 underline-offset-2 hover:text-blue-800"
+                >https://vsmart-care.m-society.go.th/</a>
+                จะมีการทดสอบความปลอดภัยของระบบประมวลผลและสิทธิ์การใช้งาน เพื่อยกระดับการคุ้มครองข้อมูลส่วนบุคคลและความมั่นคงปลอดภัยสารสนเทศ ซึ่งอาจจะทำให้เกิดความล่าช้าในการใช้งานระบบบางส่วน
               </p>
-            </div>
-
-            <div class="mt-4 rounded-xl border border-yellow-300 bg-yellow-100/80 px-4 py-3.5 text-center sm:mt-5 sm:py-4">
-              <p class="text-body-md font-medium leading-relaxed text-yellow-900">
-                สอบถามข้อมูลเพิ่มเติมสายด่วน พม.1300
+              <p class="mt-3 text-body-md font-semibold leading-relaxed text-yellow-950 sm:text-body">
+                ขออภัยในความไม่สะดวกครับ 🙇
               </p>
             </div>
           </div>
