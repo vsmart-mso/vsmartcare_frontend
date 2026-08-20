@@ -12,8 +12,8 @@ pipeline {
     }
 
     environment {
-        REGISTRY      = "registry-vs.m-society.go.th"
-        PROJECT       = "kitsune-cop"
+        REGISTRY      = "staging-registry-vs.m-society.go.th"
+        PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
 
         IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}"
