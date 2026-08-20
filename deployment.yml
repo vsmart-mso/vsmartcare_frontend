@@ -6,7 +6,6 @@ metadata:
   labels:
     app: vcare-frontend
 spec:
-  replicas: 2
   selector:
     matchLabels:
       app: vcare-frontend
