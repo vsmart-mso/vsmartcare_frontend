@@ -1,12 +1,16 @@
 <script setup lang="ts">
-// Step 6: ยืนยันตัวตนด้วยใบหน้า (Liveness)
+// Step 6: ยืนยันตัวตนด้วยใบหน้า (active liveness)
 //
-// ⚠️ ตอนนี้เป็น "mock" — เปิดกล้องหน้าจริง แสดงกรอบสแกน แล้วนับความคืบหน้าด้วย timer
-//    จนครบ ถือว่าผ่านทันที ยังไม่มีการส่งภาพหรือเรียก API ตรวจสอบใบหน้าใดๆ
-//    เมื่อมี service จริงแล้ว ให้แทนที่เฉพาะ runMockScan() ด้วยการ capture เฟรม + เรียก API
-//    ส่วน UI/state machine (idle → requesting → scanning → success | error) ใช้ต่อได้เลย
+// โหมด 'ai'    — ตรวจด้วย MediaPipe Face Landmarker ในเครื่อง: ต้องจัดหน้าเข้ากรอบ
+//                แล้วทำตาม challenge ที่สุ่มมา 2 ข้อ (กะพริบตา / อ้าปาก / หันหน้า / ยิ้ม)
+// โหมด 'basic' — fallback เมื่อโหลดโมเดลไม่สำเร็จ (เน็ตช้า / เครื่องไม่รองรับ):
+//                เปิดกล้องแล้วนับเวลาให้ผ่าน เพื่อไม่ให้ผู้ใช้ติดค้างจนยื่นคำขอไม่ได้
+//
+// ⚠️ การตรวจทั้งหมดอยู่ฝั่ง client — เป็นการกันกรอกผ่านมั่ว ไม่ใช่ security
+//    ของจริงต้อง capture เฟรมตอนสำเร็จ ส่งขึ้น API เทียบใบหน้า + ตรวจ anti-spoof ฝั่ง server
 
-import { ref, computed, onMounted, onBeforeUnmount, useTemplateRef } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, useTemplateRef } from 'vue'
+import { useFaceLiveness } from '@/composables/useFaceLiveness'
 
 const emit = defineEmits<{ 'update:ready': [boolean] }>()
 
@@ -15,62 +19,108 @@ type Phase = 'requesting' | 'scanning' | 'success' | 'error'
 // เริ่มที่ 'requesting' ตั้งแต่ render แรก (onMounted จะขอกล้องทันที)
 // ถ้าเริ่มที่สถานะว่าง จะเห็นแผง error แวบหนึ่งก่อนกล้องจะเปิด
 const phase    = ref<Phase>('requesting')
-const progress = ref(0)      // 0–100 ความคืบหน้าการสแกน (mock)
+const mode     = ref<'ai' | 'basic'>('ai')
 const errorMsg = ref('')
 
 const videoRef = useTemplateRef<HTMLVideoElement>('videoEl')
+
+const {
+  stage:          aiStage,
+  progress:       aiProgress,
+  instruction:    aiInstruction,
+  faceInFrame,
+  challengeIndex,
+  challengeTotal,
+  start:   startLiveness,
+  stop:    stopLiveness,
+  dispose: disposeLiveness,
+} = useFaceLiveness()
+
 let stream: MediaStream | null = null
 let rafId = 0
 
-// ระยะเวลาสแกนจำลอง — ยาวพอให้ผู้ใช้จัดใบหน้าเข้ากรอบและอ่านคำแนะนำทัน
-const SCAN_DURATION_MS = 4000
+// โหมด basic: ระยะเวลานับความคืบหน้าให้ผ่าน
+const BASIC_SCAN_MS = 4000
+const basicProgress = ref(0)
 
-// คำแนะนำเปลี่ยนไปตามความคืบหน้า ทำให้รู้สึกเหมือนระบบกำลังตรวจจริง
+const progress = computed(() => mode.value === 'ai' ? aiProgress.value : basicProgress.value)
+
 const hint = computed(() => {
   if (phase.value === 'requesting') return 'กำลังเปิดกล้องหน้า...'
   if (phase.value === 'success')    return 'ยืนยันตัวตนสำเร็จ'
-  if (phase.value === 'error')      return 'ไม่สามารถเปิดกล้องได้'
-  if (progress.value < 35)  return 'จัดใบหน้าให้อยู่ในกรอบ'
-  if (progress.value < 70)  return 'กะพริบตาช้าๆ 1 ครั้ง'
+  if (phase.value === 'error')      return errorMsg.value || 'ยืนยันตัวตนไม่สำเร็จ'
+  if (mode.value === 'ai')          return aiInstruction.value
+  if (basicProgress.value < 35)     return 'จัดใบหน้าให้อยู่ในกรอบ'
+  if (basicProgress.value < 70)     return 'กะพริบตาช้าๆ 1 ครั้ง'
   return 'กำลังตรวจสอบใบหน้า...'
 })
+
+// ป้าย "รายการที่ x/y" — แสดงเฉพาะตอนกำลังทำ challenge
+const challengeLabel = computed(() =>
+  mode.value === 'ai' && aiStage.value === 'challenge'
+    ? `รายการที่ ${challengeIndex.value + 1}/${challengeTotal.value}`
+    : ''
+)
+
+// กรอบวงรีเปลี่ยนเป็นสีฟ้าเมื่อใบหน้าเข้าตำแหน่งแล้ว — feedback ทันทีว่าขยับถูกทาง
+const ovalStroke = computed(() =>
+  mode.value === 'ai' && faceInFrame.value ? '#60A5FA' : 'rgba(255,255,255,0.55)'
+)
 
 function stopCamera() {
   stream?.getTracks().forEach(t => t.stop())
   stream = null
 }
 
-function cancelScan() {
+function cancelBasicScan() {
   if (rafId) cancelAnimationFrame(rafId)
   rafId = 0
 }
 
-/** mock: เดินความคืบหน้าจาก 0 → 100 ตามเวลา แล้วถือว่าผ่าน */
-function runMockScan() {
-  phase.value    = 'scanning'
-  progress.value = 0
+function succeed() {
+  // ผ่านแล้ว → ปิดกล้องทันที (ไม่เก็บภาพ ไม่ถือ stream ค้างไว้)
+  stopLiveness()
+  cancelBasicScan()
+  stopCamera()
+  phase.value = 'success'
+  emit('update:ready', true)
+}
+
+/** fallback: เดินความคืบหน้าตามเวลา แล้วถือว่าผ่าน (ใช้เมื่อโหลดโมเดลไม่ได้) */
+function runBasicScan() {
+  mode.value          = 'basic'
+  phase.value         = 'scanning'
+  basicProgress.value = 0
   const startedAt = performance.now()
 
   const tick = (now: number) => {
-    const pct = Math.min(100, ((now - startedAt) / SCAN_DURATION_MS) * 100)
-    progress.value = pct
+    const pct = Math.min(100, ((now - startedAt) / BASIC_SCAN_MS) * 100)
+    basicProgress.value = pct
     if (pct < 100) {
       rafId = requestAnimationFrame(tick)
       return
     }
     rafId = 0
-    // ผ่านแล้ว → ปิดกล้องทันที (ไม่เก็บภาพ ไม่ถือ stream ค้างไว้)
-    stopCamera()
-    phase.value = 'success'
-    emit('update:ready', true)
+    succeed()
   }
   rafId = requestAnimationFrame(tick)
 }
+
+// ผลลัพธ์จากตัวตรวจใบหน้า
+watch(aiStage, (s) => {
+  if (s === 'done')   succeed()
+  if (s === 'failed') {
+    errorMsg.value = aiInstruction.value
+    phase.value    = 'error'
+    stopCamera()
+  }
+})
 
 async function startCamera() {
   emit('update:ready', false)
   errorMsg.value = ''
   phase.value    = 'requesting'
+  mode.value     = 'ai'
 
   if (!navigator.mediaDevices?.getUserMedia) {
     phase.value    = 'error'
@@ -84,13 +134,18 @@ async function startCamera() {
       audio: false,
     })
     // component อาจถูก unmount ระหว่างรอ permission → ต้องเก็บกวาดแล้วออก
-    if (!videoRef.value) {
+    const video = videoRef.value
+    if (!video) {
       stopCamera()
       return
     }
-    videoRef.value.srcObject = stream
-    await videoRef.value.play().catch(() => { /* iOS อาจ reject ถ้ายังไม่พร้อม — playsinline+muted ครอบคลุมแล้ว */ })
-    runMockScan()
+    video.srcObject = stream
+    await video.play().catch(() => { /* iOS อาจ reject ถ้ายังไม่พร้อม — playsinline+muted ครอบคลุมแล้ว */ })
+
+    phase.value = 'scanning'
+    // โหลดโมเดล + เริ่มตรวจ; ถ้าโหลดไม่สำเร็จให้ถอยไปโหมดพื้นฐานแทนการขึ้น error
+    const ok = await startLiveness(video)
+    if (!ok) runBasicScan()
   } catch (err: unknown) {
     stopCamera()
     phase.value = 'error'
@@ -103,20 +158,23 @@ async function startCamera() {
 }
 
 function retry() {
-  cancelScan()
+  stopLiveness()
+  cancelBasicScan()
   stopCamera()
   startCamera()
 }
 
 onMounted(startCamera)
 onBeforeUnmount(() => {
-  cancelScan()
+  cancelBasicScan()
+  disposeLiveness()
   stopCamera()
 })
 
 defineExpose({
   getData: () => ({
     livenessVerified: phase.value === 'success',
+    livenessMode: mode.value,
     livenessVerifiedAt: phase.value === 'success' ? new Date().toISOString() : null,
   }),
 })
@@ -139,7 +197,7 @@ defineExpose({
         ยืนยันตัวตนด้วยใบหน้า
       </h2>
       <p class="text-body-xs text-slate-500 leading-relaxed max-w-xs">
-        กรุณาถ่ายใบหน้าของท่านเพื่อยืนยันว่าเป็นผู้ยื่นคำขอตัวจริง ก่อนส่งข้อมูลเข้าระบบ
+        กรุณาจัดใบหน้าให้อยู่ในกรอบ แล้วทำตามคำแนะนำบนหน้าจอ เพื่อยืนยันว่าเป็นผู้ยื่นคำขอตัวจริง
       </p>
     </div>
 
@@ -159,7 +217,7 @@ defineExpose({
           muted
         />
 
-        <!-- overlay: มืดรอบนอก เจาะรูวงรีตรงกลาง + วงแหวนความคืบหน้า -->
+        <!-- overlay: มืดรอบนอก เจาะรูวงรีตรงกลาง -->
         <svg
           v-if="phase === 'scanning' || phase === 'requesting'"
           class="absolute inset-0 w-full h-full"
@@ -190,22 +248,41 @@ defineExpose({
             />
           </g>
 
-          <!-- กรอบวงรี (เส้นบาง) -->
+          <!-- กรอบวงรี — เปลี่ยนเป็นสีฟ้าเมื่อใบหน้าเข้าตำแหน่ง -->
           <ellipse
             cx="150" cy="185" rx="100" ry="130"
-            fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="6 8"
-          />
-
-          <!-- วงแหวนความคืบหน้าทับกรอบเดิม -->
-          <ellipse
-            cx="150" cy="185" rx="100" ry="130"
-            fill="none" stroke="#22C55E" stroke-width="4" stroke-linecap="round"
-            pathLength="100"
-            :stroke-dasharray="`${progress} 100`"
-            transform="rotate(-90 150 185)"
-            class="transition-[stroke-dasharray] duration-75 ease-linear"
+            fill="none" :stroke="ovalStroke" stroke-width="2" stroke-dasharray="6 8"
+            class="transition-[stroke] duration-200"
           />
         </svg>
+
+        <!-- ป้ายลำดับ challenge -->
+        <div
+          v-if="phase === 'scanning' && challengeLabel"
+          class="absolute top-3 inset-x-0 flex justify-center"
+        >
+          <span class="rounded-full bg-slate-900/70 px-3 py-1 text-hint font-semibold text-white">
+            {{ challengeLabel }}
+          </span>
+        </div>
+
+        <!-- ตัวเลข % ความคืบหน้า -->
+        <div
+          v-if="phase === 'scanning'"
+          class="absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-8"
+          aria-hidden="true"
+        >
+          <p class="text-display font-bold text-white tabular-nums drop-shadow">
+            {{ Math.round(progress) }}%
+          </p>
+          <!-- แถบความคืบหน้าเส้นบางใต้ตัวเลข -->
+          <div class="w-full h-1.5 rounded-full bg-white/25 overflow-hidden">
+            <div
+              class="h-full rounded-full bg-[#60A5FA] transition-[width] duration-75 ease-linear"
+              :style="{ width: `${progress}%` }"
+            />
+          </div>
+        </div>
 
         <!-- สถานะสำเร็จ: ปิดกล้องแล้ว แสดงแผงยืนยัน -->
         <div
@@ -223,7 +300,7 @@ defineExpose({
 
         <!-- สถานะผิดพลาด -->
         <div
-          v-else
+          v-else-if="phase === 'error'"
           class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 px-6 text-center"
         >
           <div class="w-16 h-16 rounded-full bg-red-500/15 border-2 border-red-400 flex items-center justify-center mb-4">
@@ -236,10 +313,10 @@ defineExpose({
       </div>
 
       <!-- คำแนะนำใต้กรอบ -->
-      <div class="mt-4 flex items-center justify-center gap-2 min-h-[1.75rem]" aria-live="polite">
+      <div class="mt-4 flex items-center justify-center gap-2 min-h-[1.75rem] text-center" aria-live="polite">
         <svg
-          v-if="phase === 'requesting' || phase === 'scanning'"
-          class="w-4 h-4 animate-spin text-[#1A56DB]" fill="none" viewBox="0 0 24 24" aria-hidden="true"
+          v-if="phase === 'requesting' || (phase === 'scanning' && aiStage === 'loading')"
+          class="w-4 h-4 animate-spin text-[#1A56DB] flex-shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true"
         >
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -251,6 +328,14 @@ defineExpose({
           {{ hint }}
         </p>
       </div>
+
+      <!-- แจ้งเมื่อถอยไปใช้โหมดพื้นฐาน (โหลดโมเดลตรวจใบหน้าไม่สำเร็จ) -->
+      <p
+        v-if="mode === 'basic' && phase !== 'error'"
+        class="mt-2 text-center text-hint text-amber-600"
+      >
+        อุปกรณ์นี้ใช้โหมดตรวจพื้นฐาน (โหลดตัวตรวจใบหน้าไม่สำเร็จ)
+      </p>
 
       <!-- ปุ่มลองใหม่ / สแกนใหม่ -->
       <button
@@ -271,7 +356,8 @@ defineExpose({
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
       </svg>
       <p class="text-body-xs text-slate-600 leading-relaxed">
-        ภาพใบหน้าถูกใช้เพื่อยืนยันตัวตนขณะยื่นคำขอเท่านั้น ระบบจะปิดกล้องทันทีเมื่อยืนยันสำเร็จ
+        การตรวจใบหน้าทำงานภายในเครื่องของท่านทั้งหมด ไม่มีการส่งภาพออกนอกอุปกรณ์
+        และระบบจะปิดกล้องทันทีเมื่อยืนยันสำเร็จ
       </p>
     </div>
 

@@ -29,3 +29,5 @@ package-lock.json
 .claude
 docker-compose-beta.yml
 docker-compose-prod.yml
+# MediaPipe wasm (copy อัตโนมัติจาก node_modules ผ่าน scripts/copy-mediapipe-wasm.mjs)
+public/mediapipe/wasm/
