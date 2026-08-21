@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 
+// ค่าที่เคยติ๊กไว้ (ส่งมาจากหน้าแม่) — ผู้ใช้ที่กด "ย้อนกลับ" จาก step ยืนยันใบหน้า
+// จะเห็นการติ๊กเดิมอยู่ ไม่ต้องอ่านและติ๊กใหม่ทั้งหมด
+const props = withDefaults(defineProps<{
+  initialConfirmed?: boolean
+  initialConsentedPdpa?: boolean
+}>(), { initialConfirmed: false, initialConsentedPdpa: false })
+
 // checkbox 1: ยืนยันความถูกต้องของข้อมูล (คำยืนยันก่อนส่งข้อมูล)
-const confirmed = ref(false)
+const confirmed = ref(props.initialConfirmed)
 // checkbox 2: ยินยอมเปิดเผยข้อมูลส่วนบุคคล (PDPA)
-const consentedPdpa = ref(false)
+const consentedPdpa = ref(props.initialConsentedPdpa)
 
 // ต้องติ๊กทั้ง 2 อันจึงจะกด Submit ได้
 const isReady = computed(() => confirmed.value && consentedPdpa.value)

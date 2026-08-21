@@ -6,6 +6,7 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
+import Step6Liveness    from './steps/Step6Liveness.vue'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -48,7 +49,9 @@ onMounted(async () => {
   }
 
   const s = Number(route.query.step)
-  if (s >= 1 && s <= steps.length) {
+  // ห้าม deep-link ข้ามมาที่ step 6 (ยืนยันใบหน้า) เพราะ stepReady จะถูกตั้งเป็น true
+  // ทั้งที่ยังไม่ได้สแกนใบหน้า → ต้องเดินผ่าน step 5 มาเท่านั้น
+  if (s >= 1 && s <= steps.length - 1) {
     currentStep.value = s
     stepReady.value = true
   }
@@ -79,7 +82,12 @@ const steps = [
   { id: 3, label: 'ปัญหา' },
   { id: 4, label: 'เอกสาร' },
   { id: 5, label: 'ยืนยันข้อมูล' },
+  { id: 6, label: 'ยืนยันใบหน้า' },
 ]
+
+// Step 5 เป็น local state ใน component — เก็บค่าไว้ที่นี่ด้วย
+// เพื่อให้ผู้ใช้ที่กด "ย้อนกลับ" จาก Step 6 ไม่ต้องติ๊กยืนยันใหม่ทั้งหมด
+const step5Confirm = ref({ confirmed: false, consentedPdpa: false })
 
 // ─── Step 4 OCR Status (อ่านจาก store — sync โดย BankBookOcrStatus ใน Step4) ─
 type Step3OcrState = 'loading' | 'ok' | 'review' | 'bad'
@@ -180,6 +188,7 @@ function handleNext() {
     if (currentStep.value === 1) app.setStep1(data as unknown as Step1Data)
     if (currentStep.value === 2) app.setStep2(data as unknown as Step2Data)
     if (currentStep.value === 3) app.setStep3(data as unknown as Step3Data)
+    if (currentStep.value === 5) step5Confirm.value = data as unknown as { confirmed: boolean; consentedPdpa: boolean }
     // Step 4: ไฟล์ถูกบันทึกลง store แล้วผ่าน watch ใน Step4Documents โดยตรง
   }
   currentStep.value = Math.min(currentStep.value + 1, steps.length)
@@ -585,6 +594,13 @@ async function handleSubmit() {
       <Step5Confirmation
         v-else-if="currentStep === 5"
         ref="stepRef"
+        :initial-confirmed="step5Confirm.confirmed"
+        :initial-consented-pdpa="step5Confirm.consentedPdpa"
+        @update:ready="stepReady = $event"
+      />
+      <Step6Liveness
+        v-else-if="currentStep === 6"
+        ref="stepRef"
         @update:ready="stepReady = $event"
       />
     </main>
@@ -630,7 +646,7 @@ async function handleSubmit() {
 
           <!-- ปุ่มถัดไป / ยืนยัน -->
           <button
-            v-if="currentStep < 5"
+            v-if="currentStep < 6"
             @click="handleNext"
             :disabled="stepLoading || nextBlocked"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
