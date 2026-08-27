@@ -77,7 +77,9 @@ const TIMELINE_STEPS = [
 const DB_STATUS_TO_STEP: Record<number, number> = { 1: 1, 2: 2, 3: 3, 10: 4, 4: 4, 11: 4 }
 
 const REJECTED_STATUS_ID    = 5
+const BUDGET_STATUS_ID      = 7   // "อยู่ระหว่างรอจัดสรรงบประมาณ"
 const EDIT_DATA_STATUS_ID   = 8
+const MORE_INFO_STATUS_ID   = 9   // "อยู่ระหว่างการหาข้อมูลเพิ่มเติม"
 const DISBURSED_STATUS_ID   = 10  // DB id ที่ trigger การประเมินความพึงพอใจ
 const FORWARDED_STATUS_ID   = 11  // "ส่งต่อข้อมูลเรียบร้อยแล้ว" → แสดงเป็น "เบิกจ่ายสำเร็จ"
 const DISBURSED_SUCCESS_COLOR = '#009f75'  // สีเขียวของสถานะเบิกจ่ายสำเร็จ
@@ -101,6 +103,12 @@ const currentTimelineStep = computed(() => {
 
 const isRejected   = computed(() => currentStatusId.value === REJECTED_STATUS_ID)
 const isEditData   = computed(() => currentStatusId.value === EDIT_DATA_STATUS_ID)
+// สถานะย่อย (7, 9): งานที่เจ้าหน้าที่ทำ "ระหว่าง" ขั้นตอนหลัก — ทำเสร็จแล้วเคสจะกลับไปสถานะหลักเดิม
+// บน timeline แสดงเป็น step พิเศษกลางการ์ด (แบบเดียวกับแก้ไขข้อมูล)
+// ในประวัติแสดงเป็นรายการย่อยเยื้องเข้ามา ให้อ่านเป็นความคืบหน้าระหว่างทาง ไม่ใช่ขั้นตอนใหม่
+const SUB_STATUS_IDS = new Set([BUDGET_STATUS_ID, MORE_INFO_STATUS_ID])
+
+const isSubStatus  = computed(() => SUB_STATUS_IDS.has(currentStatusId.value))
 
 const isInCooldown = computed(() => eligibilityStore.reason === 'cooldown')
 const cooldownEligibleAt = computed(() =>
@@ -278,31 +286,49 @@ function stepState(stepId: number): 'done' | 'active' | 'pending' {
   return 'pending'
 }
 
-// ─── ประวัติสถานะ: filter เหลือแค่ 4 ขั้นตอน timeline, dedup และ reset เมื่อ regression ─
-// เช่น [1→2→8→1] จะเหลือแค่ [1 (ล่าสุด)] เพราะ 1 < maxStep(2) → regression
-const filteredStatusLogs = computed(() => {
-  const stepMap = new Map<number, typeof statusLogs.value[0]>()
-  let maxStep = 0
+// ─── ประวัติสถานะ: แสดงสถานะละ 1 รายการ ใช้วันเวลาของครั้งล่าสุด ─────────────────
+// สถานะเดิมที่ถูกตั้งซ้ำ (เช่น 2 → 7 → 2) ไม่ขึ้นสองบรรทัด แต่อัปเดตเวลาเป็นครั้งล่าสุดแทน
+// เพราะการวนกลับมาสถานะเดิมหลังทำงานย่อยเสร็จ ไม่ใช่ความคืบหน้าใหม่ที่ประชาชนต้องรู้
+//
+// ซ่อนสถานะที่แสดงเป็น step เฉพาะบน timeline อยู่แล้ว จึงไม่ต้องแสดงซ้ำในประวัติ:
+//   • id=5  (คุณสมบัติไม่ตรงตามหลักเกณฑ์) — ไม่แสดงให้ประชาชนเห็นในประวัติ ตาม TASK-02
+//   • id=8  (แก้ไขข้อมูล)
+// และสถานะที่ระบบสร้างซ้ำซ้อน: id=4 (ตามหลัง id=10 เสมอ), id=11 (ข้อความซ้ำกับเบิกจ่ายสำเร็จ)
+const HISTORY_HIDDEN_STATUS_IDS = new Set([4, 5, 8, 11])
+
+type HistoryEntry = {
+  log: StatusLogItem
+  isSub: boolean   // true = สถานะย่อย (7, 9) — ต่างจากสถานะหลักแค่กฎการยุบซ้ำ หน้าตาเหมือนกัน
+}
+
+const filteredStatusLogs = computed<HistoryEntry[]>(() => {
+  // statusLogs เรียงเก่า → ใหม่
+  //
+  // สถานะหลัก: หนึ่งสถานะ = หนึ่งบรรทัด ใช้เวลาครั้งล่าสุด
+  //   การวนกลับมาสถานะหลักเดิมหลังทำงานย่อยเสร็จ ไม่ใช่ความคืบหน้าใหม่ที่ต้องขึ้นบรรทัดซ้ำ
+  //
+  // สถานะย่อย: แสดงทุกครั้งที่เกิด เพราะเกิดคนละขั้นตอนคือคนละเหตุการณ์จริง
+  //   เช่น รอจัดสรรงบประมาณตอน "รับเรื่องเรียบร้อย" กับตอน "อยู่ระหว่างการเบิก" ต้องเห็นทั้งคู่
+  const mainLatest = new Map<number, HistoryEntry>()
+  const subEntries: HistoryEntry[] = []
 
   for (const log of statusLogs.value) {
-    const step = DB_STATUS_TO_STEP[log.current_status.id]
-    if (!step) continue  // ข้ามสถานะพิเศษ (rejected=5, edit=8 ฯลฯ)
-    if (log.current_status.id === 4) continue   // id=4 ตามหลัง id=10 เสมอ ไม่แสดงในประวัติ
-    if (log.current_status.id === 11) continue  // id=11 (ส่งต่อข้อมูลฯ) แสดงเป็นเบิกจ่ายสำเร็จอยู่แล้ว ไม่แสดงซ้ำในประวัติ
+    const id = log.current_status.id
+    if (HISTORY_HIDDEN_STATUS_IDS.has(id)) continue
 
-    if (step < maxStep) {
-      // regression: ลบ step ที่สูงกว่าออกทั้งหมด
-      for (const k of stepMap.keys()) {
-        if (k > step) stepMap.delete(k)
-      }
-    }
-    stepMap.set(step, log)
-    maxStep = stepMap.size > 0 ? Math.max(...stepMap.keys()) : 0
+    if (SUB_STATUS_IDS.has(id)) subEntries.push({ log, isSub: true })
+    else mainLatest.set(id, { log, isSub: false })
   }
 
-  return Array.from(stepMap.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([, log]) => log)
+  // รวมแล้วเรียงตามเวลาจริง เพื่อให้สถานะย่อยอยู่ต่อท้ายขั้นตอนที่มันเกิดขึ้น
+  const sorted = [...mainLatest.values(), ...subEntries]
+    .sort((a, b) => new Date(a.log.updated_at).getTime() - new Date(b.log.updated_at).getTime())
+
+  // ยุบสถานะย่อยที่ซ้ำกับบรรทัดก่อนหน้า — ต้องทำหลังเรียงและหลังยุบสถานะหลักแล้วเท่านั้น
+  // เพราะสถานะหลักที่เคยคั่นกลางอาจถูกยุบหายไป ทำให้สองบรรทัดย่อยมาชนกันทีหลัง
+  return sorted.filter((entry, i) =>
+    !entry.isSub || entry.log.current_status.id !== sorted[i - 1]?.log.current_status.id
+  )
 })
 
 // ─── Edit Mode ─────────────────────────────────────────────────────────────────
@@ -578,7 +604,7 @@ async function handleLogout() {
           <div class="px-4 py-5">
             <div
               class="flex items-start"
-              :class="(isRejected || isEditData) ? 'justify-center' : ''"
+              :class="(isRejected || isEditData || isSubStatus) ? 'justify-center' : ''"
             >
 
               <!-- ถ้า rejected แสดง step พิเศษ -->
@@ -605,6 +631,30 @@ async function handleLogout() {
                   </div>
                   <p class="text-hint text-center leading-tight max-w-[80px] text-amber-600 font-semibold" style="margin-top: 10px">
                     แก้ไขข้อมูล
+                  </p>
+                </div>
+              </template>
+
+              <!-- ถ้าเป็นสถานะย่อย (7 รอจัดสรรงบประมาณ / 9 หาข้อมูลเพิ่มเติม) แสดง step พิเศษ -->
+              <template v-else-if="isSubStatus">
+                <!-- ใช้ข้อความและสีจาก DB ตรง ๆ เพื่อไม่ต้องแก้โค้ดทุกครั้งที่เพิ่มสถานะย่อยใหม่ -->
+                <div class="flex flex-col items-center w-[160px]">
+                  <div
+                    class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                    :style="{
+                      backgroundColor: currentStatusColor,
+                      boxShadow: `0 4px 6px -1px ${currentStatusColor}33`,
+                    }"
+                  >
+                    <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <p
+                    class="text-hint text-center leading-tight font-semibold"
+                    :style="{ color: currentStatusColor, marginTop: '10px' }"
+                  >
+                    {{ currentStatusLabel }}
                   </p>
                 </div>
               </template>
@@ -1029,45 +1079,45 @@ async function handleLogout() {
           >
             <div v-if="historyOpen" class="border-t border-slate-100">
 
-              <!-- แสดงจาก status logs จริง (filtered เหลือแค่ 4 ขั้น timeline) -->
+              <!-- ทุกสถานะแสดงหน้าตาเหมือนกันหมด ไม่แยกระดับ -->
               <template v-if="filteredStatusLogs.length > 0">
                 <div
-                  v-for="(log, index) in filteredStatusLogs"
-                  :key="log.id"
+                  v-for="(entry, index) in filteredStatusLogs"
+                  :key="entry.log.id"
                   class="px-4 pt-4 flex items-start gap-3 last:pb-4"
                 >
                   <!-- คอลัมน์ซ้าย: จุด + เส้นเชื่อมแนวตั้ง -->
                   <div class="flex flex-col items-center self-stretch flex-shrink-0">
                     <span
                       class="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
-                      :style="{ backgroundColor: log.current_status.color }"
+                      :style="{ backgroundColor: entry.log.current_status.color }"
                     ></span>
                     <!-- เส้นเชื่อมลงด้านล่าง แสดงทุกรายการยกเว้นรายการสุดท้าย -->
                     <span
                       v-if="index < filteredStatusLogs.length - 1"
                       class="w-0.5 flex-1 mt-1.5 rounded-full"
-                      :style="{ backgroundColor: log.current_status.color + '55' }"
+                      :style="{ backgroundColor: entry.log.current_status.color + '55' }"
                     ></span>
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-body-xs text-slate-400 mb-1.5">
-                      {{ toThaiDateTime(log.updated_at) }}
+                      {{ toThaiDateTime(entry.log.updated_at) }}
                     </p>
                     <div
                       class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 mb-1 border"
                       :style="{
-                        backgroundColor: log.current_status.color + '18',
-                        borderColor: log.current_status.color + '44',
+                        backgroundColor: entry.log.current_status.color + '18',
+                        borderColor: entry.log.current_status.color + '44',
                       }"
                     >
                       <span
                         class="w-2 h-2 rounded-full flex-shrink-0"
-                        :style="{ backgroundColor: log.current_status.color }"
+                        :style="{ backgroundColor: entry.log.current_status.color }"
                       ></span>
                       <p
                         class="text-body-xs font-bold leading-tight"
-                        :style="{ color: log.current_status.color }"
-                      >{{ log.current_status.description_public }}</p>
+                        :style="{ color: entry.log.current_status.color }"
+                      >{{ entry.log.current_status.description_public }}</p>
                     </div>
                   </div>
                 </div>
