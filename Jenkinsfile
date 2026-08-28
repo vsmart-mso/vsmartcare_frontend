@@ -15,12 +15,14 @@ pipeline {
         REGISTRY      = "staging-registry-vs.m-society.go.th"
         PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
+        // beta builds and deploys under a "-beta" suffixed name so they never overwrite another branch's image/service
+        BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : ''}"
 
-        IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}"
+        IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}${BRANCH_SUFFIX}"
         IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: env.BUILD_NUMBER}"
 
         NAMESPACE     = "vcare"
-        DEPLOYMENT    = "vcare-frontend"
+        DEPLOYMENT    = "vcare-frontend${BRANCH_SUFFIX}"
         CONTAINER     = "vcare-frontend"
 
         KUBECONFIG    = "/var/lib/jenkins/.kube/config"
@@ -39,13 +41,15 @@ pipeline {
                 sh '''
                     export KUBECONFIG=${KUBECONFIG}
 
-                    VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                    SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+
+                    VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
                         -o jsonpath='{.data.VITE_API_URL}' | base64 -d)
-                    VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                    VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
                         -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)
-                    VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                    VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
                         -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)
-                    VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret vcare-frontend-secret \
+                    VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
                         -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)
 
                     docker build \
@@ -89,12 +93,30 @@ pipeline {
 
         stage('Deploy Kubernetes') {
             steps {
+                script {
+                    def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    if (branchName.contains('beta')) {
+                        // beta deploys its own dedicated manifests (separate name/app-label/nodePort from production)
+                        // and runs without HPA/autoscaling; remove any HPA left over from a previous deploy
+                        sh '''
+                            export KUBECONFIG=${KUBECONFIG}
+
+                            kubectl apply -f deployment-beta.yml
+                            kubectl apply -f service-beta.yml
+                            kubectl -n ${NAMESPACE} delete hpa vcare-frontend --ignore-not-found=true
+                        '''
+                    } else {
+                        sh '''
+                            export KUBECONFIG=${KUBECONFIG}
+
+                            kubectl apply -f deployment.yml
+                            kubectl apply -f service.yml
+                            kubectl apply -f hpa.yml
+                        '''
+                    }
+                }
                 sh '''
                     export KUBECONFIG=${KUBECONFIG}
-
-                    kubectl apply -f deployment.yml
-                    kubectl apply -f service.yml
-                    kubectl apply -f hpa.yml
 
                     kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
                         ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}

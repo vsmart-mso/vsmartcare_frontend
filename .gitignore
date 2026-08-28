@@ -29,3 +29,7 @@ package-lock.json
 .claude
 docker-compose-beta.yml
 docker-compose-prod.yml
+
+# k8s secrets (contain real credentials, never commit)
+secrets.yml
+secrets-beta.yml
