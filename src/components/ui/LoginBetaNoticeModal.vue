@@ -52,29 +52,29 @@ watch(
                 />
               </svg>
             </div>
-            <h2
-              id="login-beta-notice-heading"
-              class="text-h2-section font-bold leading-snug text-yellow-950"
-            >
-              ประกาศแจ้งเตือนการทดสอบระบบรักษาความปลอดภัย 🚨
+            <h2 id="login-beta-notice-heading" class="text-h2-section font-bold leading-snug text-yellow-950">
+              <!-- ประกาศแจ้งเตือนการทดสอบระบบรักษาความปลอดภัย 🚨 -->
+              ประกาศปิดปรับปรุง ระบบขอรับความช่วยเหลือด้วยตนเอง พม.care
             </h2>
           </div>
 
           <!-- เนื้อหา — เลื่อนได้เมื่อจอเตี้ย (portrait มือถือ) -->
           <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-6">
-            <div
-              id="login-beta-notice-body"
-              class="rounded-xl border border-yellow-300 bg-white px-4 py-4 text-center sm:px-5 sm:py-5"
-            >
+            <div id="login-beta-notice-body"
+              class="rounded-xl border border-yellow-300 bg-white px-4 py-4 text-center sm:px-5 sm:py-5">
               <p class="text-body-md font-semibold leading-relaxed text-yellow-950 sm:text-body">
-                📌 ในวันที่ 19 สิงหาคม 2569 สำหรับระบบยื่นคำขอฯ (พม. CARE)
+                <!-- 📌 ในวันที่ 19 สิงหาคม 2569 สำหรับระบบยื่นคำขอฯ (พม. CARE)
                 <a
                   href="https://vsmart-care.m-society.go.th/"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="block break-all font-bold text-[#1A56DB] underline decoration-blue-300 underline-offset-2 hover:text-blue-800"
                 >https://vsmart-care.m-society.go.th/</a>
-                จะมีการทดสอบความปลอดภัยของระบบประมวลผลและสิทธิ์การใช้งาน เพื่อยกระดับการคุ้มครองข้อมูลส่วนบุคคลและความมั่นคงปลอดภัยสารสนเทศ ซึ่งอาจจะทำให้เกิดความล่าช้าในการใช้งานระบบบางส่วน
+                จะมีการทดสอบความปลอดภัยของระบบประมวลผลและสิทธิ์การใช้งาน เพื่อยกระดับการคุ้มครองข้อมูลส่วนบุคคลและความมั่นคงปลอดภัยสารสนเทศ ซึ่งอาจจะทำให้เกิดความล่าช้าในการใช้งานระบบบางส่วน -->
+                ประกาศปิดปรับปรุง ระบบขอรับความช่วยเหลือด้วยตนเอง พม.care (url: <a
+                  href="https://vsmart-care.m-society.go.th/" target="_blank" rel="noopener noreferrer" class="block break-all font-bold text-[#1A56DB] underline decoration-blue-300 underline-offset-2
+                hover:text-blue-800">https://vsmart-care.m-society.go.th/</a> )
+                ระหว่าง วันที่ 29 สิงหาคม 2569 เวลา 00:00 น. ถึง 31 สิงหาคม 2569 06:00 น.
               </p>
               <p class="mt-3 text-body-md font-semibold leading-relaxed text-yellow-950 sm:text-body">
                 ขออภัยในความไม่สะดวกครับ 🙇
