@@ -32,12 +32,22 @@ pipeline {
         PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
 
-        // beta pushes under a "-beta" suffixed image name so it never overwrites
-        // production's :latest (and any other tag) on the shared registry repo
-        BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : ''}"
-
-        IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}${BRANCH_SUFFIX}"
+        // IMAGE_NAME must stay "root/vcare-frontend" — no per-branch suffix.
+        // GitLab's container registry only accepts a push into a repository
+        // path that belongs to an existing project; "root/vcare-frontend-beta"
+        // is not a project, so pushing there 401s as "insufficient_scope" (the
+        // deploy token IS valid, it's just not scoped to a project that
+        // doesn't exist). Measured 2026-08-29: Build Docker Image and Login
+        // Registry succeeded, Push Image failed with exactly that error.
+        // The "-beta" marker goes on the TAG instead (BRANCH_SUFFIX below),
+        // which is unrestricted within an existing repo.
+        IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}"
         IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: env.BUILD_NUMBER}"
+
+        // beta tags every image "-beta" suffixed so it never overwrites
+        // production's :latest (and any other tag) in the shared repo above —
+        // also used to look up the beta build-arg Secret further down
+        BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : ''}"
 
         // production-side cluster (172.21.103.x), ns vcare — used when NOT branch beta
         NAMESPACE     = "vcare"
@@ -118,8 +128,8 @@ pipeline {
                                 --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
                                 --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
                                 --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
-                                -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                                -t ${IMAGE_NAME}:latest .
+                                -t ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX} \
+                                -t ${IMAGE_NAME}:latest${BRANCH_SUFFIX} .
                         '''
                     } else {
                         sh '''
@@ -141,8 +151,8 @@ pipeline {
                                 --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
                                 --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
                                 --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
-                                -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                                -t ${IMAGE_NAME}:latest .
+                                -t ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX} \
+                                -t ${IMAGE_NAME}:latest${BRANCH_SUFFIX} .
                         '''
                     }
                 }
@@ -171,8 +181,8 @@ pipeline {
         stage('Push Image') {
             steps {
                 sh '''
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                    docker push ${IMAGE_NAME}:latest
+                    docker push ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
+                    docker push ${IMAGE_NAME}:latest${BRANCH_SUFFIX}
                 '''
             }
         }
@@ -239,7 +249,7 @@ pipeline {
 
                                 sh '''
                                     kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
-                                        '*'=${IMAGE_NAME}:${IMAGE_TAG}
+                                        '*'=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
 
                                     if ! kubectl -n ${NP_NAMESPACE} rollout status deployment/${NP_DEPLOYMENT} --timeout=300s; then
                                         echo "--- rollout failed, describing ---"
@@ -261,7 +271,7 @@ pipeline {
                             kubectl apply -f hpa.yml
 
                             kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
-                                ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}
+                                ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
 
                             kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=300s
                         '''
@@ -313,7 +323,7 @@ pipeline {
         success {
             echo "======================================"
             echo " Deploy Success"
-            echo " Image : ${IMAGE_NAME}:${IMAGE_TAG}"
+            echo " Image : ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}"
             echo "======================================"
         }
 
