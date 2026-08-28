@@ -1,0 +1,39 @@
+# HPA for np (ns staging) — mirrors hpa.yml (ns vcare) but targets np's own
+# vcare-frontend Deployment there (not ns vcare's — different cluster
+# entirely, see deployment-beta.yml in vsmartcare_backend/k8s for the fuller
+# explanation of why no "-beta" suffix is needed: np and ns vcare are
+# different clusters, so there's nothing to collide with here).
+#
+# np already runs vcare-frontend at a fixed 2 replicas + podAntiAffinity
+# (dev-np-quickstart.md item 16) — this lets it scale 2→3 instead of staying
+# fixed. Bounds/thresholds copied from hpa.yml for consistency with
+# production's tuning.
+#
+# Requires metrics-server (or equivalent) in the cluster — see the same
+# caveat in vsmartcare_backend/k8s/hpa-np.yml.
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  namespace: staging
+  name: vcare-frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vcare-frontend
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

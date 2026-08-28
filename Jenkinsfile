@@ -72,6 +72,18 @@ pipeline {
             }
         }
 
+        stage('Stash np Manifests') {
+            // node('nonprod') below opens its own workspace on np-agent01,
+            // separate from the one Checkout just cloned into on the default
+            // agent — files aren't shared between them automatically.
+            when {
+                expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') }
+            }
+            steps {
+                stash name: 'np-manifests', includes: 'hpa-np.yml'
+            }
+        }
+
         stage('Read Beta Build Args') {
             // The build-arg Secret for beta now lives in ns staging on np, not ns
             // vcare — only the nonprod-labelled agent (np-agent01) can reach that
@@ -227,7 +239,13 @@ pipeline {
                         // ever needs to fall back to it (dev-np-quickstart.md
                         // item 4), and the kubelet just tries each secret in turn.
                         node('nonprod') {
+                            unstash 'np-manifests'
                             withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                                sh '''
+                                    kubectl -n ${NP_NAMESPACE} apply -f hpa-np.yml
+                                    kubectl -n ${NP_NAMESPACE} get hpa
+                                '''
+
                                 withCredentials([
                                     usernamePassword(
                                         credentialsId: 'devop-bot',
