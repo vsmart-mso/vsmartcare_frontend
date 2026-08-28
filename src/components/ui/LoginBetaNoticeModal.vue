@@ -71,13 +71,13 @@ watch(
                   class="block break-all font-bold text-[#1A56DB] underline decoration-blue-300 underline-offset-2 hover:text-blue-800"
                 >https://vsmart-care.m-society.go.th/</a>
                 จะมีการทดสอบความปลอดภัยของระบบประมวลผลและสิทธิ์การใช้งาน เพื่อยกระดับการคุ้มครองข้อมูลส่วนบุคคลและความมั่นคงปลอดภัยสารสนเทศ ซึ่งอาจจะทำให้เกิดความล่าช้าในการใช้งานระบบบางส่วน -->
-                ประกาศปิดปรับปรุง ระบบขอรับความช่วยเหลือด้วยตนเอง พม.care (url: <a
+                ประกาศปิดปรับปรุงระบบขอรับความช่วยเหลือด้วยตนเอง "พม.care" <a
                   href="https://vsmart-care.m-society.go.th/" target="_blank" rel="noopener noreferrer" class="block break-all font-bold text-[#1A56DB] underline decoration-blue-300 underline-offset-2
-                hover:text-blue-800">https://vsmart-care.m-society.go.th/</a> )
-                ระหว่าง วันที่ 29 สิงหาคม 2569 เวลา 00:00 น. ถึง 31 สิงหาคม 2569 06:00 น.
+                hover:text-blue-800">https://vsmart-care.m-society.go.th/</a> ชั่วคราว ตั้งแต่วันเสาร์ที่ 29 สิงหาคม
+                2569 เวลา 00.00 น. ถึง วันจันทร์ที่ 31 สิงหาคม 2569 เวลา 06.00 น.
               </p>
               <p class="mt-3 text-body-md font-semibold leading-relaxed text-yellow-950 sm:text-body">
-                ขออภัยในความไม่สะดวกครับ 🙇
+                ขออภัยในความไม่สะดวกมา ณ ที่นี้ 🙇
               </p>
             </div>
           </div>
