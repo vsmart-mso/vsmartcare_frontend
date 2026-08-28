@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: vcare
+  namespace: staging
   name: vcare-frontend-beta
   labels:
     app: vcare-frontend-beta
@@ -15,7 +15,7 @@ spec:
         app: vcare-frontend-beta
     spec:
       imagePullSecrets:
-        - name: staggingbackcred
+        - name: betabackcred
       containers:
         - name: vcare-frontend
           image: staging-registry-vs.m-society.go.th/root/vcare-frontend-beta:latest

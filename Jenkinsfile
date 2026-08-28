@@ -12,20 +12,46 @@ pipeline {
     }
 
     environment {
+        // REGISTRY — using staging-registry-vs (root/*) for np too, on purpose,
+        // for now. np cannot actually pull from it until the 2026-08-31 cutover
+        // (dev-np-quickstart.md item 38: the registry's token-issuer realm still
+        // points at the OLD gitlab-vs host, so the JWT exchange 401s from inside
+        // np). Until then, Push Image succeeds but the np rollout below sits at
+        // ImagePullBackOff — expected, not a bug here.
+        //
+        // WHAT TO CHANGE, AND WHEN: nothing, once the cutover lands —
+        // REGISTRY/IMAGE_NAME already point at the correct long-term target, no
+        // edit needed here. If you need np working BEFORE 2026-08-31, there is
+        // no registry value that fixes it: our CI never pushes to the vendor
+        // path np can currently pull from (registry-vs.m-society.go.th/kitsune-cop/*),
+        // so pointing REGISTRY back there would just 404 on a nonexistent tag
+        // instead of ImagePullBackOff. That path is only useful to confirm the
+        // deploy mechanism itself (see ci/Jenkinsfile.np-smoke in the ops repo),
+        // not to test a real build.
         REGISTRY      = "staging-registry-vs.m-society.go.th"
         PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
-        // beta builds and deploys under a "-beta" suffixed name so they never overwrite another branch's image/service
+
+        // beta pushes under a "-beta" suffixed image name so it never overwrites
+        // production's :latest (and any other tag) on the shared registry repo
         BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : ''}"
 
         IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}${BRANCH_SUFFIX}"
         IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: env.BUILD_NUMBER}"
 
+        // production-side cluster (172.21.103.x), ns vcare — used when NOT branch beta
         NAMESPACE     = "vcare"
-        DEPLOYMENT    = "vcare-frontend${BRANCH_SUFFIX}"
+        DEPLOYMENT    = "vcare-frontend"
         CONTAINER     = "vcare-frontend"
-
         KUBECONFIG    = "/var/lib/jenkins/.kube/config"
+
+        // np/GDCC estate (192.168.10.x), ns staging — used only when branch beta.
+        // See dev-np-quickstart.md §6.4 "Route C": np-agent01 is the only host
+        // that can reach the np API server, so the deploy stage below runs on
+        // the 'nonprod'-labelled agent, not here.
+        NP_KUBECONFIG = "/var/lib/jenkins-agent/.kube/config"
+        NP_NAMESPACE  = "staging"
+        NP_DEPLOYMENT = "vcare-frontend"
     }
 
     stages {
@@ -36,30 +62,90 @@ pipeline {
             }
         }
 
+        stage('Read Beta Build Args') {
+            // The build-arg Secret for beta now lives in ns staging on np, not ns
+            // vcare — only the nonprod-labelled agent (np-agent01) can reach that
+            // API server (dev-np-quickstart.md §6.4), but it has no docker
+            // (purged — item 14), so the values are read here and handed to the
+            // 'Build Docker Image' stage below via stash, which runs docker build
+            // on the default agent instead.
+            //
+            // This Secret is NOT created by this pipeline (unlike betabackcred):
+            // it must already exist in ns staging on np, e.g. by applying the
+            // same content as vsmartcare_frontend/secrets-beta.yml there once
+            // (that file is gitignored and only ever applied by hand — see the
+            // ns vcare equivalent this mirrors). If it's missing, this stage
+            // will fail on the kubectl get, not silently build with blank values.
+            when {
+                expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') }
+            }
+            steps {
+                node('nonprod') {
+                    withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                        sh '''
+                            set -eu
+                            SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+
+                            kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
+
+                            {
+                                echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
+                                echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
+                                echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
+                                echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
+                            } > beta-build-args.env
+                        '''
+                        stash name: 'beta-build-args', includes: 'beta-build-args.env'
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    export KUBECONFIG=${KUBECONFIG}
+                script {
+                    def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    if (branchName.contains('beta')) {
+                        unstash 'beta-build-args'
+                        sh '''
+                            set -a
+                            . ./beta-build-args.env
+                            set +a
+                            rm -f beta-build-args.env
 
-                    SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+                            docker build \
+                                --build-arg VITE_API_URL="$VITE_API_URL" \
+                                --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
+                                --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
+                                --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
+                                -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                                -t ${IMAGE_NAME}:latest .
+                        '''
+                    } else {
+                        sh '''
+                            export KUBECONFIG=${KUBECONFIG}
 
-                    VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                        -o jsonpath='{.data.VITE_API_URL}' | base64 -d)
-                    VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                        -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)
-                    VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                        -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)
-                    VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                        -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)
+                            SECRET_NAME="vcare-frontend-secret"
 
-                    docker build \
-                        --build-arg VITE_API_URL="$VITE_API_URL" \
-                        --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
-                        --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
-                        --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
-                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                        -t ${IMAGE_NAME}:latest .
-                '''
+                            VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
+                                -o jsonpath='{.data.VITE_API_URL}' | base64 -d)
+                            VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
+                                -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)
+                            VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
+                                -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)
+                            VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
+                                -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)
+
+                            docker build \
+                                --build-arg VITE_API_URL="$VITE_API_URL" \
+                                --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
+                                --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
+                                --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
+                                -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                                -t ${IMAGE_NAME}:latest .
+                        '''
+                    }
+                }
             }
         }
 
@@ -96,15 +182,76 @@ pipeline {
                 script {
                     def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
                     if (branchName.contains('beta')) {
-                        // beta deploys its own dedicated manifests (separate name/app-label/nodePort from production)
-                        // and runs without HPA/autoscaling; remove any HPA left over from a previous deploy
-                        sh '''
-                            export KUBECONFIG=${KUBECONFIG}
+                        // Deploy to the np/GDCC estate instead of ns vcare — see
+                        // dev-np-quickstart.md §6.4 "Route C". Runs on the
+                        // nonprod-labelled agent (np-agent01) because prod
+                        // Jenkins has no network route into 192.168.10.0/24;
+                        // that agent dials out to us instead. np-agent01 has
+                        // no docker (purged — item 14 in the doc), which is
+                        // why only this kubectl-only stage moves agents; the
+                        // build/push stages above still ran on the default one.
+                        //
+                        // The Deployment (vcare-frontend, ns staging) and its
+                        // Service already exist on np, created/managed by ops
+                        // — this stage only updates the image. '*' matches
+                        // whatever the single container in that pod spec is
+                        // named, since it isn't confirmed from this repo.
+                        //
+                        // CAVEAT (as of 2026-08-29): np's registry auth realm
+                        // still points at the old gitlab-vs host, so pulling
+                        // from staging-registry-vs fails until the 2026-08-31
+                        // cutover (dev-np-quickstart.md item 38). Until then,
+                        // this stage will succeed but the rollout will sit at
+                        // ImagePullBackOff — that's expected np/registry state,
+                        // not a bug here.
+                        //
+                        // Pull secret: ensure "betabackcred" exists in ns staging
+                        // and is wired into the Deployment. Built from the same
+                        // 'devop-bot' credential the Push Image stage already
+                        // logs in with (server=REGISTRY), so there's no separate
+                        // token to keep in sync by hand — every run refreshes it,
+                        // which also self-heals if the credential is ever rotated.
+                        // regcred/regcred-staging are kept alongside it rather
+                        // than replaced: regcred is the only thing that can still
+                        // pull the digest-pinned kitsune-cop image if this pod
+                        // ever needs to fall back to it (dev-np-quickstart.md
+                        // item 4), and the kubelet just tries each secret in turn.
+                        node('nonprod') {
+                            withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                                withCredentials([
+                                    usernamePassword(
+                                        credentialsId: 'devop-bot',
+                                        usernameVariable: 'REGISTRY_USER',
+                                        passwordVariable: 'REGISTRY_PASS'
+                                    )
+                                ]) {
+                                    sh '''
+                                        kubectl -n ${NP_NAMESPACE} create secret docker-registry betabackcred \
+                                            --docker-server=${REGISTRY} \
+                                            --docker-username="$REGISTRY_USER" \
+                                            --docker-password="$REGISTRY_PASS" \
+                                            --dry-run=client -o yaml | kubectl apply -f -
 
-                            kubectl apply -f deployment-beta.yml
-                            kubectl apply -f service-beta.yml
-                            kubectl -n ${NAMESPACE} delete hpa vcare-frontend --ignore-not-found=true
-                        '''
+                                        kubectl -n ${NP_NAMESPACE} patch deployment ${NP_DEPLOYMENT} --type=json -p \
+                                            '[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"regcred"},{"name":"regcred-staging"},{"name":"betabackcred"}]}]'
+                                    '''
+                                }
+
+                                sh '''
+                                    kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
+                                        '*'=${IMAGE_NAME}:${IMAGE_TAG}
+
+                                    if ! kubectl -n ${NP_NAMESPACE} rollout status deployment/${NP_DEPLOYMENT} --timeout=300s; then
+                                        echo "--- rollout failed, describing ---"
+                                        kubectl -n ${NP_NAMESPACE} describe deployment/${NP_DEPLOYMENT}
+                                        kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=vcare-frontend
+                                        # almost always ImagePullBackOff from the registry caveat above, not the cluster
+                                        kubectl -n ${NP_NAMESPACE} get events --sort-by=.lastTimestamp | tail -30
+                                        exit 1
+                                    fi
+                                '''
+                            }
+                        }
                     } else {
                         sh '''
                             export KUBECONFIG=${KUBECONFIG}
@@ -112,30 +259,41 @@ pipeline {
                             kubectl apply -f deployment.yml
                             kubectl apply -f service.yml
                             kubectl apply -f hpa.yml
+
+                            kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
+                                ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}
+
+                            kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=300s
                         '''
                     }
                 }
-                sh '''
-                    export KUBECONFIG=${KUBECONFIG}
-
-                    kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
-                        ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}
-
-                    kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=300s
-                '''
             }
         }
 
         stage('Verify') {
             steps {
-                sh '''
-                    export KUBECONFIG=${KUBECONFIG}
+                script {
+                    def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    if (branchName.contains('beta')) {
+                        node('nonprod') {
+                            withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                                sh '''
+                                    kubectl -n ${NP_NAMESPACE} get deployment ${NP_DEPLOYMENT}
+                                    kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=vcare-frontend
+                                '''
+                            }
+                        }
+                    } else {
+                        sh '''
+                            export KUBECONFIG=${KUBECONFIG}
 
-                    kubectl -n ${NAMESPACE} get deployment
-                    kubectl -n ${NAMESPACE} get pods -o wide
-                    kubectl -n ${NAMESPACE} get svc
-                    kubectl -n ${NAMESPACE} get hpa
-                '''
+                            kubectl -n ${NAMESPACE} get deployment
+                            kubectl -n ${NAMESPACE} get pods -o wide
+                            kubectl -n ${NAMESPACE} get svc
+                            kubectl -n ${NAMESPACE} get hpa
+                        '''
+                    }
+                }
             }
         }
     }
