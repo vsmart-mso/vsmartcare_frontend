@@ -2,23 +2,25 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: staging
-  name: vcare-frontend-beta
+  name: vcare-frontend
   labels:
-    app: vcare-frontend-beta
+    app: vcare-frontend
 spec:
   selector:
     matchLabels:
-      app: vcare-frontend-beta
+      app: vcare-frontend
   template:
     metadata:
       labels:
-        app: vcare-frontend-beta
+        app: vcare-frontend
     spec:
       imagePullSecrets:
+        - name: regcred
+        - name: regcred-staging
         - name: betabackcred
       containers:
         - name: vcare-frontend
-          image: staging-registry-vs.m-society.go.th/root/vcare-frontend-beta:latest
+          image: staging-registry-vs.m-society.go.th/root/vcare-frontend:latest-beta
           ports:
             - containerPort: 80
           resources:

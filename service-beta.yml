@@ -1,16 +1,33 @@
+# This mirrors the Service that already exists on np (ns staging) — it is NOT
+# applied by the Jenkinsfile beta path, which only patches the image on the
+# existing Deployment/Service there (dev-np-quickstart.md §4). Kept here as a
+# reference of what's live, not something CI creates or owns.
+#
+# Named "vcare-frontend" (no "-beta") and using nodePort 31968 deliberately —
+# these must match the real object on np exactly, or applying this collides
+# with it ("provided port is already allocated" / a second Service fighting
+# over the same selector). There is only one frontend Service on np; np and
+# ns vcare are different clusters, so no "-beta" suffix is needed here to
+# avoid colliding with production's own vcare-frontend (that one lives in ns
+# vcare on 172.21.103.x — see service.yml).
+#
+# port/targetPort below are carried over unverified from the old ns vcare
+# beta manifest — confirm against the real Service on np before applying:
+#   kubectl -n staging get svc vcare-frontend -o yaml
+
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: vcare
-  name: vcare-frontend-beta
+  namespace: staging
+  name: vcare-frontend
   labels:
-    app: vcare-frontend-beta
+    app: vcare-frontend
 spec:
   selector:
-    app: vcare-frontend-beta
+    app: vcare-frontend
   ports:
     - protocol: TCP
       port: 3000
       targetPort: 80
-      nodePort: 32043
+      nodePort: 31968
   type: NodePort
