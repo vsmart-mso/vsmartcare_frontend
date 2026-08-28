@@ -15,10 +15,10 @@ spec:
         app: vcare-frontend
     spec:
       imagePullSecrets:
-        - name: staggingbackcred
+        - name: backcred
       containers:
         - name: vcare-frontend
-          image: staging-registry-vs.m-society.go.th/root/vcare-frontend:latest
+          image: registry-vs.m-society.go.th/root/vcare-frontend:latest
           ports:
             - containerPort: 80
           resources:

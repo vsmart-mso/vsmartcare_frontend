@@ -12,7 +12,7 @@ pipeline {
     }
 
     environment {
-        REGISTRY      = "staging-registry-vs.m-society.go.th"
+        REGISTRY      = "registry-vs.m-society.go.th"
         PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
 
