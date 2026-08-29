@@ -250,7 +250,7 @@ pipeline {
                                     kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
                                         '*'=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
 
-                                    if ! kubectl -n ${NP_NAMESPACE} rollout status deployment/${NP_DEPLOYMENT} --timeout=300s; then
+                                    if ! kubectl -n ${NP_NAMESPACE} rollout status deployment/${NP_DEPLOYMENT} --timeout=600s; then
                                         echo "--- rollout failed, describing ---"
                                         kubectl -n ${NP_NAMESPACE} describe deployment/${NP_DEPLOYMENT}
                                         kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=vcare-frontend
@@ -262,17 +262,24 @@ pipeline {
                             }
                         }
                     } else {
+                        // Bake the real build tag into deployment.yml before applying instead of
+                        // apply-then-set-image: the old two-step sequence wrote to the same
+                        // Deployment object twice (once reverting the image to :latest via apply,
+                        // once forward to the real tag via set image) a few seconds apart — each
+                        // write needs the same etcd fsync round-trip, so on a control plane with
+                        // slow disk I/O this doubled the exposure to "spec update not observed"
+                        // stalls for no functional benefit. One substituted apply == one write.
                         sh '''
                             export KUBECONFIG=${KUBECONFIG}
 
-                            kubectl apply -f deployment.yml
+                            sed "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}#" \
+                                deployment.yml > deployment.rendered.yml
+
+                            kubectl apply -f deployment.rendered.yml
                             kubectl apply -f service.yml
                             kubectl apply -f hpa.yml
 
-                            kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
-                                ${CONTAINER}=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
-
-                            kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=300s
+                            kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=600s
                         '''
                     }
                 }
