@@ -17,7 +17,7 @@ pipeline {
         APP_NAME      = "vcare-frontend"
 
         IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}"
-        IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: env.BUILD_NUMBER}"
+        IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: 'nogit'}-${env.BUILD_NUMBER}"
 
         NAMESPACE     = "vcare"
         DEPLOYMENT    = "vcare-frontend"
