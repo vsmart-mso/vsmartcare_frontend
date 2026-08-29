@@ -31,7 +31,7 @@ pipeline {
         // The "-beta" marker goes on the TAG instead (BRANCH_SUFFIX below),
         // which is unrestricted within an existing repo.
         IMAGE_NAME    = "${REGISTRY}/${PROJECT}/${APP_NAME}"
-        IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: env.BUILD_NUMBER}"
+        IMAGE_TAG     = "${env.GIT_COMMIT?.take(8) ?: 'nogit'}-${env.BUILD_NUMBER}"
 
         // beta tags every image "-beta" suffixed so it never overwrites
         // production's :latest (and any other tag) in the shared repo above —
