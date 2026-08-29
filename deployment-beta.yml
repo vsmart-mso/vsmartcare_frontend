@@ -20,7 +20,7 @@ spec:
         - name: betabackcred
       containers:
         - name: vcare-frontend
-          image: staging-registry-vs.m-society.go.th/root/vcare-frontend:latest-beta
+          image: registry-vs.m-society.go.th/root/vcare-frontend:latest-beta
           ports:
             - containerPort: 80
           resources:

@@ -12,23 +12,12 @@ pipeline {
     }
 
     environment {
-        // REGISTRY — using staging-registry-vs (root/*) for np too, on purpose,
-        // for now. np cannot actually pull from it until the 2026-08-31 cutover
-        // (dev-np-quickstart.md item 38: the registry's token-issuer realm still
-        // points at the OLD gitlab-vs host, so the JWT exchange 401s from inside
-        // np). Until then, Push Image succeeds but the np rollout below sits at
-        // ImagePullBackOff — expected, not a bug here.
-        //
-        // WHAT TO CHANGE, AND WHEN: nothing, once the cutover lands —
-        // REGISTRY/IMAGE_NAME already point at the correct long-term target, no
-        // edit needed here. If you need np working BEFORE 2026-08-31, there is
-        // no registry value that fixes it: our CI never pushes to the vendor
-        // path np can currently pull from (registry-vs.m-society.go.th/kitsune-cop/*),
-        // so pointing REGISTRY back there would just 404 on a nonexistent tag
-        // instead of ImagePullBackOff. That path is only useful to confirm the
-        // deploy mechanism itself (see ci/Jenkinsfile.np-smoke in the ops repo),
-        // not to test a real build.
-        REGISTRY      = "staging-registry-vs.m-society.go.th"
+        // REGISTRY — "registry-vs" (no "staging-" prefix). The 2026-08-31
+        // cutover happened: that name is now the permanent one for the new
+        // estate (dev-np-quickstart.md item 38 is resolved — the registry's
+        // token-issuer realm now matches, so np can pull from here directly).
+        // "staging-registry-vs" was the pre-cutover name; don't revert to it.
+        REGISTRY      = "registry-vs.m-society.go.th"
         PROJECT       = "root"
         APP_NAME      = "vcare-frontend"
 
@@ -219,14 +208,6 @@ pipeline {
                         // whatever the single container in that pod spec is
                         // named, since it isn't confirmed from this repo.
                         //
-                        // CAVEAT (as of 2026-08-29): np's registry auth realm
-                        // still points at the old gitlab-vs host, so pulling
-                        // from staging-registry-vs fails until the 2026-08-31
-                        // cutover (dev-np-quickstart.md item 38). Until then,
-                        // this stage will succeed but the rollout will sit at
-                        // ImagePullBackOff — that's expected np/registry state,
-                        // not a bug here.
-                        //
                         // Pull secret: ensure "betabackcred" exists in ns staging
                         // and is wired into the Deployment. Built from the same
                         // 'devop-bot' credential the Push Image stage already
@@ -273,7 +254,7 @@ pipeline {
                                         echo "--- rollout failed, describing ---"
                                         kubectl -n ${NP_NAMESPACE} describe deployment/${NP_DEPLOYMENT}
                                         kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=vcare-frontend
-                                        # almost always ImagePullBackOff from the registry caveat above, not the cluster
+                                        # check for ImagePullBackOff first, then app-level crash/config issues
                                         kubectl -n ${NP_NAMESPACE} get events --sort-by=.lastTimestamp | tail -30
                                         exit 1
                                     fi
