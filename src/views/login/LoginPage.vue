@@ -6,8 +6,9 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppBrandHeader from '@/components/ui/AppBrandHeader.vue'
 import LoginBetaNoticeModal from '@/components/ui/LoginBetaNoticeModal.vue'
-import { isLoginBetaNoticeEnabled } from '@/config/env'
-import { normalizeAuthErrorQuery } from '@/utils/authUserMessages'
+import { isLoginBetaNoticeEnabled, isThaIDDevMockEnabled } from '@/config/env'
+import { normalizeAuthErrorQuery, userMessageForAuthApiError } from '@/utils/authUserMessages'
+import { redirectBrowserToThaIDLogin } from '@/api/auth'
 
 // import โลโก้ช่องทาง login
 import logoThaID    from '@/assets/logo-thaid.png'
@@ -18,6 +19,7 @@ const router = useRouter()
 const route  = useRoute()
 
 const thaidError = ref<string | null>(null)
+const thaidLoading = ref(false)
 const showBetaNotice = ref(isLoginBetaNoticeEnabled())
 
 function dismissBetaNotice() {
@@ -34,37 +36,27 @@ onMounted(() => {
   }
 })
 
-// ═══════════════════════════════════════════════
-// ปุ่ม ThaID ถูกปิดใช้งานชั่วคราวระหว่างปิดปรับปรุงระบบ
-// โค้ดเดิมสำหรับ login ด้วย ThaID เก็บไว้ด้านล่างเพื่อนำกลับมาใช้เมื่อเปิดระบบอีกครั้ง
-// ═══════════════════════════════════════════════
-// import { redirectBrowserToThaIDLogin } from '@/api/auth'
-// import { isThaIDDevMockEnabled } from '@/config/env'
-// import { userMessageForAuthApiError } from '@/utils/authUserMessages'
-//
-// const thaidLoading = ref(false)
-//
-// // เมื่อเปิด flag ThaiD dev mock ปุ่ม ThaID จะพาไปหน้าจำลองแทน
-// const isThaIDDevMock = isThaIDDevMockEnabled()
-//
-// /** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
-// async function handleThaID() {
-//   if (thaidLoading.value) return
-//   thaidError.value = null
-//   thaidLoading.value = true
-//   try {
-//     if (isThaIDDevMock) {
-//       await router.push({ name: 'login-thaid-dev-mock' })
-//       thaidLoading.value = false
-//       return
-//     }
-//
-//     await redirectBrowserToThaIDLogin(router)
-//   } catch (e: unknown) {
-//     thaidLoading.value = false
-//     thaidError.value = userMessageForAuthApiError(e)
-//   }
-// }
+// เมื่อเปิด flag ThaiD dev mock ปุ่ม ThaID จะพาไปหน้าจำลองแทน
+const isThaIDDevMock = isThaIDDevMockEnabled()
+
+/** พาเบราว์เซอร์ไปหน้า OAuth / QR ของ ThaiD โดยตรง หลังยืนยันแล้วจะกลับมาที่ /login/thaid/return */
+async function handleThaID() {
+  if (thaidLoading.value) return
+  thaidError.value = null
+  thaidLoading.value = true
+  try {
+    if (isThaIDDevMock) {
+      await router.push({ name: 'login-thaid-dev-mock' })
+      thaidLoading.value = false
+      return
+    }
+
+    await redirectBrowserToThaIDLogin(router)
+  } catch (e: unknown) {
+    thaidLoading.value = false
+    thaidError.value = userMessageForAuthApiError(e)
+  }
+}
 </script>
 
 <template>
@@ -115,10 +107,10 @@ onMounted(() => {
         <div class="space-y-3 mb-5">
 
           <!--
-            ปุ่ม ThaID เดิม (ก่อนปิดปรับปรุงระบบ) — เก็บไว้เพื่อนำกลับมาใช้ภายหลัง
+            ปุ่ม ThaID
             group = ทำให้ child elements ตอบสนองต่อ hover ของ parent ได้
             active:scale-[0.98] = ขยับเล็กน้อยเมื่อกด ให้ความรู้สึก tactile บนมือถือ
-
+          -->
           <button
             type="button"
             :disabled="thaidLoading"
@@ -148,49 +140,6 @@ onMounted(() => {
               aria-hidden="true"
             >
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          -->
-
-          <!-- ปุ่ม ThaID — ปิดใช้งานชั่วคราว: อยู่ระหว่างปิดปรับปรุงระบบ -->
-          <button
-            type="button"
-            disabled
-            class="group w-full flex items-center gap-4 bg-slate-50 rounded-2xl border-2 border-slate-200 p-4 text-left cursor-not-allowed"
-            aria-label="เข้าสู่ระบบด้วย ThaID อยู่ระหว่างปิดปรับปรุงระบบชั่วคราว ตั้งแต่วันเสาร์ที่ 29 สิงหาคม 2569 เวลา 00.00 น. ถึงวันจันทร์ที่ 31 สิงหาคม 2569 เวลา 06.00 น."
-            aria-disabled="true"
-          >
-            <!-- โลโก้ ThaID (จางลง สื่อว่ายังไม่พร้อมใช้) -->
-            <div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0">
-              <img :src="logoThaID" alt="ThaID" class="w-full h-full object-contain opacity-40 grayscale" />
-            </div>
-
-            <!-- ข้อความ -->
-            <div class="flex-1 min-w-0">
-              <p class="text-body font-semibold text-slate-400 leading-snug">
-                เข้าสู่ระบบด้วย ThaID
-              </p>
-              <p class="text-body-xs text-amber-600 mt-0.5 leading-snug font-medium">
-                อยู่ระหว่างปิดปรับปรุงระบบชั่วคราว<br />
-                ตั้งแต่วันเสาร์ที่ 29 ส.ค. 2569 เวลา 00.00 น.<br />
-                ถึงวันจันทร์ที่ 31 ส.ค. 2569 เวลา 06.00 น.
-              </p>
-            </div>
-
-            <!-- ไอคอนกุญแจ — สื่อว่ายังไม่เปิดใช้งาน -->
-            <svg
-              class="w-5 h-5 text-slate-300 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.75"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-              />
             </svg>
           </button>
 
