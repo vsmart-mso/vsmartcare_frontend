@@ -329,7 +329,7 @@ pipeline {
         success {
             echo "======================================"
             echo " Deploy Success"
-            echo " Image : ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}"
+            echo " Image : ${env.IMAGE_NAME}:${env.IMAGE_TAG}${env.BRANCH_SUFFIX}"
             echo "======================================"
         }
 
