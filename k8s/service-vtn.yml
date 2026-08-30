@@ -2,7 +2,7 @@
 # by the Jenkinsfile — reference only, apply by hand once alongside
 # deployment-vtn.yml:
 #
-#   kubectl -n staging apply -f service-vtn.yml
+#   kubectl -n staging apply -f k8s/service-vtn.yml
 #
 # NodePort 31986 is an UNCONFIRMED GUESS — verify nothing else already
 # claims it before relying on this:

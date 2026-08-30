@@ -5,7 +5,7 @@
 # the reference copy of what's live. Manual apply is only needed for a
 # fresh cluster/namespace that's never run the vtn pipeline yet:
 #
-#   kubectl -n staging apply -f deployment-vtn.yml
+#   kubectl -n staging apply -f k8s/deployment-vtn.yml
 #
 # Differences from deployment-beta.yml:
 # - Named "vcare-frontend-vtn" instead of "vcare-frontend".

@@ -31,6 +31,6 @@ docker-compose-beta.yml
 docker-compose-prod.yml
 
 # k8s secrets (contain real credentials, never commit)
-secrets.yml
-secrets-beta.yml
-secrets-vtn.yml
+k8s/secrets.yml
+k8s/secrets-beta.yml
+k8s/secrets-vtn.yml
