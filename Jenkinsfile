@@ -53,7 +53,7 @@ pipeline {
         //
         // vtn shares this same np cluster/ns staging with beta (same server,
         // per the vtn deploy decision) but its own Deployment name
-        // "vcare-frontend-vtn" (deployment-vtn.yml), never "vcare-frontend"
+        // "vcare-frontend-vtn" (k8s/deployment-vtn.yml), never "vcare-frontend"
         // (beta's/ops-owned) — hence the branch-conditional suffix here.
         NP_KUBECONFIG = "/var/lib/jenkins-agent/.kube/config"
         NP_NAMESPACE  = "staging"
@@ -74,7 +74,7 @@ pipeline {
             // agent — files aren't shared between them automatically.
             //
             // vtn shares this same np cluster/ns staging with beta — its own
-            // deployment-vtn.yml is stashed alongside beta's rather than in a
+            // k8s/deployment-vtn.yml is stashed alongside beta's rather than in a
             // separate stage, since both branches need this stage's stash name.
             when {
                 anyOf {
@@ -83,7 +83,7 @@ pipeline {
                 }
             }
             steps {
-                stash name: 'np-manifests', includes: 'hpa-np.yml,deployment-beta.yml,deployment-vtn.yml,hpa-vtn.yml'
+                stash name: 'np-manifests', includes: 'k8s/hpa-np.yml,k8s/deployment-beta.yml,k8s/deployment-vtn.yml,k8s/hpa-vtn.yml,k8s/service-vtn.yml'
             }
         }
 
@@ -97,7 +97,7 @@ pipeline {
             //
             // This Secret is NOT created by this pipeline (unlike betabackcred):
             // it must already exist in ns staging on np, e.g. by applying the
-            // same content as vsmartcare_frontend/secrets-beta.yml there once
+            // same content as vsmartcare_frontend/k8s/secrets-beta.yml there once
             // (that file is gitignored and only ever applied by hand — see the
             // ns vcare equivalent this mirrors). If it's missing, this stage
             // will fail on the kubectl get, not silently build with blank values.
@@ -134,7 +134,7 @@ pipeline {
             //
             // Not created by this pipeline: must already exist in ns staging on
             // np, applied by hand once (own file, gitignored, never commit real
-            // values — see secrets-beta.yml for the pattern this mirrors).
+            // values — see k8s/secrets-beta.yml for the pattern this mirrors).
             when {
                 expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('vtn') }
             }
@@ -258,8 +258,8 @@ pipeline {
                     def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
                     if (branchName.contains('vtn')) {
                         // Same np/GDCC estate as beta below, own Deployment
-                        // "vcare-frontend-vtn" (see deployment-vtn.yml, applied by
-                        // this stage every run, same as beta's deployment-beta.yml
+                        // "vcare-frontend-vtn" (see k8s/deployment-vtn.yml, applied by
+                        // this stage every run, same as beta's k8s/deployment-beta.yml
                         // below). Own pull secret "vtnbackcred" instead of reusing
                         // "betabackcred" so a vtn deploy doesn't depend on a beta
                         // build having run first on this Jenkins instance.
@@ -267,13 +267,15 @@ pipeline {
                             unstash 'np-manifests'
                             withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
                                 // Jenkins now owns this Deployment instead of requiring a
-                                // one-time hand-applied `kubectl apply -f deployment-vtn.yml`
+                                // one-time hand-applied `kubectl apply -f k8s/deployment-vtn.yml`
                                 // — idempotent, safe to re-apply every vtn run. Must run
                                 // before the imagePullSecrets patch below, which would fail
                                 // if the Deployment didn't exist yet.
                                 sh '''
-                                    kubectl -n ${NP_NAMESPACE} apply -f deployment-vtn.yml
-                                    kubectl -n ${NP_NAMESPACE} apply -f hpa-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f k8s/deployment-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f k8s/service-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f k8s/hpa-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} get svc vcare-frontend-vtn
                                     kubectl -n ${NP_NAMESPACE} get hpa
                                 '''
 
@@ -341,19 +343,19 @@ pipeline {
                             unstash 'np-manifests'
                             withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
                                 // Jenkins now owns this Deployment instead of requiring a
-                                // one-time hand-applied `kubectl apply -f deployment-beta.yml`
+                                // one-time hand-applied `kubectl apply -f k8s/deployment-beta.yml`
                                 // — idempotent, safe to re-apply every beta run. Must run
                                 // before the imagePullSecrets patch below, which would fail
                                 // if the Deployment didn't exist yet.
                                 //
-                                // Note: deployment-beta.yml's image field is the static
+                                // Note: k8s/deployment-beta.yml's image field is the static
                                 // "latest-beta" tag, not the per-build tag set below — this
                                 // briefly reverts the image before `set image` overwrites it
                                 // seconds later, same accepted tradeoff as the backend's
                                 // equivalent stage.
                                 sh '''
-                                    kubectl -n ${NP_NAMESPACE} apply -f deployment-beta.yml
-                                    kubectl -n ${NP_NAMESPACE} apply -f hpa-np.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f k8s/deployment-beta.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f k8s/hpa-np.yml
                                     kubectl -n ${NP_NAMESPACE} get hpa
                                 '''
 
@@ -392,7 +394,7 @@ pipeline {
                             }
                         }
                     } else {
-                        // Bake the real build tag into deployment.yml before applying instead of
+                        // Bake the real build tag into k8s/deployment.yml before applying instead of
                         // apply-then-set-image: the old two-step sequence wrote to the same
                         // Deployment object twice (once reverting the image to :latest via apply,
                         // once forward to the real tag via set image) a few seconds apart — each
@@ -403,11 +405,11 @@ pipeline {
                             export KUBECONFIG=${KUBECONFIG}
 
                             sed "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}#" \
-                                deployment.yml > deployment.rendered.yml
+                                k8s/deployment.yml > k8s/deployment.rendered.yml
 
-                            kubectl apply -f deployment.rendered.yml
-                            kubectl apply -f service.yml
-                            kubectl apply -f hpa.yml
+                            kubectl apply -f k8s/deployment.rendered.yml
+                            kubectl apply -f k8s/service.yml
+                            kubectl apply -f k8s/hpa.yml
 
                             kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=600s
                         '''

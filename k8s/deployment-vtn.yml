@@ -1,0 +1,51 @@
+# vtn — training environment ("อบรม"), same np cluster/ns staging as beta
+# (see deployment-beta.yml), own Deployment so it never collides with
+# beta's or prod's vcare-frontend. Applied by the Jenkinsfile on every vtn
+# run (see "Deploy Kubernetes" vtn branch) — idempotent, so this is also
+# the reference copy of what's live. Manual apply is only needed for a
+# fresh cluster/namespace that's never run the vtn pipeline yet:
+#
+#   kubectl -n staging apply -f k8s/deployment-vtn.yml
+#
+# Differences from deployment-beta.yml:
+# - Named "vcare-frontend-vtn" instead of "vcare-frontend".
+# - image tag is "-vtn" (BRANCH_SUFFIX), built fresh by the vtn Jenkinsfile
+#   path from the same source as production but with build-args pointing
+#   at the vtn backend (bff-vsmartcare-vtn) — see vsmartcare_backend's
+#   deployment-vtn.yml and BETA_DEPLOYMENT.md's Frontend section for why
+#   VITE_API_URL can't just reuse production's baked-in image.
+# - imagePullSecrets uses "vtnbackcred" instead of "betabackcred" — its own
+#   pull secret so a vtn deploy doesn't depend on beta having run first.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: staging
+  name: vcare-frontend-vtn
+  labels:
+    app: vcare-frontend-vtn
+spec:
+  selector:
+    matchLabels:
+      app: vcare-frontend-vtn
+  template:
+    metadata:
+      labels:
+        app: vcare-frontend-vtn
+    spec:
+      imagePullSecrets:
+        - name: regcred
+        - name: regcred-staging
+        - name: vtnbackcred
+      containers:
+        - name: vcare-frontend
+          image: registry-vs.m-society.go.th/root/vcare-frontend:latest-vtn
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

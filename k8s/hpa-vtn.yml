@@ -1,0 +1,33 @@
+# HPA for vtn (ns staging, np cluster) — mirrors hpa-np.yml but targets
+# vcare-frontend-vtn instead of vcare-frontend, so it never collides with
+# beta's. Applied by the Jenkinsfile on every vtn run (see "Deploy
+# Kubernetes" vtn branch).
+#
+# Requires metrics-server (or equivalent) in the cluster — same caveat as
+# hpa-np.yml / vsmartcare_backend/k8s/hpa-np.yml.
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  namespace: staging
+  name: vcare-frontend-vtn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vcare-frontend-vtn
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
