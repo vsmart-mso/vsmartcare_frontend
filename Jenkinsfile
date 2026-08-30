@@ -83,7 +83,7 @@ pipeline {
                 }
             }
             steps {
-                stash name: 'np-manifests', includes: 'hpa-np.yml,deployment-beta.yml,deployment-vtn.yml,hpa-vtn.yml'
+                stash name: 'np-manifests', includes: 'hpa-np.yml,deployment-beta.yml,deployment-vtn.yml,hpa-vtn.yml,service-vtn.yml'
             }
         }
 
@@ -273,7 +273,9 @@ pipeline {
                                 // if the Deployment didn't exist yet.
                                 sh '''
                                     kubectl -n ${NP_NAMESPACE} apply -f deployment-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} apply -f service-vtn.yml
                                     kubectl -n ${NP_NAMESPACE} apply -f hpa-vtn.yml
+                                    kubectl -n ${NP_NAMESPACE} get svc vcare-frontend-vtn
                                     kubectl -n ${NP_NAMESPACE} get hpa
                                 '''
 
