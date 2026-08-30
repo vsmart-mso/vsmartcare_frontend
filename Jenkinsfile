@@ -311,13 +311,13 @@ pipeline {
                                 // — idempotent, safe to re-apply every vtn run. Must run
                                 // before the imagePullSecrets patch below, which would fail
                                 // if the Deployment didn't exist yet.
-                                sh '''
+                                kubectlWithRetry('''
                                     kubectl -n ${NP_NAMESPACE} apply -f k8s/deployment-vtn.yml
                                     kubectl -n ${NP_NAMESPACE} apply -f k8s/service-vtn.yml
                                     kubectl -n ${NP_NAMESPACE} apply -f k8s/hpa-vtn.yml
                                     kubectl -n ${NP_NAMESPACE} get svc vcare-frontend-vtn
                                     kubectl -n ${NP_NAMESPACE} get hpa
-                                '''
+                                ''')
 
                                 withCredentials([
                                     usernamePassword(
@@ -326,7 +326,7 @@ pipeline {
                                         passwordVariable: 'REGISTRY_PASS'
                                     )
                                 ]) {
-                                    sh '''
+                                    kubectlWithRetry('''
                                         kubectl -n ${NP_NAMESPACE} create secret docker-registry vtnbackcred \
                                             --docker-server=${REGISTRY} \
                                             --docker-username="$REGISTRY_USER" \
@@ -335,10 +335,10 @@ pipeline {
 
                                         kubectl -n ${NP_NAMESPACE} patch deployment ${NP_DEPLOYMENT} --type=json -p \
                                             '[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"regcred"},{"name":"regcred-staging"},{"name":"vtnbackcred"}]}]'
-                                    '''
+                                    ''')
                                 }
 
-                                sh '''
+                                kubectlWithRetry('''
                                     kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
                                         '*'=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
 
@@ -349,7 +349,7 @@ pipeline {
                                         kubectl -n ${NP_NAMESPACE} get events --sort-by=.lastTimestamp | tail -30
                                         exit 1
                                     fi
-                                '''
+                                ''')
                             }
                         }
                     } else if (branchName.contains('beta')) {
@@ -393,11 +393,11 @@ pipeline {
                                 // briefly reverts the image before `set image` overwrites it
                                 // seconds later, same accepted tradeoff as the backend's
                                 // equivalent stage.
-                                sh '''
+                                kubectlWithRetry('''
                                     kubectl -n ${NP_NAMESPACE} apply -f k8s/deployment-beta.yml
                                     kubectl -n ${NP_NAMESPACE} apply -f k8s/hpa-np.yml
                                     kubectl -n ${NP_NAMESPACE} get hpa
-                                '''
+                                ''')
 
                                 withCredentials([
                                     usernamePassword(
@@ -406,7 +406,7 @@ pipeline {
                                         passwordVariable: 'REGISTRY_PASS'
                                     )
                                 ]) {
-                                    sh '''
+                                    kubectlWithRetry('''
                                         kubectl -n ${NP_NAMESPACE} create secret docker-registry betabackcred \
                                             --docker-server=${REGISTRY} \
                                             --docker-username="$REGISTRY_USER" \
@@ -415,10 +415,10 @@ pipeline {
 
                                         kubectl -n ${NP_NAMESPACE} patch deployment ${NP_DEPLOYMENT} --type=json -p \
                                             '[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"regcred"},{"name":"regcred-staging"},{"name":"betabackcred"}]}]'
-                                    '''
+                                    ''')
                                 }
 
-                                sh '''
+                                kubectlWithRetry('''
                                     kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
                                         '*'=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
 
@@ -430,7 +430,7 @@ pipeline {
                                         kubectl -n ${NP_NAMESPACE} get events --sort-by=.lastTimestamp | tail -30
                                         exit 1
                                     fi
-                                '''
+                                ''')
                             }
                         }
                     } else {
@@ -441,7 +441,7 @@ pipeline {
                         // write needs the same etcd fsync round-trip, so on a control plane with
                         // slow disk I/O this doubled the exposure to "spec update not observed"
                         // stalls for no functional benefit. One substituted apply == one write.
-                        sh '''
+                        kubectlWithRetry('''
                             export KUBECONFIG=${KUBECONFIG}
 
                             sed "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}#" \
@@ -452,7 +452,7 @@ pipeline {
                             kubectl apply -f k8s/hpa.yml
 
                             kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=600s
-                        '''
+                        ''')
                     }
                 }
             }
