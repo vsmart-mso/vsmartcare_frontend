@@ -35,22 +35,29 @@ pipeline {
 
         // beta tags every image "-beta" suffixed so it never overwrites
         // production's :latest (and any other tag) in the shared repo above —
-        // also used to look up the beta build-arg Secret further down
-        BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : ''}"
+        // also used to look up the beta build-arg Secret further down.
+        // vtn (training env, "อบรม") gets its own "-vtn" tag for the same
+        // reason, and to look up its own build-arg Secret.
+        BRANCH_SUFFIX = "${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') ? '-beta' : (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('vtn') ? '-vtn' : ''}"
 
-        // production-side cluster (172.21.103.x), ns vcare — used when NOT branch beta
+        // production-side cluster (172.21.103.x), ns vcare — used when NOT branch beta/vtn
         NAMESPACE     = "vcare"
         DEPLOYMENT    = "vcare-frontend"
         CONTAINER     = "vcare-frontend"
         KUBECONFIG    = "/var/lib/jenkins/.kube/config"
 
-        // np/GDCC estate (192.168.10.x), ns staging — used only when branch beta.
+        // np/GDCC estate (192.168.10.x), ns staging — used only when branch beta/vtn.
         // See dev-np-quickstart.md §6.4 "Route C": np-agent01 is the only host
         // that can reach the np API server, so the deploy stage below runs on
         // the 'nonprod'-labelled agent, not here.
+        //
+        // vtn shares this same np cluster/ns staging with beta (same server,
+        // per the vtn deploy decision) but its own Deployment name
+        // "vcare-frontend-vtn" (deployment-vtn.yml), never "vcare-frontend"
+        // (beta's/ops-owned) — hence the branch-conditional suffix here.
         NP_KUBECONFIG = "/var/lib/jenkins-agent/.kube/config"
         NP_NAMESPACE  = "staging"
-        NP_DEPLOYMENT = "vcare-frontend"
+        NP_DEPLOYMENT = "vcare-frontend${(env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('vtn') ? '-vtn' : ''}"
     }
 
     stages {
@@ -65,11 +72,18 @@ pipeline {
             // node('nonprod') below opens its own workspace on np-agent01,
             // separate from the one Checkout just cloned into on the default
             // agent — files aren't shared between them automatically.
+            //
+            // vtn shares this same np cluster/ns staging with beta — its own
+            // deployment-vtn.yml is stashed alongside beta's rather than in a
+            // separate stage, since both branches need this stage's stash name.
             when {
-                expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') }
+                anyOf {
+                    expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('beta') }
+                    expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('vtn') }
+                }
             }
             steps {
-                stash name: 'np-manifests', includes: 'hpa-np.yml'
+                stash name: 'np-manifests', includes: 'hpa-np.yml,deployment-beta.yml,deployment-vtn.yml'
             }
         }
 
@@ -112,11 +126,61 @@ pipeline {
             }
         }
 
+        stage('Read vtn Build Args') {
+            // Same reasoning as "Read Beta Build Args" above, but for vtn's own
+            // Secret (vcare-frontend-secret-vtn) — VITE_API_URL here must point
+            // at the vtn backend (bff-vsmartcare-vtn), not production's or
+            // beta's, or the training frontend would call the wrong backend.
+            //
+            // Not created by this pipeline: must already exist in ns staging on
+            // np, applied by hand once (own file, gitignored, never commit real
+            // values — see secrets-beta.yml for the pattern this mirrors).
+            when {
+                expression { return (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').contains('vtn') }
+            }
+            steps {
+                node('nonprod') {
+                    withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                        sh '''
+                            set -eu
+                            SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+
+                            kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
+
+                            {
+                                echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
+                                echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
+                                echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
+                                echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
+                            } > vtn-build-args.env
+                        '''
+                        stash name: 'vtn-build-args', includes: 'vtn-build-args.env'
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    if (branchName.contains('beta')) {
+                    if (branchName.contains('vtn')) {
+                        unstash 'vtn-build-args'
+                        sh '''
+                            set -a
+                            . ./vtn-build-args.env
+                            set +a
+                            rm -f vtn-build-args.env
+
+                            docker build \
+                                --build-arg VITE_API_URL="$VITE_API_URL" \
+                                --build-arg VITE_BFF_API_KEY="$VITE_BFF_API_KEY" \
+                                --build-arg VITE_OCR_API_URL="$VITE_OCR_API_URL" \
+                                --build-arg VITE_LOGIN_BETA_NOTICE="$VITE_LOGIN_BETA_NOTICE" \
+                                -t ${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX} \
+                                -t ${IMAGE_NAME}:latest${BRANCH_SUFFIX} .
+                        '''
+                    } else if (branchName.contains('beta')) {
                         unstash 'beta-build-args'
                         sh '''
                             set -a
@@ -192,7 +256,59 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    if (branchName.contains('beta')) {
+                    if (branchName.contains('vtn')) {
+                        // Same np/GDCC estate as beta below, own Deployment
+                        // "vcare-frontend-vtn" (see deployment-vtn.yml, applied by
+                        // this stage every run, same as beta's deployment-beta.yml
+                        // below). Own pull secret "vtnbackcred" instead of reusing
+                        // "betabackcred" so a vtn deploy doesn't depend on a beta
+                        // build having run first on this Jenkins instance.
+                        node('nonprod') {
+                            unstash 'np-manifests'
+                            withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                                // Jenkins now owns this Deployment instead of requiring a
+                                // one-time hand-applied `kubectl apply -f deployment-vtn.yml`
+                                // — idempotent, safe to re-apply every vtn run. Must run
+                                // before the imagePullSecrets patch below, which would fail
+                                // if the Deployment didn't exist yet.
+                                sh '''
+                                    kubectl -n ${NP_NAMESPACE} apply -f deployment-vtn.yml
+                                '''
+
+                                withCredentials([
+                                    usernamePassword(
+                                        credentialsId: 'devop-bot',
+                                        usernameVariable: 'REGISTRY_USER',
+                                        passwordVariable: 'REGISTRY_PASS'
+                                    )
+                                ]) {
+                                    sh '''
+                                        kubectl -n ${NP_NAMESPACE} create secret docker-registry vtnbackcred \
+                                            --docker-server=${REGISTRY} \
+                                            --docker-username="$REGISTRY_USER" \
+                                            --docker-password="$REGISTRY_PASS" \
+                                            --dry-run=client -o yaml | kubectl apply -f -
+
+                                        kubectl -n ${NP_NAMESPACE} patch deployment ${NP_DEPLOYMENT} --type=json -p \
+                                            '[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"regcred"},{"name":"regcred-staging"},{"name":"vtnbackcred"}]}]'
+                                    '''
+                                }
+
+                                sh '''
+                                    kubectl -n ${NP_NAMESPACE} set image deployment/${NP_DEPLOYMENT} \
+                                        '*'=${IMAGE_NAME}:${IMAGE_TAG}${BRANCH_SUFFIX}
+
+                                    if ! kubectl -n ${NP_NAMESPACE} rollout status deployment/${NP_DEPLOYMENT} --timeout=600s; then
+                                        echo "--- rollout failed, describing ---"
+                                        kubectl -n ${NP_NAMESPACE} describe deployment/${NP_DEPLOYMENT}
+                                        kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=${NP_DEPLOYMENT}
+                                        kubectl -n ${NP_NAMESPACE} get events --sort-by=.lastTimestamp | tail -30
+                                        exit 1
+                                    fi
+                                '''
+                            }
+                        }
+                    } else if (branchName.contains('beta')) {
                         // Deploy to the np/GDCC estate instead of ns vcare — see
                         // dev-np-quickstart.md §6.4 "Route C". Runs on the
                         // nonprod-labelled agent (np-agent01) because prod
@@ -222,7 +338,19 @@ pipeline {
                         node('nonprod') {
                             unstash 'np-manifests'
                             withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
+                                // Jenkins now owns this Deployment instead of requiring a
+                                // one-time hand-applied `kubectl apply -f deployment-beta.yml`
+                                // — idempotent, safe to re-apply every beta run. Must run
+                                // before the imagePullSecrets patch below, which would fail
+                                // if the Deployment didn't exist yet.
+                                //
+                                // Note: deployment-beta.yml's image field is the static
+                                // "latest-beta" tag, not the per-build tag set below — this
+                                // briefly reverts the image before `set image` overwrites it
+                                // seconds later, same accepted tradeoff as the backend's
+                                // equivalent stage.
                                 sh '''
+                                    kubectl -n ${NP_NAMESPACE} apply -f deployment-beta.yml
                                     kubectl -n ${NP_NAMESPACE} apply -f hpa-np.yml
                                     kubectl -n ${NP_NAMESPACE} get hpa
                                 '''
@@ -290,12 +418,12 @@ pipeline {
             steps {
                 script {
                     def branchName = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
-                    if (branchName.contains('beta')) {
+                    if (branchName.contains('vtn') || branchName.contains('beta')) {
                         node('nonprod') {
                             withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
                                 sh '''
                                     kubectl -n ${NP_NAMESPACE} get deployment ${NP_DEPLOYMENT}
-                                    kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=vcare-frontend
+                                    kubectl -n ${NP_NAMESPACE} get pods -o wide -l app=${NP_DEPLOYMENT}
                                 '''
                             }
                         }
