@@ -1,3 +1,8 @@
+# Applied by the Jenkinsfile beta path on every run (see "Deploy Kubernetes"
+# beta branch) — idempotent, so this is also the reference copy of what's
+# live on np (ns staging). Manual apply is only needed for a fresh
+# cluster/namespace that's never run the beta pipeline yet.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
