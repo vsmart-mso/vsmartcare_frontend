@@ -1,0 +1,33 @@
+# vtn — mirrors service-beta.yml but for the "-vtn" Deployment. NOT applied
+# by the Jenkinsfile — reference only, apply by hand once alongside
+# deployment-vtn.yml:
+#
+#   kubectl -n staging apply -f k8s/service-vtn.yml
+#
+# NodePort 31986 is an UNCONFIRMED GUESS — verify nothing else already
+# claims it before relying on this:
+#   kubectl -n staging get svc -o wide
+# Known taken so far: 31968 (frontend beta), 31980 (bff-vsmartcare beta),
+# 31981 (ess-regis), 31982 (ocr-service beta guess), 31984 (bff-vsmartcare
+# vtn), 31985 (ocr-service vtn) — see vsmartcare_backend/k8s/service-vtn.yml.
+#
+# ⚠️ A NodePort here alone does not make this reachable from a browser —
+# np-edge01 needs its own location block for whatever domain/path vtn is
+# served under. That's an edge/nginx change outside this repo.
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: staging
+  name: vcare-frontend-vtn
+  labels:
+    app: vcare-frontend-vtn
+spec:
+  selector:
+    app: vcare-frontend-vtn
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 80
+      nodePort: 31986
+  type: NodePort
