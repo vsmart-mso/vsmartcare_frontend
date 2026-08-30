@@ -1,3 +1,23 @@
+// Wraps a kubectl (or any) shell step with retry + backoff. Deploy-time
+// writes to the cluster (kubectl apply/set image) and even plain reads
+// (kubectl get secret) have been observed failing with
+// "etcdserver: request timed out" when the control plane's etcd is under
+// I/O pressure — a transient condition that a plain re-run of the same
+// command has consistently cleared. Retrying immediately tends to hit the
+// same busy window again, so this sleeps between attempts to give etcd a
+// chance to recover instead of hammering it.
+def kubectlWithRetry(String script, int attempts = 3, int delaySeconds = 20) {
+    retry(attempts) {
+        try {
+            sh script
+        } catch (Exception e) {
+            echo "kubectl step failed (possible control-plane/etcd timeout), waiting ${delaySeconds}s before retry: ${e.getMessage()}"
+            sleep(time: delaySeconds, unit: 'SECONDS')
+            throw e
+        }
+    }
+}
+
 pipeline {
 
     agent any
@@ -107,19 +127,21 @@ pipeline {
             steps {
                 node('nonprod') {
                     withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
-                        sh '''
-                            set -eu
-                            SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+                        script {
+                            kubectlWithRetry('''
+                                set -eu
+                                SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
 
-                            kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
+                                kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
 
-                            {
-                                echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
-                                echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
-                                echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
-                                echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
-                            } > beta-build-args.env
-                        '''
+                                {
+                                    echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
+                                    echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
+                                    echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
+                                    echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
+                                } > beta-build-args.env
+                            ''')
+                        }
                         stash name: 'beta-build-args', includes: 'beta-build-args.env'
                     }
                 }
@@ -141,19 +163,21 @@ pipeline {
             steps {
                 node('nonprod') {
                     withEnv(["KUBECONFIG=${NP_KUBECONFIG}"]) {
-                        sh '''
-                            set -eu
-                            SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
+                        script {
+                            kubectlWithRetry('''
+                                set -eu
+                                SECRET_NAME="vcare-frontend-secret${BRANCH_SUFFIX}"
 
-                            kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
+                                kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} >/dev/null
 
-                            {
-                                echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
-                                echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
-                                echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
-                                echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
-                            } > vtn-build-args.env
-                        '''
+                                {
+                                    echo "VITE_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
+                                    echo "VITE_BFF_API_KEY=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
+                                    echo "VITE_OCR_API_URL=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
+                                    echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NP_NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
+                                } > vtn-build-args.env
+                            ''')
+                        }
                         stash name: 'vtn-build-args', includes: 'vtn-build-args.env'
                     }
                 }
@@ -199,19 +223,32 @@ pipeline {
                                 -t ${IMAGE_NAME}:latest${BRANCH_SUFFIX} .
                         '''
                     } else {
-                        sh '''
+                        // Reading the build-arg Secret and building the image are split into
+                        // two steps so only the kubectl reads (the part that can hit a
+                        // transient control-plane/etcd timeout) get retried — a plain
+                        // `kubectl get secret` failure here used to be swallowed silently
+                        // (no `set -e`), so a single etcd hiccup could ship an image with a
+                        // blank build-arg instead of failing the build loudly.
+                        kubectlWithRetry('''
                             export KUBECONFIG=${KUBECONFIG}
+                            set -eu
 
                             SECRET_NAME="vcare-frontend-secret"
 
-                            VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                                -o jsonpath='{.data.VITE_API_URL}' | base64 -d)
-                            VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                                -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)
-                            VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                                -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)
-                            VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} \
-                                -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)
+                            kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} >/dev/null
+
+                            {
+                                echo "VITE_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_API_URL}' | base64 -d)"
+                                echo "VITE_BFF_API_KEY=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_BFF_API_KEY}' | base64 -d)"
+                                echo "VITE_OCR_API_URL=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_OCR_API_URL}' | base64 -d)"
+                                echo "VITE_LOGIN_BETA_NOTICE=$(kubectl -n ${NAMESPACE} get secret ${SECRET_NAME} -o jsonpath='{.data.VITE_LOGIN_BETA_NOTICE}' | base64 -d)"
+                            } > prod-build-args.env
+                        ''')
+                        sh '''
+                            set -a
+                            . ./prod-build-args.env
+                            set +a
+                            rm -f prod-build-args.env
 
                             docker build \
                                 --provenance=false --sbom=false \
