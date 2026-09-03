@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>AINU liveness</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!--
+    หน้านี้ถูกฝังเป็น iframe จากแอปหลัก (ดู LivenessRunner.vue ในโฟลเดอร์เดียวกัน)
+
+    ⚠️ ห้าม import style.css / Tailwind เข้าหน้านี้เด็ดขาด — SDK จะตายเงียบ ๆ
+    เหตุผลเต็มและกับดักอื่น ๆ อยู่ใน README.md ของโฟลเดอร์นี้ อ่านก่อนแก้
+
+    ตัว SDK เป็น IIFE ที่ยัด global `window.AinuEkyc` โหลดเป็น npm module ไม่ได้
+    ไฟล์อยู่ที่ public/ ชื่อต้องตรงกับข้างล่างเป๊ะ ไม่มี bundler resolution มาช่วย
+    ถ้าชื่อไม่ตรงจะพังตอน runtime (window.AinuEkyc เป็น undefined) ไม่ใช่ตอน build
+  -->
+  <script src="/ekyc-sdk-v1.0.3-beta.1.index.iife.js"></script>
+
+  <!-- CSS จริงอยู่ใน frame.css (import จาก frame.ts) — ตรงนี้กันจอขาวแวบตอน dev
+       ที่ Vite ฉีด CSS ผ่าน JS ทำให้มาช้ากว่า HTML หนึ่งจังหวะ -->
+  <style>
+    html,
+    body {
+      margin: 0;
+      background: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="ekyc-container"></div>
+
+  <!-- ทับจอไว้จนกว่า SDK จะเริ่มทำงาน (ซ่อนตอน onReady) -->
+  <div id="loading">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="loading-text">กำลังเตรียมกล้อง...</p>
+  </div>
+
+  <div class="control-panel">
+    <!-- ปกติ SDK จะเริ่มเองหลัง onLoaded ปุ่มนี้เป็นทางสำรองเวลา auto-start ไม่ติด
+         (บาง browser ต้องการ user gesture ในหน้านี้เองถึงจะเปิดกล้องได้) -->
+    <button id="liveness-start" class="primary" type="button" hidden>เริ่ม</button>
+    <button id="liveness-close" type="button">ยกเลิก</button>
+  </div>
+
+  <p id="frame-error" hidden></p>
+
+  <script type="module" src="./frame.ts"></script>
+</body>
+
+</html>

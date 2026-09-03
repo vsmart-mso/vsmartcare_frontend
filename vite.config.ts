@@ -23,11 +23,13 @@ export default defineConfig(({ command, mode }) => {
     plugins: [vue(), tailwindcss()],
     build: {
       rollupOptions: {
-        // liveness.html เป็น entry แยกโดยตั้งใจ — หน้านั้นห้ามมี Tailwind
+        // เฟรม liveness เป็น entry แยกโดยตั้งใจ — หน้านั้นห้ามมี Tailwind
         // (UI ของ AINU SDK ใช้คลาส Tailwind ของตัวเอง ชนกับ v4 ของเราแล้ว layout พัง)
+        // นี่คือบรรทัดเดียวนอก src/lib/liveness/ ที่เกี่ยวกับ liveness — ดู README ที่นั่น
+        // path ต้องตรงกับ LIVENESS_FRAME_URL ใน src/lib/liveness/messages.ts
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
-          liveness: fileURLToPath(new URL('./liveness.html', import.meta.url)),
+          liveness: fileURLToPath(new URL('./src/lib/liveness/frame.html', import.meta.url)),
         },
       },
     },

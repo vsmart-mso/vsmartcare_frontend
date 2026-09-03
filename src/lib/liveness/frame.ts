@@ -1,28 +1,25 @@
 /**
- * สคริปต์ของ liveness.html — หน้าที่ถูกฝังเป็น iframe จากแอปหลัก
+ * สคริปต์ของ frame.html — หน้าที่ถูกฝังเป็น iframe จากแอปหลัก
  *
- * ทำไมต้องแยกหน้า: AINU SDK เรนเดอร์ UI ด้วยคลาส Tailwind ของตัวเอง พอเจอ
- * Tailwind v4 ของโปรเจกต์ layout จะพัง (spinner ตกจอ แล้วหน้าขาว) — bisect แล้ว
- * ยืนยันว่า sample + Tailwind = พัง, sample + brand.css = ผ่าน
- * การแยกเป็นเอกสารต่างหากทำให้ CSS ของแอปเข้าไม่ถึง SDK เลย
+ * ที่เดียวในโปรเจกต์ที่แตะ window.AinuEkyc
+ * คุยกับแอปหลักด้วย postMessage ตาม contract ใน messages.ts — ดู LivenessRunner.vue
  *
- * คุยกับแอปหลักด้วย postMessage — ดู src/components/liveness/LivenessRunner.vue
- *
- * ⚠️ ห้าม import อะไรที่ลาก style.css / Tailwind เข้ามาในไฟล์นี้
+ * ⚠️ ห้าม import อะไรที่ลาก style.css / Tailwind เข้ามาในไฟล์นี้ (เหตุผลใน README.md)
+ * ⚠️ ไฟล์นี้มี side effect ทันทีที่ถูก import (เรียก setup()) — ห้าม export จาก index.ts
  */
-import type { AinuEkycConfigs } from '@/types/ainu-ekyc'
+import './frame.css'
+import type { AinuEkycConfigs } from './ainu-ekyc'
+import {
+  FRAME_ELEMENT_IDS,
+  LIVENESS_FRAME_SOURCE,
+  type LivenessFrameMessage,
+} from './messages'
 
-export type LivenessFrameMessage =
-  | { source: 'liveness-frame'; type: 'ready' }
-  | { source: 'liveness-frame'; type: 'result'; payload: unknown }
-  | { source: 'liveness-frame'; type: 'closed' }
-  | { source: 'liveness-frame'; type: 'error'; message: string }
-
-const startButton = document.getElementById('liveness-start') as HTMLButtonElement | null
-const closeButton = document.getElementById('liveness-close') as HTMLButtonElement | null
-const errorBox = document.getElementById('frame-error')
-const loading = document.getElementById('loading')
-const loadingText = document.getElementById('loading-text')
+const startButton = document.getElementById(FRAME_ELEMENT_IDS.startButton) as HTMLButtonElement | null
+const closeButton = document.getElementById(FRAME_ELEMENT_IDS.closeButton) as HTMLButtonElement | null
+const errorBox = document.getElementById(FRAME_ELEMENT_IDS.errorBox)
+const loading = document.getElementById(FRAME_ELEMENT_IDS.loading)
+const loadingText = document.getElementById(FRAME_ELEMENT_IDS.loadingText)
 
 function setLoading(visible: boolean, text?: string) {
   if (loadingText && text) loadingText.textContent = text
@@ -49,11 +46,11 @@ function showError(message: string) {
   // เอา spinner ออก ไม่งั้นดูเหมือนยังโหลดอยู่ทั้งที่ตายแล้ว
   setLoading(false)
   console.error('[liveness-frame]', message)
-  post({ source: 'liveness-frame', type: 'error', message })
+  post({ source: LIVENESS_FRAME_SOURCE, type: 'error', message })
 }
 
 const sdkConfigs: AinuEkycConfigs = {
-  containerId: 'ekyc-container',
+  containerId: FRAME_ELEMENT_IDS.container,
   credential: {
     accountId: import.meta.env.VITE_ACCOUNT_ID ?? '',
     accountSecret: import.meta.env.VITE_ACCOUNT_SECRET ?? '',
@@ -65,7 +62,7 @@ const sdkConfigs: AinuEkycConfigs = {
       // ต้องรอ onLoaded ก่อนเสมอ — เรียก start() ก่อนหน้านี้ SDK จะ throw
       // "The SDK is not yet ready for start." แล้วเงียบ ไล่สาเหตุยาก
       console.log('[liveness-frame] SDK พร้อมแล้ว — เริ่มอัตโนมัติ')
-      post({ source: 'liveness-frame', type: 'ready' })
+      post({ source: LIVENESS_FRAME_SOURCE, type: 'ready' })
       start()
     },
     onReady(transactionId) {
@@ -75,7 +72,7 @@ const sdkConfigs: AinuEkycConfigs = {
     },
     onEkycResult: (result) => {
       console.log('[liveness-frame] onEkycResult:', result)
-      post({ source: 'liveness-frame', type: 'result', payload: result })
+      post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
     },
   },
 }
@@ -113,11 +110,11 @@ closeButton?.addEventListener('click', () => {
   } catch (e) {
     console.error('[liveness-frame] close error:', e)
   }
-  post({ source: 'liveness-frame', type: 'closed' })
+  post({ source: LIVENESS_FRAME_SOURCE, type: 'closed' })
 })
 
 if (!window.AinuEkyc) {
-  showError('โหลด eKYC SDK ไม่สำเร็จ — ตรวจไฟล์ใน public/ และ <script src> ใน liveness.html')
+  showError('โหลด eKYC SDK ไม่สำเร็จ — ตรวจไฟล์ใน public/ และ <script src> ใน frame.html')
 } else if (!sdkConfigs.credential.accountId || !sdkConfigs.credential.accountSecret || !sdkConfigs.flowId) {
   showError('ยังไม่ได้ตั้ง VITE_ACCOUNT_ID / VITE_ACCOUNT_SECRET / VITE_FLOW_ID ใน .env (ตั้งแล้วต้อง restart dev server)')
 } else {

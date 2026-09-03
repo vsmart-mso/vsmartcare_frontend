@@ -9,10 +9,8 @@
     <meta name="theme-color" content="#BE185D" />
     <title>พม. CARE — ระบบขอรับความช่วยเหลือด้วยตนเอง</title>
     <!-- Font โหลดจาก @fontsource/sarabun ใน main.ts แทน CDN -->
-    <!-- AINU eKYC SDK — เป็น IIFE ที่ยัด global `window.AinuEkyc` โหลดเป็น npm module ไม่ได้
-         ไฟล์อยู่ที่ public/ ชื่อต้องตรงกับที่นี่เป๊ะ ไม่มี bundler resolution มาช่วย
-         ถ้าชื่อไม่ตรงจะพังตอน runtime (window.AinuEkyc เป็น undefined) ไม่ใช่ตอน build -->
-    <script src="/ekyc-sdk-v1.0.3-beta.1.index.iife.js"></script>
+    <!-- AINU eKYC SDK (1.6 MB) ไม่ได้โหลดที่นี่โดยตั้งใจ — มีแต่เฟรม liveness ที่ใช้
+         และมันโหลดเองใน src/lib/liveness/frame.html -->
   </head>
   <body>
     <div id="app">

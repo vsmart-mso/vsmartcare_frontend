@@ -1,16 +1,16 @@
 <script setup lang="ts">
 /**
- * LivenessRunner — ฝังหน้า liveness.html เป็น iframe เต็มจอ
+ * LivenessRunner — ฝังหน้า frame.html เป็น iframe เต็มจอ
  *
  * ทำไมต้องเป็น iframe ไม่เรียก SDK ตรง ๆ ในคอมโพเนนต์นี้:
  * AINU SDK เรนเดอร์ UI ด้วยคลาส Tailwind ของตัวเอง พอหน้ามี Tailwind v4 ของ
  * โปรเจกต์อยู่ด้วย layout จะพัง — spinner ตกจอแล้วจอขาว SDK ไม่เดินต่อ
- * bisect แล้ว: sample + Tailwind = พัง · sample + brand.css = ผ่าน · sample + Vue = ผ่าน
- * การแยกเป็นเอกสารต่างหากตัด CSS ของแอปออกจาก SDK ได้ 100% โดยไม่ต้องไล่ทีละกฎ
+ * รายละเอียดเต็ม + ผล bisect อยู่ใน README.md ของโฟลเดอร์นี้
  *
- * โค้ดที่แตะ window.AinuEkyc อยู่ที่ src/liveness-frame.ts ที่เดียว
+ * โค้ดที่แตะ window.AinuEkyc อยู่ที่ frame.ts ที่เดียว
  */
 import { onMounted, onUnmounted } from 'vue'
+import { LIVENESS_FRAME_SOURCE, LIVENESS_FRAME_URL, type LivenessFrameMessage } from './messages'
 
 const emit = defineEmits<{
   passed: [result: unknown]
@@ -34,8 +34,8 @@ function onMessage(event: MessageEvent) {
   // รับเฉพาะข้อความจาก origin ตัวเอง และที่ติดป้ายว่ามาจาก frame ของเรา
   // (หน้ามี iframe ของ AINU ซ้อนอยู่อีกชั้น ซึ่งยิง postMessage ของมันเองด้วย)
   if (event.origin !== window.location.origin) return
-  const data = event.data as { source?: string; type?: string; payload?: unknown; message?: string }
-  if (data?.source !== 'liveness-frame') return
+  const data = event.data as Partial<LivenessFrameMessage> | null | undefined
+  if (data?.source !== LIVENESS_FRAME_SOURCE) return
 
   if (data.type === 'result') {
     const status = readTransactionStatus(data.payload)
@@ -58,7 +58,7 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
        ถ้าไม่ delegate สิทธิ์ลงไป ชั้นในจะขอกล้องไม่ได้ -->
   <iframe
     class="liveness-frame"
-    src="/liveness.html"
+    :src="LIVENESS_FRAME_URL"
     title="ยืนยันตัวตนด้วยใบหน้า"
     allow="camera; microphone; fullscreen"
   />

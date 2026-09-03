@@ -1,0 +1,34 @@
+/**
+ * Contract ของ postMessage ระหว่าง frame.ts (ในเฟรม) กับ LivenessRunner.vue (หน้าแม่)
+ *
+ * ไฟล์นี้ต้อง "บริสุทธิ์" — ห้ามมี side effect และห้าม import อะไรที่มี
+ * เพราะทั้งสองฝั่งใช้ร่วมกัน ส่วน frame.ts จะรัน window.AinuEkyc.setup() ทันทีที่ถูก import
+ * ถ้าเอา type ไปไว้ที่นั่นแล้วหน้าแม่ import มา จะลาก SDK ติดเข้าไปด้วย
+ */
+
+/** ป้ายกำกับผู้ส่ง — ในเฟรมมี iframe ของ AINU ซ้อนอยู่อีกชั้นซึ่งยิง postMessage ของมันเองด้วย */
+export const LIVENESS_FRAME_SOURCE = 'liveness-frame'
+
+export type LivenessFrameMessage =
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'ready' }
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'result'; payload: unknown }
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'closed' }
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'error'; message: string }
+
+/**
+ * URL ของเอกสารในเฟรม
+ *
+ * Vite emit output ตาม path ที่ relative กับ root ทำให้ URL เดียวกันทั้ง dev และ build
+ * ต้องตรงกับ input `liveness` ใน vite.config.ts เสมอ
+ */
+export const LIVENESS_FRAME_URL = '/src/lib/liveness/frame.html'
+
+/** id ของ element ใน frame.html ที่ frame.ts ไปหยิบมาใช้ */
+export const FRAME_ELEMENT_IDS = {
+  container: 'ekyc-container',
+  loading: 'loading',
+  loadingText: 'loading-text',
+  startButton: 'liveness-start',
+  closeButton: 'liveness-close',
+  errorBox: 'frame-error',
+} as const
