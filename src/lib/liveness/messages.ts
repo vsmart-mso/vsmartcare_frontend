@@ -11,6 +11,12 @@ export const LIVENESS_FRAME_SOURCE = 'liveness-frame'
 
 export type LivenessFrameMessage =
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'ready' }
+  /**
+   * UI ของ AINU ขึ้นแล้ว พร้อม transactionId
+   * ต้องส่งต่อให้หน้าแม่เก็บไว้ — เวลาแจ้งปัญหา AINU ใช้ค่านี้ค้นเคสฝั่งเขา
+   * และมันมาก่อนผลลัพธ์เสมอ จึงเป็นสิ่งเดียวที่มีเมื่อผู้ใช้ปิดกลางคัน
+   */
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'started'; transactionId: string }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'result'; payload: unknown }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'closed' }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'error'; message: string }

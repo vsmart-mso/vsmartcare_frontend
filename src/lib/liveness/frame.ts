@@ -14,6 +14,7 @@ import {
   LIVENESS_FRAME_SOURCE,
   type LivenessFrameMessage,
 } from './messages'
+import { buildLivenessReport } from './report'
 
 const startButton = document.getElementById(FRAME_ELEMENT_IDS.startButton) as HTMLButtonElement | null
 const closeButton = document.getElementById(FRAME_ELEMENT_IDS.closeButton) as HTMLButtonElement | null
@@ -36,6 +37,73 @@ function offerManualStart(text = 'เริ่ม') {
 /** ส่งข้อความกลับไปหาแอปหลัก — จำกัด targetOrigin เป็น origin ตัวเองเสมอ */
 function post(message: LivenessFrameMessage) {
   window.parent.postMessage(message, window.location.origin)
+}
+
+/** เก็บไว้ประกอบรายงาน — มาจาก onReady ซึ่งมาก่อนผลลัพธ์เสมอ */
+let currentTransactionId = ''
+
+/**
+ * แถบ transactionId ตอน dev — ขึ้นทันทีที่กล้องเปิด ไม่ต้องรอผลลัพธ์
+ *
+ * จำเป็นเพราะ SDK มี retry ภายใน (limit 5) กว่าจะคืน onEkycResult ต้องไม่ผ่านครบก่อน
+ * แต่ transactionId คือสิ่งที่ AINU ใช้ค้นเคส และมีตั้งแต่ onReady แล้ว
+ * ไม่ควรต้องทรมานกด "Try again" ครบ 5 รอบเพื่อจะได้เลขนี้
+ */
+function showTransactionBadge(transactionId: string) {
+  const badge = document.createElement('button')
+  badge.id = 'frame-txn'
+  badge.type = 'button'
+  badge.textContent = `txn: ${transactionId} — แตะเพื่อก๊อป`
+  badge.addEventListener('click', () => {
+    navigator.clipboard.writeText(transactionId).then(
+      () => { badge.textContent = 'ก๊อป transactionId แล้ว' },
+      () => { badge.textContent = `txn: ${transactionId}` },
+    )
+  })
+  document.body.appendChild(badge)
+}
+
+/**
+ * จอสรุปผลตอน dev — ขึ้นทับทันทีที่ SDK คืนผล ก่อนส่งต่อให้หน้าแม่
+ * มีปุ่มก๊อปเพราะบนมือถือเปิด console ไม่ได้ และปุ่มไปต่อเพื่อคืน flow ปกติ
+ */
+function showResultPanel(result: unknown) {
+  const report = buildLivenessReport({ transactionId: currentTransactionId, result })
+
+  const panel = document.createElement('div')
+  panel.id = 'frame-result'
+
+  const pre = document.createElement('pre')
+  pre.textContent = report
+
+  const copyButton = document.createElement('button')
+  copyButton.type = 'button'
+  copyButton.textContent = 'ก๊อปรายงาน'
+  copyButton.addEventListener('click', () => {
+    navigator.clipboard.writeText(report).then(
+      () => { copyButton.textContent = 'ก๊อปแล้ว' },
+      (e: unknown) => {
+        console.error('[liveness-frame] ก๊อปไม่สำเร็จ:', e)
+        copyButton.textContent = 'ก๊อปไม่ได้ — เลือกข้อความเอา'
+      },
+    )
+  })
+
+  const continueButton = document.createElement('button')
+  continueButton.type = 'button'
+  continueButton.className = 'primary'
+  continueButton.textContent = 'ไปต่อ'
+  continueButton.addEventListener('click', () => {
+    post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
+  })
+
+  const actions = document.createElement('div')
+  actions.className = 'frame-result-actions'
+  actions.append(copyButton, continueButton)
+
+  panel.append(pre, actions)
+  setLoading(false)
+  document.body.appendChild(panel)
 }
 
 function showError(message: string) {
@@ -69,10 +137,17 @@ const sdkConfigs: AinuEkycConfigs = {
       // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอรอออกได้
       setLoading(false)
       console.log('[liveness-frame] transactionId =', transactionId)
+      currentTransactionId = transactionId
+      // ส่งต่อให้หน้าแม่เก็บ — ใช้อ้างอิงตอนแจ้งปัญหากับ AINU
+      post({ source: LIVENESS_FRAME_SOURCE, type: 'started', transactionId })
+      if (import.meta.env.DEV) showTransactionBadge(transactionId)
     },
     onEkycResult: (result) => {
       console.log('[liveness-frame] onEkycResult:', result)
-      post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
+      // ตอน dev หยุดโชว์ผลไว้ก่อน — พอส่งออกไปหน้าแม่จะ unmount iframe ทันที
+      // ผลที่เพิ่งได้จะหายไปก่อนอ่านทัน โดยเฉพาะบนมือถือที่เปิด console ไม่ได้
+      if (import.meta.env.DEV) showResultPanel(result)
+      else post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
     },
   },
 }
@@ -113,7 +188,29 @@ closeButton?.addEventListener('click', () => {
   post({ source: LIVENESS_FRAME_SOURCE, type: 'closed' })
 })
 
-if (!window.AinuEkyc) {
+/**
+ * เบราว์เซอร์ยอมให้ใช้กล้องเฉพาะ secure context (https หรือ localhost)
+ * LAN IP แบบ http://192.168.x.x ใช้ไม่ได้ — navigator.mediaDevices จะเป็น undefined
+ *
+ * ต้องดักเองตรงนี้ เพราะถ้าปล่อยให้ SDK ไปเจอเอง มันคืนแค่ INIT_ERROR
+ * ซึ่งอ่านไม่ออกว่าเกิดจากอะไร (เสียเวลาไล่หาสาเหตุไปแล้วหนึ่งรอบ)
+ */
+function cameraUnavailableReason(): string {
+  if (!window.isSecureContext) {
+    return `หน้านี้ไม่ใช่ secure context (${window.location.protocol}//${window.location.host}) `
+      + 'เบราว์เซอร์จึงไม่ให้ใช้กล้อง — ต้องเปิดผ่าน https หรือ localhost เท่านั้น'
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return 'เบราว์เซอร์นี้ไม่รองรับการเรียกใช้กล้อง (navigator.mediaDevices ไม่มี)'
+  }
+  return ''
+}
+
+const cameraProblem = cameraUnavailableReason()
+
+if (cameraProblem) {
+  showError(cameraProblem)
+} else if (!window.AinuEkyc) {
   showError('โหลด eKYC SDK ไม่สำเร็จ — ตรวจไฟล์ใน public/ และ <script src> ใน frame.html')
 } else if (!sdkConfigs.credential.accountId || !sdkConfigs.credential.accountSecret || !sdkConfigs.flowId) {
   showError('ยังไม่ได้ตั้ง VITE_ACCOUNT_ID / VITE_ACCOUNT_SECRET / VITE_FLOW_ID ใน .env (ตั้งแล้วต้อง restart dev server)')

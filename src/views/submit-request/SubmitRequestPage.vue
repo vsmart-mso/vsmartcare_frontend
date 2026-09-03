@@ -6,7 +6,7 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
-import { LivenessRunner } from '@/lib/liveness'
+import { LivenessRunner, describeLivenessFailure, buildLivenessReport } from '@/lib/liveness'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -67,6 +67,16 @@ const provinceBlocked = ref(false)
 const livenessOpen   = ref(false)
 // อยู่ในหน่วยความจำอย่างเดียว — refresh แล้วต้องทำใหม่ (ยอมรับได้สำหรับรอบนี้)
 const livenessPassed = ref(false)
+// ผลดิบจาก AINU เก็บไว้ดูตอน dev เท่านั้น ยังไม่ได้ส่งไปไหน
+const livenessResult = ref<unknown>(null)
+// จาก onReady — ค่าที่ AINU ใช้ค้นเคสฝั่งเขาเวลาแจ้งปัญหา มาก่อนผลลัพธ์เสมอ
+const livenessTxnId  = ref('')
+const livenessCopied = ref(false)
+const isDev = import.meta.env.DEV
+// base64 ของรูปถ่ายถูกตัดออกใน buildLivenessReport แล้ว (สตริงหลักแสนตัวทำให้หน้าค้าง)
+const livenessReportText = computed(() =>
+  buildLivenessReport({ transactionId: livenessTxnId.value, result: livenessResult.value }),
+)
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
@@ -209,21 +219,55 @@ function openLiveness() {
     return
   }
   submitError.value = ''
+  // ล้างผลรอบก่อน ไม่งั้นจะสับสนว่ารายงานเป็นของรอบไหน
+  livenessResult.value = null
+  livenessTxnId.value = ''
   livenessOpen.value = true
 }
 
-function onLivenessPassed() {
+function onLivenessStarted(transactionId: string) {
+  livenessTxnId.value = transactionId
+  console.log('[liveness] transactionId =', transactionId)
+}
+
+function onLivenessPassed(result: unknown) {
   livenessOpen.value = false
   livenessPassed.value = true
   submitError.value = ''
+  // เก็บผลดิบไว้ดูตอน dev — ยังไม่มีที่ส่ง log ฝั่ง backend (ดู README ของ lib)
+  livenessResult.value = result
+  console.log('[liveness] passed:', result)
+}
+
+/** ก๊อป payload — บนมือถือเปิด console ไม่ได้ ต้องมีปุ่มให้ก๊อปไปแปะ */
+async function copyLivenessResult() {
+  try {
+    await navigator.clipboard.writeText(livenessReportText.value)
+    livenessCopied.value = true
+    setTimeout(() => { livenessCopied.value = false }, 1500)
+  } catch (e) {
+    console.error('[liveness] ก๊อปไม่สำเร็จ:', e)
+  }
 }
 
 // SDK นับ retry ให้เองภายใน transaction เดียว (จาก transaction จริง: failed/unavailable/
 // startAttempt limit อย่างละ 5) ครบแล้วถึงจะคืน failed กลับมา
 // กด "ถัดไป" ใหม่ = mount component ใหม่ = setup() ใหม่ = transaction ใหม่ = เริ่มนับใหม่
-function onLivenessFailed() {
+function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
-  submitError.value = 'ยืนยันตัวตนไม่สำเร็จ กรุณากดถัดไปเพื่อลองใหม่อีกครั้ง'
+  const failure = describeLivenessFailure(result)
+  // เก็บผลดิบไว้ให้ไล่ปัญหาได้ — ยังไม่มีที่ส่ง log ฝั่ง backend
+  console.log('[liveness] failed:', failure, result)
+  submitError.value = failure.message
+}
+
+// SDK โหลดไม่ขึ้น / env ไม่ครบ — คนละเรื่องกับผู้ใช้ทำไม่ผ่าน
+// ต้องปิด overlay ให้ด้วย ไม่งั้นผู้ใช้ค้างอยู่บนจอดำ
+function onLivenessError(message: string) {
+  livenessOpen.value = false
+  submitError.value = import.meta.env.DEV
+    ? `เปิดระบบยืนยันตัวตนไม่ได้ [${message}]`
+    : 'เปิดระบบยืนยันตัวตนไม่ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'
 }
 
 // Step 5: submit form — บันทึกคำร้อง แล้วอัปโหลดไฟล์ทีละไฟล์
@@ -648,6 +692,25 @@ async function handleSubmit() {
           <p class="text-hint text-red-700 leading-snug">{{ submitError }}</p>
         </div>
 
+        <!-- ผลดิบจาก AINU หลัง liveness ผ่าน — dev เท่านั้น ไม่ขึ้นใน production build
+             base64 ของรูปถ่ายถูกตัดออกแล้วโดย formatLivenessPayload -->
+        <details
+          v-if="isDev && (livenessResult || livenessTxnId)"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mb-2"
+        >
+          <summary class="text-hint text-slate-600 cursor-pointer select-none">
+            ผลลัพธ์จาก AINU (dev) — {{ livenessPassed ? 'ผ่าน' : 'ไม่ผ่าน' }}
+          </summary>
+          <button
+            type="button"
+            @click="copyLivenessResult"
+            class="mt-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-hint text-slate-600 active:bg-slate-100"
+          >
+            {{ livenessCopied ? 'ก๊อปแล้ว' : 'ก๊อปรายงานส่ง AINU' }}
+          </button>
+          <pre class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px] leading-snug text-slate-700">{{ livenessReportText }}</pre>
+        </details>
+
         <div class="flex gap-3">
           <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1 ยกเว้นโหมดแก้ไข) -->
           <button
@@ -740,8 +803,10 @@ async function handleSubmit() {
          v-if ทำให้ unmount ทุกครั้งที่ปิด → รอบถัดไปได้ setup() ใหม่ = transaction ใหม่ -->
     <LivenessRunner
       v-if="livenessOpen"
+      @started="onLivenessStarted"
       @passed="onLivenessPassed"
       @failed="onLivenessFailed"
+      @error="onLivenessError"
       @closed="livenessOpen = false"
     />
 

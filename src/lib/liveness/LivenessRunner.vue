@@ -11,24 +11,17 @@
  */
 import { onMounted, onUnmounted } from 'vue'
 import { LIVENESS_FRAME_SOURCE, LIVENESS_FRAME_URL, type LivenessFrameMessage } from './messages'
+import { readTransactionStatus } from './failureMessages'
 
 const emit = defineEmits<{
+  /** UI ของ AINU ขึ้นแล้ว — transactionId ใช้อ้างอิงตอนแจ้งปัญหากับ AINU */
+  started: [transactionId: string]
   passed: [result: unknown]
   failed: [result: unknown]
+  /** SDK โหลดไม่ขึ้น / env ไม่ครบ — คนละเรื่องกับผู้ใช้ทำไม่ผ่าน */
+  error: [message: string]
   closed: []
 }>()
-
-/**
- * อ่าน transactionStatus จาก payload
- * เอกสาร AINU ขัดกันเองเรื่องตำแหน่ง key เลยลองหลายที่
- * ค่ามี 3 แบบ: completed / failed / pending_DOPA (flow นี้ไม่มี DOPA)
- */
-function readTransactionStatus(result: unknown): string {
-  const r = result as Record<string, unknown> | null | undefined
-  const nested = r?.data as Record<string, unknown> | undefined
-  const raw = r?.transactionStatus ?? nested?.transactionStatus
-  return typeof raw === 'string' ? raw : ''
-}
 
 function onMessage(event: MessageEvent) {
   // รับเฉพาะข้อความจาก origin ตัวเอง และที่ติดป้ายว่ามาจาก frame ของเรา
@@ -36,6 +29,11 @@ function onMessage(event: MessageEvent) {
   if (event.origin !== window.location.origin) return
   const data = event.data as Partial<LivenessFrameMessage> | null | undefined
   if (data?.source !== LIVENESS_FRAME_SOURCE) return
+
+  if (data.type === 'started') {
+    emit('started', data.transactionId ?? '')
+    return
+  }
 
   if (data.type === 'result') {
     const status = readTransactionStatus(data.payload)
@@ -46,7 +44,11 @@ function onMessage(event: MessageEvent) {
   }
 
   if (data.type === 'closed') emit('closed')
-  if (data.type === 'error') console.error('[liveness] frame error:', data.message)
+  if (data.type === 'error') {
+    // เดิมแค่ console.error — ผู้ใช้เลยเจอจอดำที่ออกได้ทางปุ่ม "ยกเลิก" อย่างเดียว
+    console.error('[liveness] frame error:', data.message)
+    emit('error', data.message ?? '')
+  }
 }
 
 onMounted(() => window.addEventListener('message', onMessage))
