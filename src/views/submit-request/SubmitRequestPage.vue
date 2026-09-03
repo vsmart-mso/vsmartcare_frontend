@@ -6,6 +6,7 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
+import LivenessRunner from '@/components/liveness/LivenessRunner.vue'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -58,6 +59,14 @@ const isSubmitting = ref(false)
 const submitError  = ref('')
 // จังหวัดถูกปิดระหว่างกรอกฟอร์ม (TASK-v-care-12062026-01) → แสดง overlay แล้วเตะออก
 const provinceBlocked = ref(false)
+
+// ── Liveness (AINU eKYC) ────────────────────────────────────────────────────
+// ด่านยืนยันว่าเป็นมนุษย์ คั่นระหว่าง Step5 กับการกดส่งคำขอจริง
+// ทำเป็น overlay ในหน้านี้ ไม่ router.push ออกไป — ข้อมูล 5 step ยังอยู่ในหน่วยความจำ
+// ไม่ต้องพึ่งการกู้ draft จาก sessionStorage ซึ่งเป็นจุดพังเพิ่มโดยไม่จำเป็น
+const livenessOpen   = ref(false)
+// อยู่ในหน่วยความจำอย่างเดียว — refresh แล้วต้องทำใหม่ (ยอมรับได้สำหรับรอบนี้)
+const livenessPassed = ref(false)
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
@@ -189,6 +198,32 @@ function handleNext() {
 function handleNavigateTo(step: number) {
   currentStep.value = step
   stepReady.value = true // step ก่อนหน้าผ่านมาแล้ว ถือว่า valid
+}
+
+// ── Liveness ────────────────────────────────────────────────────────────────
+// เปิดจากปุ่ม "ถัดไป" ของ Step 5
+function openLiveness() {
+  if (stepLoading.value) return
+  if (!stepReady.value) {
+    stepRef.value?.touchAll?.()
+    return
+  }
+  submitError.value = ''
+  livenessOpen.value = true
+}
+
+function onLivenessPassed() {
+  livenessOpen.value = false
+  livenessPassed.value = true
+  submitError.value = ''
+}
+
+// SDK นับ retry ให้เองภายใน transaction เดียว (จาก transaction จริง: failed/unavailable/
+// startAttempt limit อย่างละ 5) ครบแล้วถึงจะคืน failed กลับมา
+// กด "ถัดไป" ใหม่ = mount component ใหม่ = setup() ใหม่ = transaction ใหม่ = เริ่มนับใหม่
+function onLivenessFailed() {
+  livenessOpen.value = false
+  submitError.value = 'ยืนยันตัวตนไม่สำเร็จ กรุณากดถัดไปเพื่อลองใหม่อีกครั้ง'
 }
 
 // Step 5: submit form — บันทึกคำร้อง แล้วอัปโหลดไฟล์ทีละไฟล์
@@ -659,6 +694,25 @@ async function handleSubmit() {
             </svg>
           </button>
 
+          <!-- Step 5 ที่ยังไม่ผ่าน liveness → ปุ่มพาไปทำ liveness ก่อน ไม่ใช่ส่งคำขอ
+               ต้องมาก่อน handleSubmit เสมอ เพราะ handleSubmit ไม่ atomic
+               (createCase → createConsent → อัปโหลดไฟล์ทีละไฟล์) ถ้าแทรกกลางทางแล้วไม่ผ่าน
+               จะเหลือเคสค้างใน DB ที่ไม่มีใครยื่นจริง -->
+          <button
+            v-else-if="!livenessPassed"
+            @click="openLiveness"
+            :disabled="!stepReady || stepLoading"
+            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
+            :class="stepReady && !stepLoading
+              ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
+          >
+            ถัดไป
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </button>
+
           <button
             v-else
             @click="handleSubmit"
@@ -681,6 +735,15 @@ async function handleSubmit() {
         </div>
       </div>
     </footer>
+
+    <!-- Liveness overlay — UI ข้างในเป็นของ AINU ทั้งหมด เราไม่แตะ
+         v-if ทำให้ unmount ทุกครั้งที่ปิด → รอบถัดไปได้ setup() ใหม่ = transaction ใหม่ -->
+    <LivenessRunner
+      v-if="livenessOpen"
+      @passed="onLivenessPassed"
+      @failed="onLivenessFailed"
+      @closed="livenessOpen = false"
+    />
 
   </div>
 </template>

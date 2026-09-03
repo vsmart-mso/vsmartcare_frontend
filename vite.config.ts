@@ -21,6 +21,16 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: [vue(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        // liveness.html เป็น entry แยกโดยตั้งใจ — หน้านั้นห้ามมี Tailwind
+        // (UI ของ AINU SDK ใช้คลาส Tailwind ของตัวเอง ชนกับ v4 ของเราแล้ว layout พัง)
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          liveness: fileURLToPath(new URL('./liveness.html', import.meta.url)),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -31,6 +41,11 @@ export default defineConfig(({ command, mode }) => {
       command === 'serve'
         ? {
             host: true,
+            // liveness ต้องการ HTTPS origin (กล้อง + ตัว SDK ของ AINU เอง) ตอน dev จึงต้องผ่าน
+            // Cloudflare quick tunnel ซึ่ง serve จาก host สุ่มบน *.trycloudflare.com
+            // Vite จะปฏิเสธ Host ที่ไม่รู้จักถ้าไม่ประกาศไว้ — จุดนำหน้าคือ match ทุก subdomain
+            // เพื่อให้ tunnel URL ใหม่ทุกครั้งยังใช้ได้โดยไม่ต้องแก้ไฟล์นี้
+            allowedHosts: ['.trycloudflare.com'],
             watch: {
               usePolling: true,
               interval: 300
