@@ -74,6 +74,9 @@ CSS ของแอปเข้าไม่ถึงเลยโดยโคร�
 | `index.ts` | public API — ที่อื่นในแอป import จากนี่เท่านั้น |
 | `LivenessRunner.vue` | ฝัง `frame.html` เป็น iframe เต็มจอ + รับผลผ่าน `postMessage` |
 | `messages.ts` | contract ของ `postMessage` + URL ของเฟรม + id ของ element (ทั้งสองฝั่งใช้ร่วมกัน) |
+| `failureMessages.ts` | แปลง reason ของ AINU เป็นข้อความไทย + แยกเคส "อ่านผลไม่ออก" |
+| `redact.ts` | ตัด base64 ออกจาก payload — **ใช้ซ้ำตอนทำ log ฝั่ง backend ได้เลย** |
+| `report.ts` | ประกอบรายงานสำหรับแจ้งปัญหากับ AINU (transactionId + reason + เวอร์ชัน) |
 | `frame.html` | เอกสารในเฟรม — **Vite entry ตัวที่สอง** |
 | `frame.ts` | สคริปต์ของเฟรม **ที่เดียวในโปรเจกต์ที่แตะ `window.AinuEkyc`** |
 | `frame.css` | CSS ของเฟรม ลอกจาก sample ของ AINU |
@@ -111,21 +114,128 @@ CSS ของแอปเข้าไม่ถึงเลยโดยโคร�
 
 ## ต้องเป็น HTTPS
 
-กล้องไม่ทำงานบน HTTP และ self-signed ก็ไม่ผ่านบนมือถือ
+กล้องทำงานเฉพาะ secure context
 
 - `localhost` — ใช้ได้
-- `http://192.168.x.x` — **ใช้ไม่ได้** ไม่ใช่ secure context
-  (Android Chrome มี flag ช่วยได้ แต่ iOS ไม่มีทาง)
+- `http://192.168.x.x` — **ใช้ไม่ได้** (Android Chrome มี flag ช่วย แต่ iOS ไม่มีทาง)
+  อาการเวลาลืม: SDK คืน `INIT_ERROR` ซึ่งอ่านไม่ออกว่าเกิดจากอะไร
+  `frame.ts` เลยดัก `window.isSecureContext` เองก่อนเรียก SDK แล้วบอกตรง ๆ
 
-เทสบนมือถือให้ผ่าน tunnel:
+---
+
+## เทสจากมือถือ (ทำสำเร็จแล้ว 2026-09-03 — ThaID จริง + liveness ผ่านบน iPhone)
+
+**LAN + mkcert ดีกว่า tunnel** เพราะ URL คงที่ ไม่ต้องแก้ config ใหม่ทุกรอบ
+
+> เอกสารรุ่นแรกเขียนว่า "self-signed ไม่ผ่านบนมือถือ" — **ไม่จริง**
+> จริงเฉพาะกรณีไม่ได้ลง root CA ถ้าลง CA ของ mkcert บนไอโฟนแล้ว iOS ยอมรับปกติ
+
+### ตั้งครั้งแรก
+
+```bash
+brew install mkcert
+mkcert -install                      # ต้องใส่รหัสผ่านเครื่อง
+mkdir -p certs && mkcert -cert-file certs/lan.pem -key-file certs/lan-key.pem \
+  <LAN_IP> localhost 127.0.0.1 ::1
+```
+
+ลง CA บนไอโฟน: AirDrop `$(mkcert -CAROOT)/rootCA.pem` → Settings → Profile Downloaded → Install
+→ ⚠️ **Settings → General → About → Certificate Trust Settings → เปิดสวิตช์** (คนลืมข้อนี้กันเยอะที่สุด)
+
+### สลับโหมด
+
+| | `.env` (frontend) | `thaid-auth-service/.env` (backend) | `certs/` |
+|---|---|---|---|
+| **LAN** | `VITE_API_URL = https://<LAN_IP>:5173/api-vsmartcare` | `THAID_REDIRECT_URI=https://<LAN_IP>:5173/api-vsmartcare/v1/auth/thaid/callback` | มี |
+| **localhost** | `http://localhost:8000/api-vsmartcare` | `http://localhost:8000/api-vsmartcare/v1/auth/thaid/callback` | ไม่มี |
+
+แก้แล้ว restart ทั้ง `frontend` และ `thaid-auth-service` (Vite อ่าน env ตอน start เท่านั้น)
+
+**⚠️ กับดัก 3 ข้อ**
+
+1. **ต้องปิด `certs/` ตอนกลับ localhost** ไม่งั้น dev server เสิร์ฟ https แต่ API ชี้ http → mixed content
+2. **ตอนอยู่โหมด LAN บน Mac ก็ต้องเปิด `https://<LAN_IP>:5173`** อย่าเปิด `localhost:5173` จะกลายเป็นคนละ origin กับ API แล้วติด CORS
+3. **cert ผูกกับ IP** DHCP เปลี่ยน IP เมื่อไหร่ต้องออก cert ใหม่
+
+### ทำไมต้องมี Vite proxy
+
+`vite.config.ts` มี `server.proxy` ให้ `/api-vsmartcare` วิ่งไป `host.docker.internal:8000` เพราะ:
+
+1. มือถือเรียก `localhost:8000` ไม่ได้ (นั่นคือตัวมันเอง)
+2. BFF ตอบ `Disallowed CORS origin` ถ้าเรียกข้าม origin จาก LAN IP
+   → proxy ทำให้เป็น same-origin เลยไม่มี CORS ตั้งแต่แรก
+3. dev server รันใน Docker คนละ network กับ backend → ต้องเป็น `host.docker.internal`
+   (รันบนโฮสต์ตรง ๆ ให้ตั้ง `VITE_DEV_API_PROXY_TARGET=http://localhost:8000`)
+
+### เรื่อง ThaID: DOPA ไม่ได้เข้มเรื่อง whitelist (ใน UAT)
+
+`redirect_uri` **มาจาก env `THAID_REDIRECT_URI` ของ backend เท่านั้น**
+frontend ส่ง `browser_oauth_base` ไปด้วยก็จริง แต่ backend ไม่สนใจ — เปลี่ยนจากฝั่ง frontend ไม่ได้
+
+ทดสอบแล้วว่า **DOPA ยอมรับ `https://<LAN_IP>:5173/...`** ที่ไม่ได้ลงทะเบียนไว้
+→ ทดสอบ ThaID จริงจาก dev URL ไหนก็ได้ ไม่ต้องยื่นขอ whitelist
+(ยังไม่รู้ว่า production เข้มกว่านี้ไหม — อย่าเหมาว่าเหมือนกัน)
+
+**ทางเลือกถ้า LAN ใช้ไม่ได้** (Wi-Fi เปิด AP isolation กันเครื่องลูกข่ายคุยกัน):
 
 ```bash
 cloudflared tunnel --protocol http2 --url http://localhost:5173
 ```
 
 ต้องใส่ `--protocol http2` เพราะเน็ตที่ทดสอบบล็อก QUIC ขาออก port 7844
-`vite.config.ts` ประกาศ `allowedHosts: ['.trycloudflare.com']` ไว้แล้ว
-(จุดนำหน้า = ทุก subdomain) tunnel URL สุ่มใหม่ทุกครั้งจึงใช้ได้โดยไม่ต้องแก้ไฟล์
+`allowedHosts: ['.trycloudflare.com']` ตั้งไว้แล้ว แต่ URL สุ่มใหม่ทุกครั้ง
+→ ต้องแก้ `.env` ทั้งสองฝั่ง + restart ทุกรอบ
+
+**ทางที่ถูกที่สุดถ้ามีเครื่องแอนดรอยด์**: `chrome://inspect` port forwarding map `localhost` ของมือถือ
+มาที่เครื่อง dev ผ่านสาย USB — ThaID จริงใช้ได้โดยไม่ต้องแก้ config อะไรเลย และ Chrome
+ถือว่า `localhost` เป็น secure context กล้องจึงทำงานบน http ไม่ต้องทำ cert
+
+---
+
+## SDK ทำงานยังไง (ตรวจจากตัวไฟล์ IIFE จริง)
+
+```
+หน้าเรา (frame.html)
+ └─ SDK 1.0.3-beta.1        ← ไฟล์ 1.6 MB ใน public/ ที่เราฝังและ pin ได้
+     └─ iframe ไปโดเมน AINU  (uat.ainu.tech / uat.nonprod-api.ainu.tech)
+         └─ engine 2.0.0-beta.2 + MediaPipe/TFLite (WASM)  ← AINU โหลดเอง เรา pin ไม่ได้
+```
+
+**ตัวที่เราฝังบางมาก** grep แล้วมีแค่ `/v1/auth/token`, `/v1/auth/websdk/handshake`,
+`/v1/auth/websdk/token/handshake`, `/ekyc` — หน้าที่คือแลก token แล้วสร้าง iframe
+(มี `HTMLIFrameElement`, `contentWindow`, error `[eKYC SDK] iFrame is not defined`)
+
+**ไม่มี MediaPipe/TFLite ในไฟล์นี้เลย** และข้อความ `[eKYC Server]` ที่วนใน console
+ก็ไม่ได้มาจากไฟล์นี้ (grep เจอ 0 ครั้ง) — ทั้งสองอย่างอยู่ในชั้นในที่โหลดจากเซิร์ฟเวอร์ AINU
+
+| งาน | ทำที่ไหน |
+|---|---|
+| ตรวจจับ/ติดตามใบหน้า, วงรีนำทาง, สั่งขยับ | **JS/WASM ในเบราว์เซอร์** (`Created TensorFlow Lite XNNPACK delegate for CPU`) |
+| **ตัดสินผ่าน/ไม่ผ่าน** | **เซิร์ฟเวอร์ AINU** (`[eKYC Server] Waiting for status.` วนรอคำตอบ) |
+
+**ผลที่ตามมา: หาสาเหตุที่ไม่ผ่านจากฝั่งเราไม่ได้** เกณฑ์ตัดสินอยู่บนเซิร์ฟเวอร์เขาทั้งหมด
+ต้องใช้ `transactionId` ถาม AINU อย่างเดียว — และเป็นเหตุผลที่ต้องเก็บค่านี้ให้ได้ทุกครั้ง
+
+---
+
+## เราส่งอะไรให้ AINU บ้าง
+
+โปรเจกต์เราแตะ AINU แค่ 2 บรรทัด (`frame.ts`) และ **ไม่เคยเรียก API ของ AINU เองเลย**
+
+| ส่ง | ค่า |
+|---|---|
+| `accountId` / `accountSecret` | จาก `.env` |
+| `flowId` / `language` / `containerId` | คงที่ |
+| `referenceId` | `crypto.randomUUID()` — **สุ่มใหม่ทุกครั้ง ไม่ผูกกับเคสหรือคน** |
+
+**ไม่ได้ส่งข้อมูลผู้ยื่นคำร้องเลย** — ไม่มีเลขบัตรประชาชน ไม่มีชื่อ ไม่มีข้อมูลจาก ThaID ไม่มี case id
+
+ภาพใบหน้า **SDK ส่งเองภายใน** เราไม่ได้เขียนโค้ดส่ง ไม่เห็น ไม่ได้ควบคุม
+ขากลับ AINU ส่งภาพ base64 กลับมาใน `onEkycResult` ด้วย
+
+**ประเด็นสำหรับ `liveness-service`**: `referenceId` สุ่มทิ้งแปลว่า AINU โยงกลับมาหาเคสไม่ได้
+(ดีเรื่องความเป็นส่วนตัว) แต่ **เราก็โยงไม่ได้เหมือนกัน** ถ้าจะตรวจสอบย้อนหลังหรือให้ AINU ช่วยสอบเคส
+ต้องเก็บ mapping `case_id ↔ transactionId` **ไว้ฝั่งเราเอง** ไม่ต้องส่ง case id ให้ AINU รู้
 
 ---
 
@@ -141,6 +251,30 @@ Uncaught (in promise) Error: An unexpected response was received from the server
 
 **ตัวชี้ว่าไปถึงไหนแล้วจริง ๆ** คือ `[eKYC Server] Waiting for data from the SDK.` ที่วนลูป —
 ถ้าไม่ขึ้นแปลว่าตายก่อน `initLivenessSDK`
+
+`INFO: Created TensorFlow Lite XNNPACK delegate for CPU` ขึ้นเป็นสีแดงใน console
+เป็น log ของ MediaPipe ไม่ใช่ error จริง — มองข้ามได้เหมือนกัน
+
+### จอ "Face scan verification failed" ไม่ใช่ผลลัพธ์สุดท้าย
+
+เป็น UI **ภายใน** ของ AINU ที่ยังนับเป็นรอบ retry อยู่ — `onEkycResult` **ยังไม่ยิง**
+ต้องกด "Try again" จนครบโควตา (จาก transaction จริง: `failed` / `unavailable` /
+`startAttempt` limit อย่างละ 5) SDK ถึงจะคืนผลกลับมาให้เรา
+
+**อย่ารอให้ครบเพื่อจะเอา `transactionId`** — มันมาตั้งแต่ `onReady` แล้ว
+ตอน dev เฟรมจะโชว์แถบล่างจอให้แตะก๊อปได้ทันทีที่กล้องเปิด
+
+### เครื่องมือตอน dev (ไม่ขึ้นใน production build)
+
+| | |
+|---|---|
+| แถบ `txn:` ล่างจอ | โผล่ตอน `onReady` แตะเพื่อก๊อป `transactionId` |
+| จอสรุปในเฟรม | ขึ้นทับทันทีที่ได้ผล **กลั้นผลไว้จนกดปุ่ม "ไปต่อ"** เพราะพอส่งออกไปหน้าแม่จะ unmount iframe ทิ้ง |
+| แถบใต้ปุ่มในหน้าคำร้อง | รายงานเดียวกัน กดคลี่ดูย้อนหลังได้ |
+| ข้อความ error ต่อท้าย `[status / code]` | ไว้เก็บรหัสที่ยังไม่รู้จักจากหน้าจอ |
+
+รายงานประกอบจาก `buildLivenessReport()` — มี `transactionId`, `flowId`, `status`, reason,
+เวอร์ชัน SDK ทั้งสองชั้น, userAgent และ payload ที่ **ตัด base64 ออกแล้ว** พร้อมส่งให้ AINU
 
 **SDK มี 2 ชั้น** — `sdkVersion: 1.0.3-beta.1` คือตัวที่เราฝัง ส่วน `liveness.sdkVersion: 2.0.0-beta.2`
 คือ engine ที่ AINU โหลดจากเซิร์ฟเวอร์เขาเอง (ใช้ MediaPipe จาก cdn.jsdelivr.net)
@@ -176,18 +310,22 @@ Uncaught (in promise) Error: An unexpected response was received from the server
 3. credential production + IP whitelist
    · ใน SDK มี endpoint `/v1/auth/websdk/token/handshake` โผล่อยู่ — อาจมี flow ที่ backend
    แลก token แทนได้ ซึ่งจะแก้เรื่อง secret อยู่ฝั่ง client ไปด้วย
+4. **desktop webcam ไม่ผ่านซ้ำ ๆ ขณะที่มือถือผ่านครั้งเดียว** — โมเดลมีเกณฑ์ต่างกันตามอุปกรณ์ไหม
+   ปรับ threshold ต่อ flow ได้ไหม · ผู้ใช้จริงส่วนหนึ่งเป็นผู้สูงอายุที่อาจใช้คอมพิวเตอร์
+   ถ้า desktop ผ่านยากจริงต้องรู้ตั้งแต่ตอนนี้
+5. **pin เวอร์ชัน engine ได้ไหม** — engine 2.0.0-beta.2 อยู่บนเซิร์ฟเวอร์ AINU (ดูหัวข้อ
+   "SDK ทำงานยังไง") อัปเดตได้ตลอดโดยเราคุมไม่ได้ ขอ changelog ล่วงหน้าได้ไหม
+   ระบบที่มีคนใช้จริงไม่ควรเจอพฤติกรรมเปลี่ยนกลางอากาศ
 
 ---
 
 ## เหลือทำ
 
 **UX**
-- [ ] **map สาเหตุที่ไม่ผ่านเป็นข้อความไทย** — ตอนนี้ fail ทุกกรณีขึ้นข้อความเดียวกันหมด
-      ทั้งที่ payload มี `liveness.reason` (`TIMEOUT` / `FACE_NOT_FOUND` / …) กับ `failReason` (`EKYC_ERROR_0xx`)
-      "หาหน้าไม่เจอ" กับ "หมดเวลา" ควรบอกคนละอย่าง
-      → ลอก pattern `CODE_MESSAGES` จาก `src/utils/authUserMessages.ts` ได้เลย
-- [ ] **`type: 'error'` ไม่ถึงหน้าแม่** — `LivenessRunner.vue` แค่ `console.error`
-      เวลา SDK โหลดไม่ขึ้นหรือ env ไม่ครบ ผู้ใช้เจอจอดำ ทางออกเดียวคือปุ่ม "ยกเลิก" ในเฟรม
+- [x] map สาเหตุที่ไม่ผ่านเป็นข้อความไทย (`failureMessages.ts`)
+      — ยืนยันรหัสจากของจริงแล้วแค่ `TIMEOUT`, `FACE_NOT_FOUND`, `INIT_ERROR` ที่เหลือยังเดา
+      เจอรหัสใหม่เมื่อไหร่ให้เติมในตารางนั้น
+- [x] `type: 'error'` ส่งถึงหน้าแม่แล้ว — ไม่ค้างจอดำอีก
 - [ ] **คำแนะนำก่อนถ่าย** — นั่งใกล้กล้อง / หันหน้าเข้าหาแสง อย่าให้แสงอยู่ข้างหลัง / ยกกล้องให้อยู่ระดับตา
       (สามข้อนี้ตรงกับสาเหตุที่ทดสอบแล้วพบว่าทำให้เว็บแคมโน้ตบุ๊กไม่ผ่าน)
 - [ ] **เตือนก่อนออกจากหน้า** — `stores/application.ts` backup draft ลง sessionStorage อยู่แล้ว
@@ -209,11 +347,11 @@ Uncaught (in promise) Error: An unexpected response was received from the server
       แต่ **compose ไม่เคยถูก commit**)
 
 **ทดสอบ**
-- [ ] **เทสครบ flow บนมือถือ** — ติด 2 ด่าน:
-      1. `VITE_API_URL` ชี้ localhost มือถือเรียก BFF ไม่ถึง → แก้ด้วย Vite proxy ให้ API วิ่งผ่าน
-         origin เดียวกับ tunnel
-      2. ThaID OAuth ต้อง redirect กลับ URL ที่ลงทะเบียนไว้ ส่วน tunnel URL สุ่มใหม่ทุกครั้ง
-         → ต้องดูว่า `/login/thaid/dev-mock` (`VITE_ENABLE_THAID_DEV_MOCK`) ข้ามได้ไหม
-- [ ] เว็บแคมโน้ตบุ๊ก **scan ไม่ผ่านซ้ำ ๆ** ส่วนมือถือผ่านครั้งเดียว
+- [x] **เทสครบ flow บนมือถือ** สำเร็จ 2026-09-03 (iPhone, ThaID จริง, liveness ผ่าน)
+      ทั้งสองด่านที่เคยกลัวแก้ได้แล้ว — Vite proxy แก้ข้อ 1, DOPA ไม่เข้ม whitelist เลยไม่ติดข้อ 2
+      **ไม่ต้องใช้ `VITE_ENABLE_THAID_DEV_MOCK`** (ยังไม่เคยได้ลองใช้จริงเลย)
+- [ ] เว็บแคมโน้ตบุ๊ก **scan ไม่ผ่านซ้ำ ๆ** ส่วนมือถือผ่านครั้งเดียว — **ยังเป็นแบบนี้อยู่**
       (มุมกล้องต่ำกว่าระดับตา หน้าเล็กในเฟรม แสงย้อน + โมเดล AINU tune มาสำหรับมือถือ)
+      ก่อนโทษ SDK ให้คุม 3 อย่างนี้ก่อน: ยกกล้องให้อยู่ระดับตา / เข้าใกล้จนหน้าเต็มเฟรม / หันหน้าเข้าหาแสง
+      ถ้าคุมแล้วยังไม่ผ่าน → เก็บ `transactionId` ของทั้งเคสที่ผ่านและไม่ผ่านส่งให้ AINU เทียบ
       → ถ้าสถิติออกมาแย่จริง อาจต้องทำ **QR handoff ไปมือถือ** — frontend ยังไม่มี QR lib
