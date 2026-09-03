@@ -29,3 +29,9 @@ package-lock.json
 .claude
 docker-compose-beta.yml
 docker-compose-prod.yml
+# cert สำหรับเทสมือถือผ่าน LAN (ออกเองด้วย mkcert) — ดู src/lib/liveness/README.md
+# ครอบชื่อโฟลเดอร์ที่สลับเปิด/ปิดด้วย และกันนามสกุลคีย์ทุกที่ในโปรเจกต์
+certs/
+certs-*/
+*.pem
+*.key
