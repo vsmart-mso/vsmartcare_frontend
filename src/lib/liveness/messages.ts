@@ -29,6 +29,30 @@ export type LivenessFrameMessage =
  */
 export const LIVENESS_FRAME_URL = '/src/lib/liveness/frame.html'
 
+/** ชื่อ query param ที่หน้าแม่ใช้ส่ง referenceId เข้าไปในเฟรม */
+export const LIVENESS_REF_PARAM = 'ref'
+
+/**
+ * สร้าง referenceId สำหรับ 1 ครั้งที่เปิด SDK
+ *
+ * เอกสาร AINU: "แนะนำให้ส่ง referenceId (transaction ID ฝั่ง partner) ทุกครั้งที่เปิด SDK
+ * เพื่อใช้อ้างอิง/ตรวจสอบภายหลัง" — และค่านี้ถูกส่งกลับมาใน result ด้วย
+ * จึงเป็นกุญแจเชื่อมระหว่างเคสของเรากับ transaction ฝั่ง AINU
+ *
+ * ⚠️ ห้ามใส่ข้อมูลส่วนบุคคล (เลขบัตร ชื่อ) — ค่าสุ่มอ้างอิงได้เหมือนกันเมื่อเราเก็บ
+ * mapping ไว้ฝั่งเรา ไม่มีเหตุผลให้ส่งข้อมูลประชาชนออกไปนอกระบบ
+ * prefix ไว้เพื่อให้ฝั่ง AINU ดูออกว่ามาจากระบบไหนเท่านั้น
+ */
+export function createLivenessReferenceId(): string {
+  return `pmcare-${crypto.randomUUID()}`
+}
+
+/** URL ของเฟรมพร้อม referenceId */
+export function buildLivenessFrameUrl(referenceId: string): string {
+  if (!referenceId) return LIVENESS_FRAME_URL
+  return `${LIVENESS_FRAME_URL}?${LIVENESS_REF_PARAM}=${encodeURIComponent(referenceId)}`
+}
+
 /** id ของ element ใน frame.html ที่ frame.ts ไปหยิบมาใช้ */
 export const FRAME_ELEMENT_IDS = {
   container: 'ekyc-container',

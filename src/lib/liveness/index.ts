@@ -12,6 +12,11 @@ export type { LivenessFailure } from './failureMessages'
 export { formatLivenessPayload, redactLivenessPayload } from './redact'
 export { buildLivenessReport } from './report'
 export type { LivenessReportInput } from './report'
-export { LIVENESS_FRAME_SOURCE, LIVENESS_FRAME_URL } from './messages'
+export {
+  buildLivenessFrameUrl,
+  createLivenessReferenceId,
+  LIVENESS_FRAME_SOURCE,
+  LIVENESS_FRAME_URL,
+} from './messages'
 export type { LivenessFrameMessage } from './messages'
 export type { AinuEkycApi, AinuEkycConfigs, AinuEkycDelegate } from './ainu-ekyc'

@@ -226,16 +226,50 @@ cloudflared tunnel --protocol http2 --url http://localhost:5173
 |---|---|
 | `accountId` / `accountSecret` | จาก `.env` |
 | `flowId` / `language` / `containerId` | คงที่ |
-| `referenceId` | `crypto.randomUUID()` — **สุ่มใหม่ทุกครั้ง ไม่ผูกกับเคสหรือคน** |
+| `referenceId` | `pmcare-<uuid>` — สุ่มใหม่ทุกครั้งที่เปิด **ไม่มีข้อมูลส่วนบุคคล** |
 
 **ไม่ได้ส่งข้อมูลผู้ยื่นคำร้องเลย** — ไม่มีเลขบัตรประชาชน ไม่มีชื่อ ไม่มีข้อมูลจาก ThaID ไม่มี case id
 
 ภาพใบหน้า **SDK ส่งเองภายใน** เราไม่ได้เขียนโค้ดส่ง ไม่เห็น ไม่ได้ควบคุม
 ขากลับ AINU ส่งภาพ base64 กลับมาใน `onEkycResult` ด้วย
 
-**ประเด็นสำหรับ `liveness-service`**: `referenceId` สุ่มทิ้งแปลว่า AINU โยงกลับมาหาเคสไม่ได้
-(ดีเรื่องความเป็นส่วนตัว) แต่ **เราก็โยงไม่ได้เหมือนกัน** ถ้าจะตรวจสอบย้อนหลังหรือให้ AINU ช่วยสอบเคส
-ต้องเก็บ mapping `case_id ↔ transactionId` **ไว้ฝั่งเราเอง** ไม่ต้องส่ง case id ให้ AINU รู้
+### โครงสร้าง payload จริง (จาก transaction ที่ผ่าน 2026-09-04)
+
+```
+transactionId · transactionStatus · failReason · description · createdAt · completedAt
+workflow[] · accountId · referenceId · flowId · sdkVersion
+deviceInfo · browserBrand · browserVersion · appId      ← appId = origin (เช่น "localhost")
+summary.workflowResult { transactionStatus, failReason, livenessResultCode }
+summary.configuration  { livenessFailedLimit, livenessUnavailableLimit, livenessStartAttemptLimit }
+images.livenessImage                                    ← ⚠️ ซ้อนใน images ไม่ใช่ key ระดับบน
+liveness { configuration, isStartCompleted, isProcessCompleted, livenessResultCode,
+           appId, sdkId, sdkVersion, signature, metadata, keyId, timestamp, elapsedMs, reason }
+```
+
+**ข้อสังเกต:**
+- เอกสาร AINU เขียนชื่อภาพเป็น key ระดับบน แต่ **ของจริงอยู่ใน `images`** —
+  `redactLivenessPayload()` รับมือได้เพราะไล่ recursive + มีด่านสำรอง (สตริงยาวเกิน 300 ตัว)
+  ทดสอบแล้วทั้งกรณีเป็น string, ซ้อนใน object, key ที่ไม่รู้จัก และ array
+- transaction ที่ผ่านครั้งนี้ **`images.livenessImage` ว่างเปล่า** — ยังไม่เคยเห็น base64 จริง
+- `signature` (684 ตัวอักษร) + `keyId` + `metadata` มีจริง = image integrity signature
+  ที่ค้างเป็นคำถามข้อ 3 กับ AINU — เหลือแค่ถามวิธี verify
+- `liveness.reason` = `PASS` ตอนสำเร็จ · `elapsedMs` บอกเวลาที่ใช้สแกน (7.5 วิ ในเคสนี้)
+
+### referenceId — กุญแจเชื่อมสองระบบ
+
+เอกสาร AINU: *"แนะนำให้ส่ง `referenceId` (transaction ID ฝั่ง partner) ทุกครั้งที่เปิด SDK
+เพื่อใช้อ้างอิง/ตรวจสอบภายหลัง"* — และค่านี้ถูกส่งกลับมาใน result ด้วย
+
+`SubmitRequestPage` เป็นคนสร้าง (`createLivenessReferenceId()`) แล้วส่งเข้าเฟรมทาง query
+**ห้ามให้เฟรมสร้างเอง** เพราะเฟรมถูก unmount ทิ้งทุกครั้งที่ปิด ค่าจะหายไปกับมัน
+
+⚠️ **ห้ามใส่ข้อมูลส่วนบุคคล** — ค่าสุ่มอ้างอิงได้เหมือนกันเมื่อเก็บ mapping ไว้ฝั่งเรา
+ไม่มีเหตุผลให้ส่งเลขบัตร/ชื่อออกไปนอกระบบ
+
+**ยังทำไม่ครบ** — ตอนนี้ `referenceId` อยู่ในหน่วยความจำอย่างเดียว ยังไม่มีที่เก็บถาวร
+พอทำ `liveness-service` แล้วให้บันทึกคู่กับ case id ที่ `createCase()` คืนมา
+โดยรองรับ **หลาย `referenceId` ต่อ 1 เคส** (ผู้ใช้กดลองใหม่ได้หลายรอบ) และเก็บ
+`transactionId` ไว้ด้วย เพราะเป็นค่าที่ AINU ใช้ค้นฝั่งเขา
 
 ---
 
@@ -283,6 +317,15 @@ Uncaught (in promise) Error: An unexpected response was received from the server
 **อย่า hardcode retry limit** — มาจาก config ฝั่งเซิร์ฟเวอร์ของ AINU เปลี่ยนได้โดยไม่บอก
 (เคยเป็น `1` เมื่อ 2026-08-24 แล้วเป็น `5` เมื่อ 2026-09-03)
 ถ้าจะโชว์ให้ผู้ใช้เห็นต้องอ่านจาก `summary.configuration` ในผลลัพธ์
+
+ยืนยันจาก payload จริง 2026-09-04 — **3 โควตาแยกกัน ค่าละ 5**:
+```json
+"configuration": {
+  "livenessFailedLimit": 5,
+  "livenessUnavailableLimit": 5,
+  "livenessStartAttemptLimit": 5
+}
+```
 
 ---
 

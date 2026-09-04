@@ -6,7 +6,12 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
-import { LivenessRunner, describeLivenessFailure, buildLivenessReport } from '@/lib/liveness'
+import {
+  LivenessRunner,
+  buildLivenessReport,
+  createLivenessReferenceId,
+  describeLivenessFailure,
+} from '@/lib/liveness'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -71,11 +76,19 @@ const livenessPassed = ref(false)
 const livenessResult = ref<unknown>(null)
 // จาก onReady — ค่าที่ AINU ใช้ค้นเคสฝั่งเขาเวลาแจ้งปัญหา มาก่อนผลลัพธ์เสมอ
 const livenessTxnId  = ref('')
+// ค่าที่เราสร้างเองแล้วส่งเข้า SDK (เอกสาร AINU เรียกว่า referenceId ฝั่ง partner)
+// ถือไว้ที่นี่เพราะเฟรมถูก unmount ทุกครั้งที่ปิด — พอมี liveness-service แล้ว
+// ให้บันทึกคู่กับ case id ที่ createCase() คืนมา (1 เคสมีได้หลาย ref ถ้าผู้ใช้ลองซ้ำ)
+const livenessRef    = ref('')
 const livenessCopied = ref(false)
 const isDev = import.meta.env.DEV
 // base64 ของรูปถ่ายถูกตัดออกใน buildLivenessReport แล้ว (สตริงหลักแสนตัวทำให้หน้าค้าง)
 const livenessReportText = computed(() =>
-  buildLivenessReport({ transactionId: livenessTxnId.value, result: livenessResult.value }),
+  buildLivenessReport({
+    transactionId: livenessTxnId.value,
+    referenceId: livenessRef.value,
+    result: livenessResult.value,
+  }),
 )
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
@@ -222,6 +235,8 @@ function openLiveness() {
   // ล้างผลรอบก่อน ไม่งั้นจะสับสนว่ารายงานเป็นของรอบไหน
   livenessResult.value = null
   livenessTxnId.value = ''
+  // ref ใหม่ต่อการเปิด 1 ครั้ง ตามที่เอกสาร AINU กำหนดว่าต้องไม่ซ้ำ
+  livenessRef.value = createLivenessReferenceId()
   livenessOpen.value = true
 }
 
@@ -803,6 +818,7 @@ async function handleSubmit() {
          v-if ทำให้ unmount ทุกครั้งที่ปิด → รอบถัดไปได้ setup() ใหม่ = transaction ใหม่ -->
     <LivenessRunner
       v-if="livenessOpen"
+      :reference-id="livenessRef"
       @started="onLivenessStarted"
       @passed="onLivenessPassed"
       @failed="onLivenessFailed"

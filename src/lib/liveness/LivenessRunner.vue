@@ -9,9 +9,23 @@
  *
  * โค้ดที่แตะ window.AinuEkyc อยู่ที่ frame.ts ที่เดียว
  */
-import { onMounted, onUnmounted } from 'vue'
-import { LIVENESS_FRAME_SOURCE, LIVENESS_FRAME_URL, type LivenessFrameMessage } from './messages'
+import { computed, onMounted, onUnmounted } from 'vue'
+import {
+  buildLivenessFrameUrl,
+  LIVENESS_FRAME_SOURCE,
+  type LivenessFrameMessage,
+} from './messages'
 import { readTransactionStatus } from './failureMessages'
+
+const props = defineProps<{
+  /**
+   * ค่าที่หน้าแม่สร้างและถือไว้ เพื่อผูก transaction ฝั่ง AINU กับเคสฝั่งเรา
+   * ต้องมาจากหน้าแม่ ไม่ใช่สร้างในเฟรม เพราะเฟรมถูก unmount ทิ้งทุกครั้งที่ปิด
+   */
+  referenceId: string
+}>()
+
+const frameUrl = computed(() => buildLivenessFrameUrl(props.referenceId))
 
 const emit = defineEmits<{
   /** UI ของ AINU ขึ้นแล้ว — transactionId ใช้อ้างอิงตอนแจ้งปัญหากับ AINU */
@@ -60,7 +74,7 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
        ถ้าไม่ delegate สิทธิ์ลงไป ชั้นในจะขอกล้องไม่ได้ -->
   <iframe
     class="liveness-frame"
-    :src="LIVENESS_FRAME_URL"
+    :src="frameUrl"
     title="ยืนยันตัวตนด้วยใบหน้า"
     allow="camera; microphone; fullscreen"
   />

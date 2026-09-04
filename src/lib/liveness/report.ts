@@ -13,6 +13,8 @@ import { formatLivenessPayload } from './redact'
 export interface LivenessReportInput {
   /** จาก onReady — ค่าที่ AINU ใช้ค้นเคสฝั่งเขา */
   transactionId: string
+  /** ค่าที่เราเป็นคนสร้างและส่งเข้า start() — ใช้ผูกกับเคสฝั่งเรา */
+  referenceId?: string
   /** ผลดิบจาก onEkycResult ('' / null ถ้าผู้ใช้ปิดก่อนได้ผล) */
   result: unknown
 }
@@ -36,7 +38,11 @@ function readSdkVersions(result: unknown): { sdk: string; engine: string } {
   }
 }
 
-export function buildLivenessReport({ transactionId, result }: LivenessReportInput): string {
+export function buildLivenessReport({
+  transactionId,
+  referenceId,
+  result,
+}: LivenessReportInput): string {
   const failure = describeLivenessFailure(result)
   const { sdk, engine } = readSdkVersions(result)
 
@@ -44,11 +50,13 @@ export function buildLivenessReport({ transactionId, result }: LivenessReportInp
     '--- AINU liveness — ข้อมูลสำหรับแจ้งปัญหา ---',
     `เวลา            : ${new Date().toISOString()}`,
     `transactionId   : ${transactionId || '(ไม่มี — ปิดก่อน onReady)'}`,
+    `referenceId     : ${referenceId || '(ไม่มี)'}`,
     `flowId          : ${import.meta.env.VITE_FLOW_ID ?? ''}`,
     `accountId       : ${import.meta.env.VITE_ACCOUNT_ID ?? ''}`,
     `language        : ${import.meta.env.VITE_LANGUAGE || 'TH'}`,
     `status          : ${failure.status || '(อ่านไม่ออก)'}`,
     `reason / code   : ${failure.code || '(ไม่มี)'}`,
+    `description     : ${failure.description || '(ไม่มี)'}`,
     `sdkVersion      : ${sdk || '(ไม่พบ)'}`,
     `liveness engine : ${engine || '(ไม่พบ)'}`,
     `origin          : ${window.location.origin}`,

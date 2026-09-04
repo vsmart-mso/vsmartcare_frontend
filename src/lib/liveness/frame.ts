@@ -11,8 +11,10 @@
 // เพราะ Vite จะฉีด CSS ผ่าน JS ทำให้จอรอกระพริบตอนยังไม่มีสไตล์ (ดูคอมเมนต์ใน frame.html)
 import type { AinuEkycConfigs } from './ainu-ekyc'
 import {
+  createLivenessReferenceId,
   FRAME_ELEMENT_IDS,
   LIVENESS_FRAME_SOURCE,
+  LIVENESS_REF_PARAM,
   type LivenessFrameMessage,
 } from './messages'
 import { buildLivenessReport } from './report'
@@ -51,11 +53,22 @@ function post(message: LivenessFrameMessage) {
 let currentTransactionId = ''
 
 /**
+ * referenceId ของรอบนี้ — หน้าแม่เป็นคนสร้างแล้วส่งมาทาง query
+ * เพื่อให้ฝั่งนั้นถือค่าไว้ผูกกับเคสได้ (เฟรมถูก unmount ทิ้งทุกครั้งที่ปิด)
+ *
+ * ถ้าเปิด frame.html ตรง ๆ (เช่นตอนเทส) จะไม่มี query มา — สร้างเองเพื่อให้ start() ทำงานได้
+ * แต่ค่านั้นจะไม่มีใครเก็บ ซึ่งยอมรับได้เพราะเป็นการเปิดนอก flow ปกติ
+ */
+const referenceId =
+  new URLSearchParams(window.location.search).get(LIVENESS_REF_PARAM)?.trim()
+  || createLivenessReferenceId()
+
+/**
  * จอสรุปผลตอน dev — ขึ้นทับทันทีที่ SDK คืนผล ก่อนส่งต่อให้หน้าแม่
  * มีปุ่มก๊อปเพราะบนมือถือเปิด console ไม่ได้ และปุ่มไปต่อเพื่อคืน flow ปกติ
  */
 function showResultPanel(result: unknown) {
-  const report = buildLivenessReport({ transactionId: currentTransactionId, result })
+  const report = buildLivenessReport({ transactionId: currentTransactionId, referenceId, result })
 
   const panel = document.createElement('div')
   panel.id = 'frame-result'
@@ -154,7 +167,7 @@ function start() {
 
   try {
     // referenceId ต้องไม่ซ้ำต่อการเริ่ม 1 ครั้งตามที่ AINU กำหนด
-    void Promise.resolve(window.AinuEkyc.start(crypto.randomUUID())).catch((e: unknown) => {
+    void Promise.resolve(window.AinuEkyc.start(referenceId)).catch((e: unknown) => {
       console.error('[liveness-frame] start ไม่สำเร็จ:', e)
       setLoading(true, 'กดปุ่ม "เริ่ม" เพื่อเปิดกล้อง')
       offerManualStart()
