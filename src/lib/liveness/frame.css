@@ -6,6 +6,8 @@
  * ห้าม import ไฟล์นี้จากที่อื่น และห้าม import อย่างอื่นเข้ามาในนี้
  */
 
+/* พื้นขาว ไม่ใช่ดำ — UI ของ AINU พื้นขาว ถ้าเฟรมเป็นดำจะเห็นแถบดำโผล่ใต้จอของเขา
+   ตอนที่ iframe ชั้นในยังสูงไม่เต็มจอ ทำให้ดูเหมือนหน้าพัง */
 body,
 html {
   margin: 0;
@@ -13,7 +15,7 @@ html {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #000;
+  background: #fff;
 }
 
 #ekyc-container {
@@ -58,8 +60,11 @@ html {
   border-color: #1A56DB;
 }
 
-/* หน้าจอรอ ระหว่าง SDK โหลดจนกว่า UI ของ AINU จะขึ้น
-   ไม่งั้นผู้ใช้จะเห็นจอดำเปล่า ๆ แล้วนึกว่าค้าง */
+/* หน้าจอรอระหว่าง AINU handshake — บัง spinner "Verifying authentication" ของ AINU
+   ที่เป็นภาษาอังกฤษและไม่มีแบรนด์
+
+   พื้นขาวโดยตั้งใจ ไม่ใช่ดำ เพราะจอ Guidelines ของ AINU ที่ขึ้นถัดไปพื้นขาว
+   ถ้าใช้ดำจะกระพริบตัดกันตอนสลับ */
 #loading {
   position: fixed;
   inset: 0;
@@ -68,21 +73,29 @@ html {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  background: #000;
-  color: #fff;
+  gap: 20px;
+  padding: 24px;
+  background: #fff;
+  color: #334155;
   font: 15px/1.5 system-ui, -apple-system, sans-serif;
+  text-align: center;
 }
 
 #loading[hidden] {
   display: none;
 }
 
+#loading-logo {
+  width: 180px;
+  height: auto;
+}
+
+/* #BE185D = theme-color ของแอป (index.html) */
 .spinner {
-  width: 38px;
-  height: 38px;
-  border: 3px solid rgba(255, 255, 255, .25);
-  border-top-color: #fff;
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(190, 24, 93, .2);
+  border-top-color: #BE185D;
   border-radius: 50%;
   animation: spin 900ms linear infinite;
 }
@@ -97,24 +110,6 @@ html {
   .spinner {
     animation-duration: 3s;
   }
-}
-
-/* แถบ transactionId ตอน dev — ล่างสุด ไม่บัง UI ของ AINU ที่อยู่กลางจอ */
-#frame-txn {
-  position: fixed;
-  left: 8px;
-  right: 8px;
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  z-index: 25;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, .25);
-  border-radius: 10px;
-  background: rgba(11, 18, 32, .85);
-  color: #cbd5e1;
-  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  text-align: center;
-  word-break: break-all;
-  cursor: pointer;
 }
 
 /* จอสรุปผลตอน dev — ทับทุกอย่างรวมถึง UI ของ AINU (z-index สูงสุดในหน้านี้) */

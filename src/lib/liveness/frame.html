@@ -18,24 +18,23 @@
   -->
   <script src="/ekyc-sdk-v1.0.3-beta.1.index.iife.js"></script>
 
-  <!-- CSS จริงอยู่ใน frame.css (import จาก frame.ts) — ตรงนี้กันจอขาวแวบตอน dev
-       ที่ Vite ฉีด CSS ผ่าน JS ทำให้มาช้ากว่า HTML หนึ่งจังหวะ -->
-  <style>
-    html,
-    body {
-      margin: 0;
-      background: #000;
-    }
-  </style>
+  <!-- โหลด CSS ด้วย <link> ไม่ใช่ import จาก frame.ts เด็ดขาด
+       ถ้า import จาก JS ตอน dev Vite จะฉีด CSS หลัง HTML วาดเสร็จ → เห็นจอรอแบบไม่มีสไตล์
+       หนึ่งจังหวะ (โลโก้ขนาดจริงชิดซ้าย ปุ่มมาตรฐาน) แล้วค่อยกระโดดเข้าที่
+       <link> ทำให้เบราว์เซอร์รอ CSS ก่อนวาด จึงไม่มีทางกระพริบ -->
+  <link rel="stylesheet" href="./frame.css" />
 </head>
 
 <body>
   <div id="ekyc-container"></div>
 
-  <!-- ทับจอไว้จนกว่า SDK จะเริ่มทำงาน (ซ่อนตอน onReady) -->
+  <!-- จอคั่นระหว่าง AINU handshake — ถ้าไม่มี ผู้ใช้จะเห็น spinner "Verifying authentication"
+       ของ AINU ซึ่งไม่มีแบรนด์ ซ่อนตัวเองตอน onReady พอดีกับที่จอ Guidelines ขึ้นมาแทน
+       ยังเป็นที่แสดงข้อความ 'กดปุ่ม "เริ่ม"' ตอน auto-start ไม่ติดด้วย -->
   <div id="loading">
+    <img id="loading-logo" src="/logo-vcare.jpg" alt="พม. CARE" width="272" height="128" />
     <div class="spinner" aria-hidden="true"></div>
-    <p id="loading-text">กำลังเตรียมกล้อง...</p>
+    <p id="loading-text">กำลังเตรียมการยืนยันตัวตน...</p>
   </div>
 
   <div class="control-panel">

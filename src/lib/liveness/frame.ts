@@ -7,7 +7,8 @@
  * ⚠️ ห้าม import อะไรที่ลาก style.css / Tailwind เข้ามาในไฟล์นี้ (เหตุผลใน README.md)
  * ⚠️ ไฟล์นี้มี side effect ทันทีที่ถูก import (เรียก setup()) — ห้าม export จาก index.ts
  */
-import './frame.css'
+// frame.css โหลดด้วย <link> ใน frame.html โดยตั้งใจ — ห้าม import ที่นี่
+// เพราะ Vite จะฉีด CSS ผ่าน JS ทำให้จอรอกระพริบตอนยังไม่มีสไตล์ (ดูคอมเมนต์ใน frame.html)
 import type { AinuEkycConfigs } from './ainu-ekyc'
 import {
   FRAME_ELEMENT_IDS,
@@ -22,6 +23,13 @@ const errorBox = document.getElementById(FRAME_ELEMENT_IDS.errorBox)
 const loading = document.getElementById(FRAME_ELEMENT_IDS.loading)
 const loadingText = document.getElementById(FRAME_ELEMENT_IDS.loadingText)
 
+/**
+ * เปิด/ปิดจอรอ
+ *
+ * ไม่หน่วงเวลาโดยตั้งใจ — เคยลองหน่วง 300ms เพื่อกัน spinner แวบตอนโหลดเร็ว
+ * แต่ระหว่างหน่วงผู้ใช้เห็นจอเปล่า ๆ ทันทีที่กด "ถัดไป" ซึ่งแย่กว่ามาก
+ * จอรอต้องขึ้นเป็นสิ่งแรกเสมอ
+ */
 function setLoading(visible: boolean, text?: string) {
   if (loadingText && text) loadingText.textContent = text
   if (loading) loading.hidden = !visible
@@ -41,27 +49,6 @@ function post(message: LivenessFrameMessage) {
 
 /** เก็บไว้ประกอบรายงาน — มาจาก onReady ซึ่งมาก่อนผลลัพธ์เสมอ */
 let currentTransactionId = ''
-
-/**
- * แถบ transactionId ตอน dev — ขึ้นทันทีที่กล้องเปิด ไม่ต้องรอผลลัพธ์
- *
- * จำเป็นเพราะ SDK มี retry ภายใน (limit 5) กว่าจะคืน onEkycResult ต้องไม่ผ่านครบก่อน
- * แต่ transactionId คือสิ่งที่ AINU ใช้ค้นเคส และมีตั้งแต่ onReady แล้ว
- * ไม่ควรต้องทรมานกด "Try again" ครบ 5 รอบเพื่อจะได้เลขนี้
- */
-function showTransactionBadge(transactionId: string) {
-  const badge = document.createElement('button')
-  badge.id = 'frame-txn'
-  badge.type = 'button'
-  badge.textContent = `txn: ${transactionId} — แตะเพื่อก๊อป`
-  badge.addEventListener('click', () => {
-    navigator.clipboard.writeText(transactionId).then(
-      () => { badge.textContent = 'ก๊อป transactionId แล้ว' },
-      () => { badge.textContent = `txn: ${transactionId}` },
-    )
-  })
-  document.body.appendChild(badge)
-}
 
 /**
  * จอสรุปผลตอน dev — ขึ้นทับทันทีที่ SDK คืนผล ก่อนส่งต่อให้หน้าแม่
@@ -140,7 +127,6 @@ const sdkConfigs: AinuEkycConfigs = {
       currentTransactionId = transactionId
       // ส่งต่อให้หน้าแม่เก็บ — ใช้อ้างอิงตอนแจ้งปัญหากับ AINU
       post({ source: LIVENESS_FRAME_SOURCE, type: 'started', transactionId })
-      if (import.meta.env.DEV) showTransactionBadge(transactionId)
     },
     onEkycResult: (result) => {
       console.log('[liveness-frame] onEkycResult:', result)
@@ -158,9 +144,12 @@ const sdkConfigs: AinuEkycConfigs = {
  *
  * ถ้าพลาด (เช่น browser ต้องการ user gesture ในหน้านี้เองถึงจะเปิดกล้องได้)
  * ค่อยโชว์ปุ่มให้กดเองแทนที่จะค้างจอดำ
+ *
+ * จอรอระหว่างนี้บัง spinner "Verifying authentication" ของ AINU ที่เป็นอังกฤษและไม่มีแบรนด์
+ * พอ onReady มา จอรอหายพอดีกับที่ Face Scan Guidelines ของ AINU ขึ้นมาแทน
  */
 function start() {
-  setLoading(true, 'กำลังเตรียมกล้อง...')
+  setLoading(true, 'กำลังเตรียมการยืนยันตัวตน...')
   if (startButton) startButton.hidden = true
 
   try {

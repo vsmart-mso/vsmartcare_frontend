@@ -75,6 +75,7 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
   width: 100%;
   height: 100%;
   border: 0;
-  background: #000;
+  /* ขาวให้ตรงกับพื้นของ frame.html — ดำจะเห็นแวบตอน iframe ยังโหลดไม่เสร็จ */
+  background: #fff;
 }
 </style>
