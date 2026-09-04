@@ -1,8 +1,9 @@
 /**
  * CSS ของ frame.html เท่านั้น — ลอกจาก eKYC-SDK_sample-code/ekyc-sdk_sample-code.html ตรง ๆ
  *
- * ⚠️ ไฟล์นี้ถูก import จาก frame.ts ซึ่งเป็น rollup entry คนละตัวกับแอปหลัก
- * Tailwind จึงเข้าไม่ถึงเฟรม — ซึ่งเป็นเงื่อนไขที่ทำให้ SDK ทำงานได้ ดู README.md
+ * ⚠️ โหลดด้วย <link> ใน frame.html — ห้าม import จาก frame.ts (จอรอจะกระพริบ)
+ * frame.html เป็น rollup entry คนละตัวกับแอปหลัก Tailwind จึงเข้าไม่ถึงเฟรม
+ * ซึ่งเป็นเงื่อนไขที่ทำให้ SDK ทำงานได้ ดู README.md
  * ห้าม import ไฟล์นี้จากที่อื่น และห้าม import อย่างอื่นเข้ามาในนี้
  */
 
@@ -110,53 +111,6 @@ html {
   .spinner {
     animation-duration: 3s;
   }
-}
-
-/* จอสรุปผลตอน dev — ทับทุกอย่างรวมถึง UI ของ AINU (z-index สูงสุดในหน้านี้) */
-#frame-result {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: #0b1220;
-  color: #e2e8f0;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-#frame-result pre {
-  flex: 1;
-  margin: 0;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  -webkit-overflow-scrolling: touch;
-}
-
-.frame-result-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  /* กันปุ่มโดนขอบล่างของ iPhone บัง */
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-.frame-result-actions button {
-  flex: 1;
-  padding: 12px;
-  font: 600 14px/1.4 system-ui, sans-serif;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, .35);
-  background: rgba(255, 255, 255, .1);
-  color: #fff;
-  cursor: pointer;
-}
-
-.frame-result-actions button.primary {
-  background: #1A56DB;
-  border-color: #1A56DB;
 }
 
 #frame-error {

@@ -8,7 +8,6 @@ import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
 import {
   LivenessRunner,
-  buildLivenessReport,
   createLivenessReferenceId,
   describeLivenessFailure,
 } from '@/lib/liveness'
@@ -80,16 +79,6 @@ const livenessTxnId  = ref('')
 // ถือไว้ที่นี่เพราะเฟรมถูก unmount ทุกครั้งที่ปิด — พอมี liveness-service แล้ว
 // ให้บันทึกคู่กับ case id ที่ createCase() คืนมา (1 เคสมีได้หลาย ref ถ้าผู้ใช้ลองซ้ำ)
 const livenessRef    = ref('')
-const livenessCopied = ref(false)
-const isDev = import.meta.env.DEV
-// base64 ของรูปถ่ายถูกตัดออกใน buildLivenessReport แล้ว (สตริงหลักแสนตัวทำให้หน้าค้าง)
-const livenessReportText = computed(() =>
-  buildLivenessReport({
-    transactionId: livenessTxnId.value,
-    referenceId: livenessRef.value,
-    result: livenessResult.value,
-  }),
-)
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
@@ -252,17 +241,6 @@ function onLivenessPassed(result: unknown) {
   // เก็บผลดิบไว้ดูตอน dev — ยังไม่มีที่ส่ง log ฝั่ง backend (ดู README ของ lib)
   livenessResult.value = result
   console.log('[liveness] passed:', result)
-}
-
-/** ก๊อป payload — บนมือถือเปิด console ไม่ได้ ต้องมีปุ่มให้ก๊อปไปแปะ */
-async function copyLivenessResult() {
-  try {
-    await navigator.clipboard.writeText(livenessReportText.value)
-    livenessCopied.value = true
-    setTimeout(() => { livenessCopied.value = false }, 1500)
-  } catch (e) {
-    console.error('[liveness] ก๊อปไม่สำเร็จ:', e)
-  }
 }
 
 // SDK นับ retry ให้เองภายใน transaction เดียว (จาก transaction จริง: failed/unavailable/
@@ -706,25 +684,6 @@ async function handleSubmit() {
           </svg>
           <p class="text-hint text-red-700 leading-snug">{{ submitError }}</p>
         </div>
-
-        <!-- ผลดิบจาก AINU หลัง liveness ผ่าน — dev เท่านั้น ไม่ขึ้นใน production build
-             base64 ของรูปถ่ายถูกตัดออกแล้วโดย formatLivenessPayload -->
-        <details
-          v-if="isDev && (livenessResult || livenessTxnId)"
-          class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mb-2"
-        >
-          <summary class="text-hint text-slate-600 cursor-pointer select-none">
-            ผลลัพธ์จาก AINU (dev) — {{ livenessPassed ? 'ผ่าน' : 'ไม่ผ่าน' }}
-          </summary>
-          <button
-            type="button"
-            @click="copyLivenessResult"
-            class="mt-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-hint text-slate-600 active:bg-slate-100"
-          >
-            {{ livenessCopied ? 'ก๊อปแล้ว' : 'ก๊อปรายงานส่ง AINU' }}
-          </button>
-          <pre class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px] leading-snug text-slate-700">{{ livenessReportText }}</pre>
-        </details>
 
         <div class="flex gap-3">
           <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1 ยกเว้นโหมดแก้ไข) -->

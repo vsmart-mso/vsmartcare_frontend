@@ -17,7 +17,6 @@ import {
   LIVENESS_REF_PARAM,
   type LivenessFrameMessage,
 } from './messages'
-import { buildLivenessReport } from './report'
 
 const startButton = document.getElementById(FRAME_ELEMENT_IDS.startButton) as HTMLButtonElement | null
 const closeButton = document.getElementById(FRAME_ELEMENT_IDS.closeButton) as HTMLButtonElement | null
@@ -49,9 +48,6 @@ function post(message: LivenessFrameMessage) {
   window.parent.postMessage(message, window.location.origin)
 }
 
-/** เก็บไว้ประกอบรายงาน — มาจาก onReady ซึ่งมาก่อนผลลัพธ์เสมอ */
-let currentTransactionId = ''
-
 /**
  * referenceId ของรอบนี้ — หน้าแม่เป็นคนสร้างแล้วส่งมาทาง query
  * เพื่อให้ฝั่งนั้นถือค่าไว้ผูกกับเคสได้ (เฟรมถูก unmount ทิ้งทุกครั้งที่ปิด)
@@ -63,47 +59,9 @@ const referenceId =
   new URLSearchParams(window.location.search).get(LIVENESS_REF_PARAM)?.trim()
   || createLivenessReferenceId()
 
-/**
- * จอสรุปผลตอน dev — ขึ้นทับทันทีที่ SDK คืนผล ก่อนส่งต่อให้หน้าแม่
- * มีปุ่มก๊อปเพราะบนมือถือเปิด console ไม่ได้ และปุ่มไปต่อเพื่อคืน flow ปกติ
- */
-function showResultPanel(result: unknown) {
-  const report = buildLivenessReport({ transactionId: currentTransactionId, referenceId, result })
-
-  const panel = document.createElement('div')
-  panel.id = 'frame-result'
-
-  const pre = document.createElement('pre')
-  pre.textContent = report
-
-  const copyButton = document.createElement('button')
-  copyButton.type = 'button'
-  copyButton.textContent = 'ก๊อปรายงาน'
-  copyButton.addEventListener('click', () => {
-    navigator.clipboard.writeText(report).then(
-      () => { copyButton.textContent = 'ก๊อปแล้ว' },
-      (e: unknown) => {
-        console.error('[liveness-frame] ก๊อปไม่สำเร็จ:', e)
-        copyButton.textContent = 'ก๊อปไม่ได้ — เลือกข้อความเอา'
-      },
-    )
-  })
-
-  const continueButton = document.createElement('button')
-  continueButton.type = 'button'
-  continueButton.className = 'primary'
-  continueButton.textContent = 'ไปต่อ'
-  continueButton.addEventListener('click', () => {
-    post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
-  })
-
-  const actions = document.createElement('div')
-  actions.className = 'frame-result-actions'
-  actions.append(copyButton, continueButton)
-
-  panel.append(pre, actions)
-  setLoading(false)
-  document.body.appendChild(panel)
+/** ส่งผลออกไปหาหน้าแม่ — พอส่งแล้ว iframe จะถูก unmount ทิ้งทันที */
+function sendResult(result: unknown) {
+  post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
 }
 
 function showError(message: string) {
@@ -137,16 +95,18 @@ const sdkConfigs: AinuEkycConfigs = {
       // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอรอออกได้
       setLoading(false)
       console.log('[liveness-frame] transactionId =', transactionId)
-      currentTransactionId = transactionId
       // ส่งต่อให้หน้าแม่เก็บ — ใช้อ้างอิงตอนแจ้งปัญหากับ AINU
+      // (เฟรมไม่ต้องถือเอง เพราะรายงานถูกประกอบที่หน้าแม่)
       post({ source: LIVENESS_FRAME_SOURCE, type: 'started', transactionId })
     },
     onEkycResult: (result) => {
       console.log('[liveness-frame] onEkycResult:', result)
-      // ตอน dev หยุดโชว์ผลไว้ก่อน — พอส่งออกไปหน้าแม่จะ unmount iframe ทันที
-      // ผลที่เพิ่งได้จะหายไปก่อนอ่านทัน โดยเฉพาะบนมือถือที่เปิด console ไม่ได้
-      if (import.meta.env.DEV) showResultPanel(result)
-      else post({ source: LIVENESS_FRAME_SOURCE, type: 'result', payload: result })
+      // ส่งออกทันที ไม่มีจอของเราคั่นเลย — ปล่อยให้เห็นจอสำเร็จของ AINU แล้วเด้งกลับฟอร์ม
+      //
+      // เคยลองมาแล้วสามแบบและถอยออกทั้งหมด: จอ log, ปุ่มค้าง, จอสำเร็จของเราเอง
+      // ทุกแบบขึ้นหลังจาก AINU เก็บ UI ไปแล้ว จึงกลายเป็นจอเปล่าหรือจอซ้ำที่ต้องกดเพิ่ม
+      // ถ้าจะทำจอคั่นจริง ๆ ต้องขอให้ AINU เปิดทางให้ข้ามจอสำเร็จของเขาก่อน
+      sendResult(result)
     },
   },
 }
