@@ -29,25 +29,34 @@ const startButton = document.getElementById(FRAME_ELEMENT_IDS.startButton) as HT
 const closeButton = document.getElementById(FRAME_ELEMENT_IDS.closeButton) as HTMLButtonElement | null
 const errorBox = document.getElementById(FRAME_ELEMENT_IDS.errorBox)
 const loading = document.getElementById(FRAME_ELEMENT_IDS.loading)
+const loadingStatus = document.getElementById(FRAME_ELEMENT_IDS.loadingStatus)
 const loadingText = document.getElementById(FRAME_ELEMENT_IDS.loadingText)
+const promptText = document.getElementById(FRAME_ELEMENT_IDS.promptText)
 
 /**
- * เปิด/ปิดจอรอ
+ * เปิด/ปิดจอเริ่มต้นทั้งก้อน
  *
  * ไม่หน่วงเวลาโดยตั้งใจ — เคยลองหน่วง 300ms เพื่อกัน spinner แวบตอนโหลดเร็ว
  * แต่ระหว่างหน่วงผู้ใช้เห็นจอเปล่า ๆ ทันทีที่กด "ถัดไป" ซึ่งแย่กว่ามาก
- * จอรอต้องขึ้นเป็นสิ่งแรกเสมอ
+ * จอนี้ต้องขึ้นเป็นสิ่งแรกเสมอ
  */
 function setLoading(visible: boolean, text?: string) {
   if (loadingText && text) loadingText.textContent = text
   if (loading) loading.hidden = !visible
 }
 
-/** โชว์ปุ่มเริ่มแบบ manual — ใช้เมื่อ auto-start ไม่สำเร็จเท่านั้น */
-function offerManualStart(text = 'เริ่ม') {
+/** สลับจอเริ่มต้นระหว่าง "กำลังโหลด" (spinner) กับ "พร้อมแล้ว" (ปุ่มเริ่ม) */
+function showStartButton(label = 'เริ่มสแกนใบหน้า') {
+  if (loadingStatus) loadingStatus.hidden = true
   if (!startButton) return
   startButton.hidden = false
-  startButton.textContent = text
+  startButton.textContent = label
+}
+
+function showSpinner(text: string) {
+  if (loadingStatus) loadingStatus.hidden = false
+  if (startButton) startButton.hidden = true
+  if (loadingText) loadingText.textContent = text
 }
 
 /** ส่งข้อความกลับไปหาแอปหลัก — จำกัด targetOrigin เป็น origin ตัวเองเสมอ */
@@ -78,7 +87,8 @@ function showError(message: string, code?: LivenessFrameSkipCode) {
 // ทำได้เพราะเฟรมนี้เป็นหน้าเปล่าของเราเอง — ไม่มี traffic อื่นปนนอกจากของ SDK
 // (ห้ามย้ายไปทำที่แอปหลักเด็ดขาด จะไปดัก request ของทั้งระบบ)
 //
-// ต้องติดตั้ง **ก่อน** setup() เสมอ ไม่งั้น handshake รอบแรกหลุดไปแล้ว
+// ต้องติดตั้ง **ก่อน** setup() เสมอ ไม่งั้น handshak
+// .e รอบแรกหลุดไปแล้ว
 
 /** ยิงได้ครั้งเดียว — request ที่พังมักพังซ้ำหลายรอบ ไม่ต้องรายงานทุกรอบ */
 let providerErrorSent = false
@@ -182,9 +192,11 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
       onLoaded: () => {
         // ต้องรอ onLoaded ก่อนเสมอ — เรียก start() ก่อนหน้านี้ SDK จะ throw
         // "The SDK is not yet ready for start." แล้วเงียบ ไล่สาเหตุยาก
-        console.log('[liveness-frame] SDK พร้อมแล้ว — เริ่มอัตโนมัติ')
+        //
+        // ⚠️ ไม่เรียก start() เอง — รอผู้ใช้กดปุ่ม (เหตุผลใน frame.html)
+        console.log('[liveness-frame] SDK พร้อมแล้ว — รอผู้ใช้กดเริ่ม')
         post({ source: LIVENESS_FRAME_SOURCE, type: 'ready' })
-        start()
+        showStartButton()
       },
       onReady(transactionId) {
         // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอรอออกได้
@@ -208,31 +220,28 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
 }
 
 /**
- * เริ่ม flow — เรียกอัตโนมัติหลัง onLoaded ผู้ใช้กด "ถัดไป" มาแล้วจากหน้าคำร้อง
- * ไม่ควรต้องกดซ้ำอีกรอบ
+ * เริ่ม flow — เรียกจากปุ่ม "เริ่มสแกนใบหน้า" เท่านั้น
  *
- * ถ้าพลาด (เช่น browser ต้องการ user gesture ในหน้านี้เองถึงจะเปิดกล้องได้)
- * ค่อยโชว์ปุ่มให้กดเองแทนที่จะค้างจอดำ
+ * การกดปุ่มเป็น user gesture ในหน้านี้ ซึ่งเป็นเงื่อนไขที่บางเบราว์เซอร์ต้องการ
+ * ถึงจะยอมเปิดกล้องให้ — เป็นเหตุผลหนึ่งที่เลิก auto-start (ดู frame.html)
  *
- * จอรอระหว่างนี้บัง spinner "Verifying authentication" ของ AINU ที่เป็นอังกฤษและไม่มีแบรนด์
- * พอ onReady มา จอรอหายพอดีกับที่ Face Scan Guidelines ของ AINU ขึ้นมาแทน
+ * ระหว่างรอ onReady สลับกลับไปโชว์ spinner แล้วปิดปุ่ม กันกดซ้ำ
+ * พอ onReady มา จอนี้หายทั้งก้อนพอดีกับที่ Face Scan Guidelines ของ AINU ขึ้นมาแทน
  */
 function start() {
-  setLoading(true, 'กำลังเตรียมการยืนยันตัวตน...')
-  if (startButton) startButton.hidden = true
+  showSpinner('กำลังเปิดกล้อง...')
+
+  const onStartFailed = (e: unknown) => {
+    console.error('[liveness-frame] start ไม่สำเร็จ:', e)
+    showStartButton('ลองอีกครั้ง')
+  }
 
   try {
     // referenceId ต้องไม่ซ้ำต่อการเริ่ม 1 ครั้งตามที่ AINU กำหนด
     // backend การันตีให้แล้วโดยออกใหม่ทุกครั้งที่เรียก POST /v1/liveness/session
-    void Promise.resolve(window.AinuEkyc.start(referenceId)).catch((e: unknown) => {
-      console.error('[liveness-frame] start ไม่สำเร็จ:', e)
-      setLoading(true, 'กดปุ่ม "เริ่ม" เพื่อเปิดกล้อง')
-      offerManualStart()
-    })
+    void Promise.resolve(window.AinuEkyc.start(referenceId)).catch(onStartFailed)
   } catch (e) {
-    console.error('[liveness-frame] start ไม่สำเร็จ:', e)
-    setLoading(true, 'กดปุ่ม "เริ่ม" เพื่อเปิดกล้อง')
-    offerManualStart()
+    onStartFailed(e)
   }
 }
 
@@ -298,6 +307,14 @@ function onHostMessage(event: MessageEvent) {
   configReceived = true
   stopAsking()
   referenceId = config.referenceId
+
+  // เติมข้อความบนจอเริ่ม — จำนวนครั้งมาจากหน้าแม่ ไม่ hardcode ที่นี่
+  if (promptText) {
+    const max = data.maxAttempts
+    promptText.textContent =
+      'กรุณาสแกนใบหน้าเพื่อยืนยันตัวตนก่อนส่งคำขอรับความช่วยเหลือ'
+      + (max ? ` สามารถสแกนได้สูงสุด ${max} ครั้ง` : '')
+  }
 
   try {
     installNetworkWatcher()

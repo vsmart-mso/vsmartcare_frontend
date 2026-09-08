@@ -28,6 +28,8 @@ const props = defineProps<{
    * ส่งเข้าเฟรมทาง postMessage เท่านั้น (accountSecret ห้ามอยู่ใน URL)
    */
   config: LivenessFrameConfig
+  /** โควตาต่อ 1 รอบ — เฟรมใช้ประกอบข้อความบนจอเริ่มเท่านั้น หน้าแม่คุมโควตาจริง */
+  maxAttempts: number
 }>()
 
 const emit = defineEmits<{
@@ -59,6 +61,7 @@ function sendConfig() {
       source: LIVENESS_HOST_SOURCE,
       type: 'config',
       config: { accountId, accountSecret, flowId, language, referenceId },
+      maxAttempts: props.maxAttempts,
     },
     window.location.origin,
   )

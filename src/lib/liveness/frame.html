@@ -28,19 +28,41 @@
 <body>
   <div id="ekyc-container"></div>
 
-  <!-- จอคั่นระหว่าง AINU handshake — ถ้าไม่มี ผู้ใช้จะเห็น spinner "Verifying authentication"
-       ของ AINU ซึ่งไม่มีแบรนด์ ซ่อนตัวเองตอน onReady พอดีกับที่จอ Guidelines ขึ้นมาแทน
-       ยังเป็นที่แสดงข้อความ 'กดปุ่ม "เริ่ม"' ตอน auto-start ไม่ติดด้วย -->
+  <!-- จอเริ่มต้นของเรา — บังจังหวะที่ AINU handshake อยู่ (spinner "Verifying authentication"
+       ของเขาเป็นอังกฤษและไม่มีแบรนด์) แล้วซ่อนตัวเองตอน onReady พอดีกับที่จอ Guidelines ขึ้นแทน
+
+       2 สถานะในจอเดียว:
+         ระหว่างรอ SDK  → ข้อความ + spinner (ผู้ใช้ได้อ่านระหว่างที่ยังไงก็ต้องรออยู่แล้ว)
+         SDK พร้อม      → spinner หาย ปุ่ม "เริ่มสแกนใบหน้า" โผล่ รอผู้ใช้กด
+
+       ⚠️ **อย่าเปลี่ยนกลับไป auto-start** การให้กดเองมีเหตุผลสองข้อ:
+       1. บางเบราว์เซอร์ต้องมี user gesture ในหน้านี้เองถึงจะเปิดกล้องได้ auto-start เคยพลาด
+          ตรงนี้แล้วต้องมี fallback มาคอยรับ — พอบังคับให้กดเสมอ ปัญหานั้นหมดไป
+       2. ผู้ใช้ได้เลือกเองว่าพร้อมเมื่อไหร่ ไม่ใช่โดนโยนเข้ากล้องทันทีที่โหลดเสร็จ
+
+       ⚠️ **อย่าเอาคำแนะนำวิธีสแกนมาใส่ที่นี่** (แสง/ระยะ/ระดับกล้อง) เคยลองแล้วถอยออก —
+       จอ Guidelines ของ AINU ขึ้นต่อทันทีแล้วสอนซ้ำ กลายเป็นจอสอน 2 จอติดกัน
+       จอนี้บอกแค่ว่ากำลังจะทำอะไร ไม่สอนวิธีทำ -->
   <div id="loading">
     <img id="loading-logo" src="/logo-vcare.jpg" alt="พม. CARE" width="272" height="128" />
-    <div class="spinner" aria-hidden="true"></div>
-    <p id="loading-text">กำลังเตรียมการยืนยันตัวตน...</p>
+
+    <div id="liveness-prompt">
+      <h1>ยืนยันตัวตนด้วยการสแกนใบหน้า</h1>
+      <!-- จำนวนครั้งเติมโดย frame.ts จากค่าที่หน้าแม่ส่งมา — อย่า hardcode ที่นี่ -->
+      <p id="liveness-prompt-text"></p>
+    </div>
+
+    <!-- ซ่อนทั้งก้อนตอน SDK พร้อม -->
+    <div id="loading-status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loading-text">กำลังเตรียมการยืนยันตัวตน...</p>
+    </div>
+
+    <!-- โผล่ตอน SDK พร้อม — เป็นตัวเรียก start() ตัวเดียวในระบบ -->
+    <button id="liveness-start" class="primary-cta" type="button" hidden>เริ่มสแกนใบหน้า</button>
   </div>
 
   <div class="control-panel">
-    <!-- ปกติ SDK จะเริ่มเองหลัง onLoaded ปุ่มนี้เป็นทางสำรองเวลา auto-start ไม่ติด
-         (บาง browser ต้องการ user gesture ในหน้านี้เองถึงจะเปิดกล้องได้) -->
-    <button id="liveness-start" class="primary" type="button" hidden>เริ่ม</button>
     <button id="liveness-close" type="button">ยกเลิก</button>
   </div>
 

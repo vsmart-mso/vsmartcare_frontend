@@ -106,6 +106,19 @@ const livenessProviderCode = ref<LivenessFrameSkipCode | null>(null)
  */
 const livenessSettled = ref(false)
 
+/**
+ * โควตา "รอบนอก" — จำนวนครั้งที่ผู้ใช้เริ่มสแกนใหม่ได้ (= จำนวน session ที่เปิด)
+ *
+ * ⚠️ คนละตัวกับโควตา retry **ภายใน** ของ AINU (จอ "Try again" ของเขา)
+ * ของ AINU มี 3 โควตาแยกกัน มาจาก config ฝั่งเซิร์ฟเวอร์เขา เปลี่ยนได้โดยไม่บอก
+ * (เคยเป็น 1 แล้วเป็น 5) — **ห้าม hardcode ค่านั้น** ถ้าอยากโชว์ต้องอ่านจาก
+ * `summary.configuration` ในผลลัพธ์ ส่วนเลขข้างล่างนี้เป็นของเราเอง คุมเองได้
+ */
+const LIVENESS_MAX_ATTEMPTS = 5
+const livenessAttempts = ref(0)
+/** ใช้โควตาครบรอบแล้ว — ปุ่มเปลี่ยนเป็น "ลองใหม่อีกครั้ง" ซึ่งรีเซ็ตโควตาให้ */
+const livenessExhausted = computed(() => livenessAttempts.value >= LIVENESS_MAX_ATTEMPTS)
+
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
 // เพื่อกันไม่ให้ผู้ใช้กดดำเนินการต่อก่อนที่หน้าจอจะพร้อม
@@ -239,17 +252,28 @@ function handleNavigateTo(step: number) {
 }
 
 // ── Liveness ────────────────────────────────────────────────────────────────
-// เปิดจากปุ่ม "ถัดไป" ของ Step 5
-//
-// ทุกครั้งที่เริ่มสแกน (รวมกดใหม่หลังไม่ผ่าน) ต้องเปิด session ใหม่เสมอ
-// ห้ามใช้ reference_id เดิมซ้ำ ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวใน DB
-// แล้วตามเรื่องกับ AINU ไม่ได้
-async function openLiveness() {
+/**
+ * ปุ่มท้าย Step 5 — "ถัดไป" หรือ "ลองใหม่อีกครั้ง" ก็มาที่นี่
+ *
+ * เข้าเฟรมตรง ๆ ไม่มีกล่องคั่นของเรา — ข้อความก่อนสแกนกับปุ่ม "เริ่มสแกนใบหน้า"
+ * อยู่บนจอเริ่มต้นในเฟรม (`frame.html` › `#liveness-prompt`) ซึ่งขึ้นระหว่างที่
+ * SDK กำลังโหลดอยู่แล้ว ผู้ใช้จึงได้อ่านในเวลาที่ยังไงก็ต้องรอ
+ *
+ * ⚠️ "ลองใหม่อีกครั้ง" **รีเซ็ตโควตา** เลข 5 จึงเป็นแค่การพักเตือน ไม่ใช่เพดานจริง
+ * ผู้ใช้วนได้ไม่จำกัดครั้งละ 5 รอบ (ตัดสินร่วมกับทีมแล้ว)
+ * แต่ละรอบยังเปิด session ใหม่ตามปกติ นับสถิติได้ครบเหมือนเดิม
+ *
+ * ทุกครั้งที่เริ่มสแกนต้องเปิด session ใหม่เสมอ ห้ามใช้ reference_id เดิมซ้ำ
+ * ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวใน DB แล้วตามเรื่องกับ AINU ไม่ได้
+ */
+async function startLiveness() {
   if (stepLoading.value || livenessOpening.value) return
   if (!stepReady.value) {
     stepRef.value?.touchAll?.()
     return
   }
+
+  if (livenessExhausted.value) livenessAttempts.value = 0
   submitError.value = ''
   livenessNotice.value = ''
 
@@ -271,6 +295,9 @@ async function openLiveness() {
       + 'คุณส่งคำขอต่อได้ตามปกติ'
     return
   }
+
+  // นับเฉพาะรอบที่เปิด session ได้จริง — /session ล่มไม่ควรกินโควตาของผู้ใช้
+  livenessAttempts.value++
 
   // ล้างผลรอบก่อน ไม่งั้นจะสับสนว่ารายงานเป็นของรอบไหน
   livenessTxnId.value = ''
@@ -316,10 +343,20 @@ function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
   const failure = describeLivenessFailure(result)
   console.log('[liveness] failed:', failure)
-  submitError.value = failure.message
   // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
   livenessSettled.value = true
   void reportLivenessResult(livenessRef.value, result)
+
+  // หมดโควตารอบนี้ — เปลี่ยนข้อความเป็นสรุปรวม ปุ่มจะกลายเป็น "ลองใหม่อีกครั้ง" เอง
+  if (livenessExhausted.value) {
+    submitError.value =
+      `สแกนใบหน้าไม่สำเร็จครบ ${LIVENESS_MAX_ATTEMPTS} ครั้ง กรุณาลองใหม่อีกครั้ง`
+    return
+  }
+
+  // ต่อท้ายด้วยโควตาที่เหลือ เพื่อให้ผู้ใช้รู้ว่าเหลืออีกกี่ครั้งก่อนถึงรอบพัก
+  const remaining = LIVENESS_MAX_ATTEMPTS - livenessAttempts.value
+  submitError.value = `${failure.message} (ลองได้อีก ${remaining} ครั้ง)`
 }
 
 /**
@@ -337,7 +374,7 @@ function onLivenessProviderError(code: LivenessFrameSkipCode) {
  * คือเหตุผลหลักที่รอบนี้ต้องผูก session กับ persons_id ตั้งแต่ต้น
  * ถ้าดักสาเหตุจริงจากฝั่ง AINU ไว้ได้ ใช้อันนั้นแทนเพราะบอกอะไรได้มากกว่า
  *
- * แถวนี้จะ finalize ทันที กดเริ่มใหม่ต้องเปิด session ใหม่ — openLiveness() ทำอยู่แล้ว
+ * แถวนี้จะ finalize ทันที กดเริ่มใหม่ต้องเปิด session ใหม่ — startLiveness() ทำอยู่แล้ว
  */
 function onLivenessClosed() {
   settleWithSkip(livenessProviderCode.value ?? 'USER_SKIPPED')
@@ -845,7 +882,7 @@ async function handleSubmit() {
                จะเหลือเคสค้างใน DB ที่ไม่มีใครยื่นจริง -->
           <button
             v-else-if="!livenessGateCleared"
-            @click="openLiveness"
+            @click="startLiveness"
             :disabled="!stepReady || stepLoading || livenessOpening"
             class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
             :class="stepReady && !stepLoading && !livenessOpening
@@ -857,8 +894,9 @@ async function handleSubmit() {
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            {{ livenessOpening ? 'กำลังเตรียม...' : 'ถัดไป' }}
-            <svg v-if="!livenessOpening" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <!-- ครบโควตาแล้วปุ่มเปลี่ยนความหมาย: กดแล้วรีเซ็ตโควตาให้สแกนต่อได้อีกรอบ -->
+            {{ livenessOpening ? 'กำลังเตรียม...' : (livenessExhausted ? 'ลองใหม่อีกครั้ง' : 'ถัดไป') }}
+            <svg v-if="!livenessOpening && !livenessExhausted" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
           </button>
@@ -891,6 +929,7 @@ async function handleSubmit() {
     <LivenessRunner
       v-if="livenessOpen && livenessConfig"
       :config="livenessConfig"
+      :max-attempts="LIVENESS_MAX_ATTEMPTS"
       @started="onLivenessStarted"
       @passed="onLivenessPassed"
       @failed="onLivenessFailed"

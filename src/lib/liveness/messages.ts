@@ -73,6 +73,11 @@ export type LivenessHostMessage = {
   source: typeof LIVENESS_HOST_SOURCE
   type: 'config'
   config: LivenessFrameConfig
+  /**
+   * โควตาต่อ 1 รอบ — ใช้ประกอบข้อความบนจอเริ่มเท่านั้น ไม่ได้บังคับอะไรในเฟรม
+   * หน้าแม่เป็นคนคุมโควตาจริง ส่งมาเพื่อไม่ให้ต้อง hardcode เลขเดียวกันสองที่
+   */
+  maxAttempts: number
 }
 
 /**
@@ -90,7 +95,10 @@ export const LIVENESS_FRAME_URL = '/src/lib/liveness/frame.html'
 export const FRAME_ELEMENT_IDS = {
   container: 'ekyc-container',
   loading: 'loading',
+  /** spinner + ข้อความ "กำลังเตรียม..." — ซ่อนตอน SDK พร้อม แล้วโชว์ปุ่มเริ่มแทน */
+  loadingStatus: 'loading-status',
   loadingText: 'loading-text',
+  promptText: 'liveness-prompt-text',
   startButton: 'liveness-start',
   closeButton: 'liveness-close',
   errorBox: 'frame-error',
