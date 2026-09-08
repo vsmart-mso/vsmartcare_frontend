@@ -341,22 +341,18 @@ function onLivenessPassed(result: unknown) {
 // กด "ถัดไป" ใหม่ = session ใหม่ = mount component ใหม่ = transaction ใหม่ = เริ่มนับใหม่
 function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
-  const failure = describeLivenessFailure(result)
-  console.log('[liveness] failed:', failure)
+  // เก็บไว้ใน console อย่างเดียว — ยังไม่แสดงอะไรให้ผู้ใช้เห็น
+  console.log('[liveness] failed:', describeLivenessFailure(result))
   // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
   livenessSettled.value = true
   void reportLivenessResult(livenessRef.value, result)
 
-  // หมดโควตารอบนี้ — เปลี่ยนข้อความเป็นสรุปรวม ปุ่มจะกลายเป็น "ลองใหม่อีกครั้ง" เอง
-  if (livenessExhausted.value) {
-    submitError.value =
-      `สแกนใบหน้าไม่สำเร็จครบ ${LIVENESS_MAX_ATTEMPTS} ครั้ง กรุณาลองใหม่อีกครั้ง`
-    return
-  }
-
-  // ต่อท้ายด้วยโควตาที่เหลือ เพื่อให้ผู้ใช้รู้ว่าเหลืออีกกี่ครั้งก่อนถึงรอบพัก
-  const remaining = LIVENESS_MAX_ATTEMPTS - livenessAttempts.value
-  submitError.value = `${failure.message} (ลองได้อีก ${remaining} ครั้ง)`
+  // ⚠️ ไม่ตั้ง submitError โดยตั้งใจ — ยังไม่ต้องแจ้งอะไรตอนสแกนไม่ผ่าน
+  //
+  // เดิมเคยขึ้นกล่องแดงบอกสาเหตุ + "(ลองได้อีก N ครั้ง)" แล้วเอาออก เพราะยังไม่ชัดว่า
+  // ควรพูดอะไรตอนไหน — จอ "เกินจำนวนครั้งที่กำหนดไว้" ของ AINU มาก่อนจอเราเสมอ
+  // และมีปุ่มลองใหม่ของเขาเองที่เรามองไม่เห็นและนับไม่ได้
+  // ต้องรู้ก่อนว่ากดปุ่มนั้นแล้วเกิดอะไร ค่อยตัดสินใจว่าฝั่งเราควรแจ้งอะไร
 }
 
 /**
