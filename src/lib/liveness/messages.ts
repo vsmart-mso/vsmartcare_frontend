@@ -9,7 +9,41 @@
 /** ป้ายกำกับผู้ส่ง — ในเฟรมมี iframe ของ AINU ซ้อนอยู่อีกชั้นซึ่งยิง postMessage ของมันเองด้วย */
 export const LIVENESS_FRAME_SOURCE = 'liveness-frame'
 
+/** ป้ายกำกับฝั่งหน้าแม่ — เฟรมรับเฉพาะข้อความที่ติดป้ายนี้ */
+export const LIVENESS_HOST_SOURCE = 'liveness-host'
+
+/**
+ * config ที่ backend จ่ายมาทาง `POST /v1/liveness/session`
+ *
+ * นิยามซ้ำที่นี่แทนที่จะ import จาก `@/api/liveness` เพื่อรักษากฎ "ไฟล์นี้ต้องบริสุทธิ์"
+ * — เฟรมเป็น entry แยกที่ไม่ควรลาก apiClient เข้าไป
+ */
+export interface LivenessFrameConfig {
+  accountId: string
+  accountSecret: string
+  flowId: string
+  language: string
+  referenceId: string
+}
+
+/**
+ * สาเหตุที่เฟรมสรุปได้เองว่าใช้ระบบไม่ได้ — เป็น subset ของ `LivenessSkipReason`
+ * ใน `@/api/liveness` (ที่นั่นมี `USER_SKIPPED` เพิ่ม ซึ่งหน้าแม่เป็นคนตัดสิน ไม่ใช่เฟรม)
+ * แก้ที่นี่แล้วต้องไปดูที่นั่นด้วย
+ */
+export type LivenessFrameSkipCode =
+  | 'SDK_LOAD_ERROR'
+  | 'NOT_SECURE_CONTEXT'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'AUTH_ERROR'
+
+/** เฟรม → หน้าแม่ */
 export type LivenessFrameMessage =
+  /**
+   * เฟรมพร้อมรับ config แล้ว — ต้องมาก่อน setup() เสมอ
+   * ยิงซ้ำเป็นระยะจนกว่าจะได้ config เพื่อกันกรณีหน้าแม่ยังติด listener ไม่ทัน
+   */
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'need-config' }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'ready' }
   /**
    * UI ของ AINU ขึ้นแล้ว พร้อม transactionId
@@ -19,39 +53,38 @@ export type LivenessFrameMessage =
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'started'; transactionId: string }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'result'; payload: unknown }
   | { source: typeof LIVENESS_FRAME_SOURCE; type: 'closed' }
-  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'error'; message: string }
+  /**
+   * เฟรมดักได้ว่าฝั่ง AINU ตอบผิดปกติ (จาก network sniffer ใน frame.ts)
+   * ไม่ได้แปลว่า flow จบ — SDK อาจค้างอยู่แล้วผู้ใช้ต้องกดยกเลิกเอง
+   * หน้าแม่จำรหัสนี้ไว้ใช้แทน USER_SKIPPED ตอนที่ flow จบจริง
+   */
+  | { source: typeof LIVENESS_FRAME_SOURCE; type: 'provider-error'; code: LivenessFrameSkipCode }
+  /** เปิดระบบไม่ได้เลย — คนละเรื่องกับผู้ใช้ทำไม่ผ่าน */
+  | {
+      source: typeof LIVENESS_FRAME_SOURCE
+      type: 'error'
+      message: string
+      /** ไม่มี = เปิดไม่ได้ด้วยสาเหตุที่ยังแมปเป็น skip_reason ไม่ได้ */
+      code?: LivenessFrameSkipCode
+    }
+
+/** หน้าแม่ → เฟรม */
+export type LivenessHostMessage = {
+  source: typeof LIVENESS_HOST_SOURCE
+  type: 'config'
+  config: LivenessFrameConfig
+}
 
 /**
  * URL ของเอกสารในเฟรม
  *
  * Vite emit output ตาม path ที่ relative กับ root ทำให้ URL เดียวกันทั้ง dev และ build
  * ต้องตรงกับ input `liveness` ใน vite.config.ts เสมอ
+ *
+ * ⚠️ ไม่มี query param แล้ว — accountSecret ห้ามเดินทางผ่าน URL เด็ดขาด
+ * (โผล่ใน address bar, history, referrer) config ทั้งก้อนไปทาง postMessage อย่างเดียว
  */
 export const LIVENESS_FRAME_URL = '/src/lib/liveness/frame.html'
-
-/** ชื่อ query param ที่หน้าแม่ใช้ส่ง referenceId เข้าไปในเฟรม */
-export const LIVENESS_REF_PARAM = 'ref'
-
-/**
- * สร้าง referenceId สำหรับ 1 ครั้งที่เปิด SDK
- *
- * เอกสาร AINU: "แนะนำให้ส่ง referenceId (transaction ID ฝั่ง partner) ทุกครั้งที่เปิด SDK
- * เพื่อใช้อ้างอิง/ตรวจสอบภายหลัง" — และค่านี้ถูกส่งกลับมาใน result ด้วย
- * จึงเป็นกุญแจเชื่อมระหว่างเคสของเรากับ transaction ฝั่ง AINU
- *
- * ⚠️ ห้ามใส่ข้อมูลส่วนบุคคล (เลขบัตร ชื่อ) — ค่าสุ่มอ้างอิงได้เหมือนกันเมื่อเราเก็บ
- * mapping ไว้ฝั่งเรา ไม่มีเหตุผลให้ส่งข้อมูลประชาชนออกไปนอกระบบ
- * prefix ไว้เพื่อให้ฝั่ง AINU ดูออกว่ามาจากระบบไหนเท่านั้น
- */
-export function createLivenessReferenceId(): string {
-  return `pmcare-${crypto.randomUUID()}`
-}
-
-/** URL ของเฟรมพร้อม referenceId */
-export function buildLivenessFrameUrl(referenceId: string): string {
-  if (!referenceId) return LIVENESS_FRAME_URL
-  return `${LIVENESS_FRAME_URL}?${LIVENESS_REF_PARAM}=${encodeURIComponent(referenceId)}`
-}
 
 /** id ของ element ใน frame.html ที่ frame.ts ไปหยิบมาใช้ */
 export const FRAME_ELEMENT_IDS = {

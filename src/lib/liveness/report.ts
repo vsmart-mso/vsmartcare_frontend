@@ -8,13 +8,19 @@
  * base64 ถูกตัดออกด้วย redactLivenessPayload ก่อนเสมอ
  */
 import { describeLivenessFailure } from './failureMessages'
+import type { LivenessFrameConfig } from './messages'
 import { formatLivenessPayload } from './redact'
 
 export interface LivenessReportInput {
   /** จาก onReady — ค่าที่ AINU ใช้ค้นเคสฝั่งเขา */
   transactionId: string
-  /** ค่าที่เราเป็นคนสร้างและส่งเข้า start() — ใช้ผูกกับเคสฝั่งเรา */
+  /** จาก POST /v1/liveness/session — ใช้ผูกกับเคสฝั่งเรา */
   referenceId?: string
+  /**
+   * config ที่ backend จ่ายมารอบนี้ — เดิมอ่านจาก .env แต่ credential
+   * ย้ายไปอยู่ฝั่ง backend หมดแล้ว จึงต้องรับเข้ามาแทน
+   */
+  config?: Pick<LivenessFrameConfig, 'accountId' | 'flowId' | 'language'>
   /** ผลดิบจาก onEkycResult ('' / null ถ้าผู้ใช้ปิดก่อนได้ผล) */
   result: unknown
 }
@@ -41,6 +47,7 @@ function readSdkVersions(result: unknown): { sdk: string; engine: string } {
 export function buildLivenessReport({
   transactionId,
   referenceId,
+  config,
   result,
 }: LivenessReportInput): string {
   const failure = describeLivenessFailure(result)
@@ -51,9 +58,9 @@ export function buildLivenessReport({
     `เวลา            : ${new Date().toISOString()}`,
     `transactionId   : ${transactionId || '(ไม่มี — ปิดก่อน onReady)'}`,
     `referenceId     : ${referenceId || '(ไม่มี)'}`,
-    `flowId          : ${import.meta.env.VITE_FLOW_ID ?? ''}`,
-    `accountId       : ${import.meta.env.VITE_ACCOUNT_ID ?? ''}`,
-    `language        : ${import.meta.env.VITE_LANGUAGE || 'TH'}`,
+    `flowId          : ${config?.flowId || '(ไม่มี)'}`,
+    `accountId       : ${config?.accountId || '(ไม่มี)'}`,
+    `language        : ${config?.language || 'TH'}`,
     `status          : ${failure.status || '(อ่านไม่ออก)'}`,
     `reason / code   : ${failure.code || '(ไม่มี)'}`,
     `description     : ${failure.description || '(ไม่มี)'}`,

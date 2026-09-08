@@ -75,7 +75,7 @@ CSS ของแอปเข้าไม่ถึงเลยโดยโคร�
 | `LivenessRunner.vue` | ฝัง `frame.html` เป็น iframe เต็มจอ + รับผลผ่าน `postMessage` |
 | `messages.ts` | contract ของ `postMessage` + URL ของเฟรม + id ของ element (ทั้งสองฝั่งใช้ร่วมกัน) |
 | `failureMessages.ts` | แปลง reason ของ AINU เป็นข้อความไทย + แยกเคส "อ่านผลไม่ออก" |
-| `redact.ts` | ตัด base64 ออกจาก payload — **ใช้ซ้ำตอนทำ log ฝั่ง backend ได้เลย** |
+| `redact.ts` | ตัด base64 ออกจาก payload — ใช้กับ `buildLivenessReport()` เท่านั้น ⚠️ ตอนส่ง `/result` **ไม่ได้** ใช้ (ดูหัวข้อ backlog) |
 | `report.ts` | ประกอบรายงานสำหรับแจ้งปัญหากับ AINU (transactionId + reason + เวอร์ชัน) |
 | `frame.html` | เอกสารในเฟรม — **Vite entry ตัวที่สอง** |
 | `frame.ts` | สคริปต์ของเฟรม **ที่เดียวในโปรเจกต์ที่แตะ `window.AinuEkyc`** |
@@ -90,25 +90,47 @@ CSS ของแอปเข้าไม่ถึงเลยโดยโคร�
   ผิดแล้วพังตอน runtime (`window.AinuEkyc` เป็น `undefined`) ไม่ใช่ตอน build
 - 1 บรรทัดใน `vite.config.ts` (`rollupOptions.input.liveness`) — ต้องตรงกับ
   `LIVENESS_FRAME_URL` ใน `messages.ts`
-- `src/env.d.ts` — 4 ตัวแปร `VITE_ACCOUNT_*` (ไม่ประกาศ = `vue-tsc` ไม่ผ่าน)
+- `src/api/liveness.ts` — 4 endpoint ที่คุยกับ case-service (`/session`, `/transaction`,
+  `/result`, `/skip`) โฟลเดอร์นี้ไม่เรียก API เอง หน้าแม่เป็นคนเรียกทั้งหมด
 
 `index.html` **ไม่ได้** โหลด SDK — มีแต่เฟรมที่ใช้ ไม่ต้องให้ทุกคนดาวน์โหลด 1.6 MB ทุก pageload
 
 ---
 
-## Environment
+## Credential — ไม่มีใน frontend แล้ว
 
-ต้องมีใน `.env` ที่ root ของโปรเจกต์ (ดู `.env.example`) —
-**ตั้งแล้วต้อง restart dev server** Vite อ่าน env ตอน start เท่านั้น
+**เดิม** มี `VITE_ACCOUNT_ID` / `VITE_ACCOUNT_SECRET` / `VITE_FLOW_ID` / `VITE_LANGUAGE`
+อยู่ใน `.env` **ลบทิ้งหมดแล้ว** เหตุผลคือ Vite inline ค่าลง bundle ตอน build
+→ `accountSecret` อ่านได้จาก JS ที่ ship ออกไป
 
-| ตัวแปร | ค่า |
-|---|---|
-| `VITE_ACCOUNT_ID` | `ekycsdk-dga-pmcare` — ⚠️ **ไม่ใช่** `demo-dga-pmcare` ที่เป็น username เว็บเดโม |
-| `VITE_ACCOUNT_SECRET` | จาก `DGA-PCA001_credential` ช่อง Web SDK |
-| `VITE_FLOW_ID` | `DGA-PMCARE-001` |
-| `VITE_LANGUAGE` | `TH` หรือ `EN` |
+ตอนนี้ backend ถือ credential แล้วจ่าย config ให้ตอนเรียก `POST /v1/liveness/session`
+เฟรมจึงต้องขอ config จากหน้าแม่ก่อน setup() (ดูหัวข้อ handshake ข้างล่าง)
 
-ถ้าไม่ครบ เฟรมจะขึ้นแถบแดงบอกตรง ๆ ว่ายังไม่ได้ตั้ง — ไม่ต้องเดา
+**ผลข้างเคียงที่ต้องรู้: เปิด `frame.html` ตรง ๆ นอกแอปไม่ได้อีกแล้ว**
+ไม่มีใครตอบ config ให้ เฟรมจะขึ้นข้อความบอกว่าต้องเปิดผ่านหน้ายื่นคำร้องเท่านั้น
+
+ถ้า `/session` ตอบ `503 liveness_not_configured` แปลว่า `case-service/.env`
+ยังไม่ได้ตั้ง `AINU_ACCOUNT_ID` / `AINU_ACCOUNT_SECRET` / `AINU_FLOW_ID`
+หน้าคำร้องจะ **ข้ามด่านให้อัตโนมัติ** แล้วยื่นคำร้องต่อได้ — ไม่ใช่บั๊ก
+
+---
+
+## handshake ระหว่างหน้าแม่กับเฟรม
+
+```
+frame.ts โหลด → เช็ค secure context + window.AinuEkyc ก่อน (พังตรงนี้ = ไม่ต้อง handshake)
+         → post 'need-config' (ยิงซ้ำทุก 150ms กันหน้าแม่ติด listener ไม่ทัน)
+LivenessRunner รับ 'need-config' → postMessage config เข้า iframe
+frame.ts รับ config → installNetworkWatcher() → setup() → onLoaded → start(referenceId)
+```
+
+⚠️ `accountSecret` เดินทางผ่าน **postMessage เท่านั้น** ห้ามใส่ใน query param เด็ดขาด
+(จะโผล่ใน address bar, history, referrer) — `LIVENESS_FRAME_URL` จึงไม่มี query แล้ว
+
+⚠️ `installNetworkWatcher()` ต้องติดตั้ง **ก่อน** `setup()` ไม่งั้น handshake รอบแรกหลุด
+มันมีไว้ดัก `PROVIDER_UNAVAILABLE` (`/ekyc` ตอบ 404) กับ `AUTH_ERROR` (token handshake 403)
+ซึ่งเป็น network call ภายในของ SDK ที่ไม่มี callback ไหนบอกเรา
+**ห้ามย้ายไปทำที่แอปหลัก** จะไปดัก request ของทั้งระบบ
 
 ---
 
@@ -260,16 +282,19 @@ liveness { configuration, isStartCompleted, isProcessCompleted, livenessResultCo
 เอกสาร AINU: *"แนะนำให้ส่ง `referenceId` (transaction ID ฝั่ง partner) ทุกครั้งที่เปิด SDK
 เพื่อใช้อ้างอิง/ตรวจสอบภายหลัง"* — และค่านี้ถูกส่งกลับมาใน result ด้วย
 
-`SubmitRequestPage` เป็นคนสร้าง (`createLivenessReferenceId()`) แล้วส่งเข้าเฟรมทาง query
+**backend เป็นคนสร้าง** — `POST /v1/liveness/session` คืน `reference_id` มาพร้อม config
+(เดิม frontend สร้างเอง เปลี่ยนแล้วเมื่อ 7 ก.ย. 2026) เหตุผลคือแถวใน `liveness_attempts`
+ถูกผูกกับ `persons_id` ตั้งแต่เปิด session ทำให้เห็นคนที่สแกนไม่ผ่านแล้วเลิกกลางคัน
+ซึ่งแบบเดิมบันทึกไม่ได้เลย
+
+`SubmitRequestPage` ถือค่าไว้แล้วส่งเข้าเฟรมทาง postMessage
 **ห้ามให้เฟรมสร้างเอง** เพราะเฟรมถูก unmount ทิ้งทุกครั้งที่ปิด ค่าจะหายไปกับมัน
 
-⚠️ **ห้ามใส่ข้อมูลส่วนบุคคล** — ค่าสุ่มอ้างอิงได้เหมือนกันเมื่อเก็บ mapping ไว้ฝั่งเรา
-ไม่มีเหตุผลให้ส่งเลขบัตร/ชื่อออกไปนอกระบบ
+⚠️ **เรียก `/session` ใหม่ทุกครั้งที่เริ่มสแกน รวมตอนกดลองใหม่** ห้ามใช้ค่าเดิมซ้ำ
+ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวแล้วตามเรื่องกับ AINU ไม่ได้
 
-**ยังทำไม่ครบ** — ตอนนี้ `referenceId` อยู่ในหน่วยความจำอย่างเดียว ยังไม่มีที่เก็บถาวร
-พอทำ `liveness-service` แล้วให้บันทึกคู่กับ case id ที่ `createCase()` คืนมา
-โดยรองรับ **หลาย `referenceId` ต่อ 1 เคส** (ผู้ใช้กดลองใหม่ได้หลายรอบ) และเก็บ
-`transactionId` ไว้ด้วย เพราะเป็นค่าที่ AINU ใช้ค้นฝั่งเขา
+⚠️ **เอา `reference_id` เดียวไปยื่นหลายคำร้องไม่ได้** — ใบที่สองจะได้แถว `REPLAYED`
+ที่ไม่นับเป็นการยืนยันตัวตน
 
 ---
 
@@ -376,18 +401,17 @@ Uncaught (in promise) Error: An unexpected response was received from the server
       คนที่ทำไม่ผ่านแล้วหงุดหงิดปิดทิ้งจะเสียงานที่กรอกมา 4 ขั้นตอน
 - [ ] `livenessPassed` อยู่ในหน่วยความจำ — refresh แล้วต้องทำ liveness ใหม่
 
-**Backend (ยังไม่ได้เริ่ม)**
-- [ ] **เก็บ log ผล liveness** — ตอนนี้ผลอยู่แค่ในเบราว์เซอร์ ไม่มีอะไรบันทึก
-      แผน: `liveness-service` ตัวใหม่ (ลอกโครง `ocr-service`) port 8006 + proxy 1 ตัวที่ BFF
-      เก็บ `raw_payload` โดย **ตัด base64 ออกก่อนเสมอ**
-      (`livenessImage`, `fullFrontThaiCard`, `fullFrontThaiCardSupport`, `thaiIDPortrait`)
-      ⚠️ BFF ไม่มี generic proxy ต้องเขียน endpoint มือใน `app/main.py`
-- [ ] **gate ฝั่ง backend** — `POST /v1/cases` ยังรับคำร้องที่ไม่ผ่าน liveness ได้อยู่
-      ต้องให้ senior ตัดสินก่อนว่า hard gate หรือ soft gate
-      (ข้อเสนอ: soft gate ก่อน — ผู้ใช้คือกลุ่มเปราะบาง ถ้าบล็อกแล้วถ่ายไม่ผ่าน = ยื่นขอความช่วยเหลือไม่ได้เลย)
-- [ ] มี container `vsmartcare_backend-liveness-service-1` รันค้างอยู่ที่ 8006 จาก image เก่า
-      ต้องเคลียร์ก่อนเริ่มทำจริง (โค้ดเดิมอยู่บน branch `liveness-service` commit `6354067`
-      แต่ **compose ไม่เคยถูก commit**)
+**Backend (ทำเสร็จแล้ว 7 ก.ย. 2026 — สเปกที่ `foropenmdfiles/ainu liveness/liveness_api_spec.md`)**
+- [x] **เก็บ log ผล liveness** — ไม่ได้ทำเป็น service แยกอย่างที่วางแผนไว้ ไปอยู่ใน
+      `case-service` แทน ตาราง `liveness_attempts` ผูกกับ `persons_id` ตั้งแต่เปิด session
+- [x] **soft gate** ตามที่เสนอ — `POST /v1/cases` ยังรับคำร้องที่ไม่แนบ
+      `liveness_reference_id` ได้ (backend สร้างแถว `NO_ATTEMPT` ให้เอง)
+      เหตุผลเดิมยังใช้อยู่: ผู้ใช้คือกลุ่มเปราะบาง บล็อกแล้วถ่ายไม่ผ่าน = ยื่นขอความช่วยเหลือไม่ได้เลย
+- [ ] ⚠️ **ส่ง payload ดิบ ไม่ redact** — ทีมตัดสินร่วมกันว่า backend ขอเก็บก้อนดิบ
+      เพื่อ verify `signature` ย้อนหลัง (แม้เอกสารจะยืนยันว่าการตัดภาพไม่กระทบ `signature`)
+      **ความเสี่ยงที่รับทราบแล้ว:** วันที่ AINU เริ่มส่ง `images.livenessImage` มาจริง
+      ภาพใบหน้าประชาชนจะเข้า DB ทันทีโดยไม่มีใครรู้ตัว — ควรตั้ง alert ฝั่ง backend
+      ถ้าจะกลับลำ `redactLivenessPayload()` พร้อมใช้ แก้ที่ `reportLivenessResult()` จุดเดียว
 
 **ทดสอบ**
 - [x] **เทสครบ flow บนมือถือ** สำเร็จ 2026-09-03 (iPhone, ThaID จริง, liveness ผ่าน)
