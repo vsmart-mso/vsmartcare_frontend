@@ -77,7 +77,8 @@ function showError(message: string, code?: LivenessFrameSkipCode) {
   }
   // เอา spinner ออก ไม่งั้นดูเหมือนยังโหลดอยู่ทั้งที่ตายแล้ว
   setLoading(false)
-  console.error('[liveness-frame]', message)
+  // ไม่ log ที่นี่ — ข้อความถูกส่งให้หน้าแม่ผ่าน post() แล้ว และผลลงไปถึง DB
+  // (status / fail_reason / skip_reason / raw_payload) ซึ่งสืบย้อนหลังได้ดีกว่า console
   post({ source: LIVENESS_FRAME_SOURCE, type: 'error', message, code })
 }
 
@@ -101,7 +102,6 @@ function reportProviderError(code: LivenessFrameSkipCode) {
   lastProviderCode = code
   if (providerErrorSent) return
   providerErrorSent = true
-  console.error('[liveness-frame] ฝั่ง AINU ตอบผิดปกติ →', code)
   post({ source: LIVENESS_FRAME_SOURCE, type: 'provider-error', code })
 }
 
@@ -167,8 +167,8 @@ function installNetworkWatcher() {
     // clone ไม่จำเป็น — อ่านแค่ status/url ไม่ได้แตะ body ซึ่งอ่านได้ครั้งเดียว
     try {
       watchResponse(response.url || String(args[0]), response.status)
-    } catch (e) {
-      console.error('[liveness-frame] network watcher error:', e)
+    } catch {
+      // การดักสถานะเป็นแค่สัญญาณเสริม พังแล้วต้องไม่กระทบ request จริง
     }
     return response
   }
@@ -183,8 +183,8 @@ function installNetworkWatcher() {
     this.addEventListener('load', () => {
       try {
         watchResponse(String(url), this.status)
-      } catch (e) {
-        console.error('[liveness-frame] network watcher error:', e)
+      } catch {
+        // เหตุผลเดียวกับฝั่ง fetch ข้างบน
       }
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -219,7 +219,6 @@ function clearLoadedTimer() {
 function startLoadedTimer() {
   clearLoadedTimer()
   loadedTimer = setTimeout(() => {
-    console.error('[liveness-frame] รอ onLoaded เกิน %d ms — ถือว่าฝั่ง AINU ไม่ตอบ', LOADED_TIMEOUT_MS)
     showError(
       'ระบบยืนยันตัวตนไม่ตอบสนอง (เกิน ' + LOADED_TIMEOUT_MS / 1000 + ' วินาที)',
       'PROVIDER_UNAVAILABLE',
@@ -247,7 +246,6 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         //
         // ⚠️ ไม่เรียก start() เอง — รอผู้ใช้กดปุ่ม (เหตุผลใน frame.html)
         clearLoadedTimer()
-        console.log('[liveness-frame] SDK พร้อมแล้ว — รอผู้ใช้กดเริ่ม')
         post({ source: LIVENESS_FRAME_SOURCE, type: 'ready' })
         showStartButton()
       },
@@ -255,13 +253,13 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอเริ่มของเราออกได้
         // ปุ่มยกเลิกอยู่ในจอนี้ จึงหายไปพร้อมกัน — ตั้งใจ (เหตุผลใน frame.html)
         setLoading(false)
-        console.log('[liveness-frame] transactionId =', transactionId)
         // ส่งต่อให้หน้าแม่ยิง POST /{ref}/transaction ทันที — ห้ามรอผลจบ
         // ผู้ใช้ที่เลิกกลางคันจะเหลือรหัสนี้ไว้เป็นทางเดียวที่ตามเรื่องกับ AINU ได้
         post({ source: LIVENESS_FRAME_SOURCE, type: 'started', transactionId })
       },
       onEkycResult: (result) => {
-        console.log('[liveness-frame] onEkycResult:', result)
+        // ไม่ log payload — มีข้อมูลของผู้ใช้อยู่ในนั้น และก้อนเต็มถูกเก็บลง
+        // raw_payload ใน DB แล้ว (ตัดภาพ base64 ออกด้วย strip_images ฝั่ง backend)
         // ส่งออกทันที ไม่มีจอของเราคั่นเลย — ปล่อยให้เห็นจอสำเร็จของ AINU แล้วเด้งกลับฟอร์ม
         //
         // เคยลองมาแล้วสามแบบและถอยออกทั้งหมด: จอ log, ปุ่มค้าง, จอสำเร็จของเราเอง
@@ -285,8 +283,7 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
 function start() {
   showSpinner('กำลังเปิดกล้อง...')
 
-  const onStartFailed = (e: unknown) => {
-    console.error('[liveness-frame] start ไม่สำเร็จ:', e)
+  const onStartFailed = () => {
     showStartButton('ลองอีกครั้ง')
   }
 
@@ -294,8 +291,8 @@ function start() {
     // referenceId ต้องไม่ซ้ำต่อการเริ่ม 1 ครั้งตามที่ AINU กำหนด
     // backend การันตีให้แล้วโดยออกใหม่ทุกครั้งที่เรียก POST /v1/liveness/session
     void Promise.resolve(window.AinuEkyc.start(referenceId)).catch(onStartFailed)
-  } catch (e) {
-    onStartFailed(e)
+  } catch {
+    onStartFailed()
   }
 }
 
@@ -304,8 +301,8 @@ startButton?.addEventListener('click', start)
 closeButton?.addEventListener('click', () => {
   try {
     window.AinuEkyc?.close()
-  } catch (e) {
-    console.error('[liveness-frame] close error:', e)
+  } catch {
+    // ปิดไม่สำเร็จก็ยังต้องแจ้งหน้าแม่ว่าผู้ใช้ปิดเฟรมแล้ว
   }
   post({ source: LIVENESS_FRAME_SOURCE, type: 'closed' })
 })

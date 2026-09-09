@@ -336,7 +336,6 @@ function settleWithSkip(reason: LivenessSkipReason) {
 // ผู้ใช้ที่เลิกกลางคันจะเหลือรหัสนี้ไว้เป็นทางเดียวที่ตามเรื่องกับ AINU ได้
 function onLivenessStarted(transactionId: string) {
   livenessTxnId.value = transactionId
-  console.log('[liveness] transactionId =', transactionId)
   void reportLivenessTransaction(livenessRef.value, transactionId)
 }
 
@@ -354,7 +353,6 @@ function onLivenessPassed(result: unknown) {
 function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
   const failure = describeLivenessFailure(result)
-  console.log('[liveness] failed:', failure)
   // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
   // เคสเปิดระบบไม่ได้ก็ส่งทางนี้เหมือนกัน เพื่อให้ payload ดิบถูกเก็บไว้ครบ
   // แล้วปล่อยให้ backend แปลงเป็น skipped/PROVIDER_UNAVAILABLE เอง (INIT_FAILURE_REASONS)
@@ -408,9 +406,10 @@ function onLivenessClosed() {
  * แถวของรอบนี้ถูก finalize ไปแล้วด้วยสาเหตุจริงจาก settleWithSkip()
  * ไม่ว่าผู้ใช้จะเลือกทางไหนต่อ สถิติก็บันทึกถูกแล้ว
  */
-function onLivenessError(message: string, code?: LivenessFrameSkipCode) {
+// `_message` ไม่ได้ใช้ — ข้อความ error ของ SDK อ่านไม่รู้เรื่องสำหรับผู้ใช้
+// และสาเหตุที่ต้องใช้จริงคือ `code` ซึ่งลง DB เป็น skip_reason
+function onLivenessError(_message: string, code?: LivenessFrameSkipCode) {
   settleWithSkip(code ?? livenessProviderCode.value ?? 'SDK_LOAD_ERROR')
-  console.error('[liveness] เปิดระบบไม่ได้:', message)
   livenessUnavailable.value = true
 }
 

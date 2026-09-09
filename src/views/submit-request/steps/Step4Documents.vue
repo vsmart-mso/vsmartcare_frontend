@@ -189,9 +189,9 @@ async function applyBankBookFixture() {
     const raw = await loadBankBookFixture()
     const result = await compressImage(raw, { maxWidth: 1200, maxHeight: 1600, quality: 0.82, watermark: DOC_WATERMARK })
     bankBook.restore(result.file, result.rawFile)
-  } catch (err) {
+  } catch {
+    // แจ้งผ่าน bankBook.error ที่แสดงบนหน้าจอแล้ว
     bankBook.error.value = 'โหลดรูปตัวอย่างไม่สำเร็จ'
-    console.error(err)
   } finally {
     loadingBankBookFixture.value = false
   }
