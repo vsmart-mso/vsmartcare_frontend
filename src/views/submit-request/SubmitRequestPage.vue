@@ -82,6 +82,9 @@ const livenessPassed = ref(false)
  * (`/session` ตอบ 503) จะยื่นคำร้องไม่ได้เลย
  */
 const livenessSkipped = ref(false)
+// reference_id ของแถว skipped ที่ **backend บันทึกให้เอง** ตอนตอบ 503 (NOT_CONFIGURED)
+// แยกจาก livenessRef ที่เป็นของรอบสแกนจริง เพื่อไม่ให้เผลอแนบแถวที่สแกนไม่ผ่าน
+const livenessSkipRef = ref('')
 const livenessNotice  = ref('')
 /** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ" */
 const livenessGateCleared = computed(() => livenessPassed.value || livenessSkipped.value)
@@ -278,14 +281,16 @@ async function startLiveness() {
   livenessNotice.value = ''
 
   livenessOpening.value = true
-  const session = await openLivenessSession()
+  const result = await openLivenessSession()
   livenessOpening.value = false
 
   // เปิด session ไม่ได้ (ส่วนใหญ่คือ 503 บน dev ที่ยังไม่มี AINU credential)
-  // ⚠️ ตรงนี้ยังไม่มี reference_id จึงยิง /skip ไม่ได้ — ไม่มีแถวใน DB ให้อัปเดต
-  // ให้ข้ามไปเลยแล้วยื่นคำร้องโดยไม่แนบ liveness_reference_id (backend สร้าง NO_ATTEMPT ให้เอง)
-  if (!session) {
+  // ยิง /skip ที่นี่ไม่ได้ — session เปิดไม่สำเร็จจึงไม่มีแถวให้อัปเดต
+  // แต่ถ้าเป็น 503 liveness_not_configured backend บันทึกแถว NOT_CONFIGURED ให้แล้ว
+  // และส่ง reference_id กลับมา เก็บไว้แนบตอนยื่นคำร้องเพื่อไม่ให้กลายเป็น NO_ATTEMPT
+  if (!result.ok) {
     livenessSkipped.value = true
+    livenessSkipRef.value = result.referenceId ?? ''
     // ล้าง ref ของรอบก่อนทิ้ง — ถ้ารอบก่อนสแกนไม่ผ่านแล้วรอบนี้ /session ล่ม
     // ค่าเดิมจะค้างอยู่ แล้วไปถูกแนบกับคำร้องทั้งที่เป็นแถวที่ไม่ผ่าน
     livenessRef.value = ''
@@ -295,6 +300,10 @@ async function startLiveness() {
       + 'คุณส่งคำขอต่อได้ตามปกติ'
     return
   }
+
+  const session = result.session
+  // เปิด session รอบใหม่ได้แล้ว — ล้างร่องรอยของรอบที่ backend เคยตั้งค่าไม่ครบทิ้ง
+  livenessSkipRef.value = ''
 
   // นับเฉพาะรอบที่เปิด session ได้จริง — /session ล่มไม่ควรกินโควตาของผู้ใช้
   livenessAttempts.value++
@@ -525,6 +534,10 @@ async function handleSubmit() {
     // (โหมดแก้ไขข้างบนไม่แนบ เพราะสเปกนิยามฟิลด์นี้ไว้กับ POST /v1/cases เท่านั้น)
     if (livenessPassed.value && livenessRef.value) {
       payload.liveness_reference_id = livenessRef.value
+    } else if (livenessSkipRef.value) {
+      // ระบบเราตั้ง AINU credential ไม่ครบ — ผูกกับแถว NOT_CONFIGURED ที่ backend
+      // บันทึกไว้แล้ว จะได้แยกออกจากคนที่ไม่ได้สแกนเลย (NO_ATTEMPT)
+      payload.liveness_reference_id = livenessSkipRef.value
     }
     const result      = await welfareApi.createCase(payload)
     const applicantId = result.applicant.id as number

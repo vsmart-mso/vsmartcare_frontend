@@ -106,10 +106,16 @@ function reportProviderError(code: LivenessFrameSkipCode) {
  * ⚠️ `POST /ekyc` ตอบ **403 คือปกติ** ห้ามรายงาน (สเปกย้ำไว้) มีแต่ 404 ที่แปลว่าใช้ไม่ได้
  * ส่วน 403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
  *
- * ⚠️ **pattern สอง path นี้ยังไม่ได้ยืนยันกับ traffic จริง** — สเปกบอกแค่ชื่อ `/ekyc`
- * กับคำว่า "token handshake" ไม่ได้ให้ path เต็ม ตอนเทสให้เปิด DevTools › Network
- * ดู request จริงของ SDK แล้วมาแก้ให้ตรง ถ้าไม่ตรงจะไม่พัง แค่ดักไม่ได้
- * (ตกไปเป็น USER_SKIPPED ตอนผู้ใช้กดยกเลิกแทน)
+ * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 8 ก.ย.)
+ * - `/ekyc` **ยืนยันแล้ว** — เห็น request ชื่อ `ekyc` วิ่งจริง และ 403 เกิดระหว่าง flow ปกติ
+ *   ที่จบได้ จึงคอนเฟิร์มว่าห้ามถือ 403 เป็นความผิดปกติ
+ * - token handshake **ยังไม่ยืนยัน path เต็ม** — Network เห็นแค่ชื่อ `handshake`
+ *   เอกสารภายในบันทึกไว้ว่าเป็น `/v1/auth/websdk/token/handshake` ซึ่งเข้าเงื่อนไข
+ *   `token|auth` อยู่แล้ว แต่ยังไม่ได้ copy URL เต็มมายืนยัน จึงใส่ `handshake`
+ *   เข้าไปด้วยเป็นตาข่ายรับ เผื่อ path จริงไม่มีสองคำนั้น
+ *
+ * ถ้าดักไม่ได้จะไม่พัง แค่เสียสัญญาณ — ตกไปเป็น USER_SKIPPED ตอนผู้ใช้กดยกเลิกแทน
+ * และ request ที่เกิดใน iframe ซ้อนของ SDK เองอาจดักไม่ได้เลยตั้งแต่ต้น
  */
 function classifyResponse(url: string, status: number): LivenessFrameSkipCode | '' {
   let path: string
@@ -120,7 +126,7 @@ function classifyResponse(url: string, status: number): LivenessFrameSkipCode | 
   }
 
   if (status === 404 && /\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
-  if (status === 403 && /token|auth/.test(path)) return 'AUTH_ERROR'
+  if (status === 403 && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
   return ''
 }
 

@@ -40,25 +40,46 @@ export type LivenessSkipReason =
   | 'AUTH_ERROR'
   | 'USER_SKIPPED'
 
+/**
+ * ผลของการเปิด session — แยกกรณี "เปิดได้" ออกจาก "เปิดไม่ได้แต่มีแถวใน DB แล้ว"
+ *
+ * ตอน backend ตอบ 503 liveness_not_configured มันบันทึกแถว `skipped/NOT_CONFIGURED`
+ * ให้แล้วพร้อมส่ง `reference_id` กลับมา เอาไปแนบตอนยื่นคำร้องได้
+ * ถ้าไม่แนบ คำร้องจะได้แถว `NO_ATTEMPT` ซึ่งแปลว่า "ไม่มีการสแกน" — คนละสาเหตุกัน
+ */
+export type LivenessSessionResult =
+  | { ok: true; session: LivenessSession }
+  | { ok: false; referenceId: string | null }
+
 /** อ่าน HTTP status จาก error ของ ofetch (ชื่อ field ต่างกันตามเวอร์ชัน) */
 function statusOf(error: unknown): number {
   const e = error as { status?: number; statusCode?: number; response?: { status?: number } }
   return e?.status ?? e?.statusCode ?? e?.response?.status ?? 0
 }
 
+/** ดึง reference_id ที่ backend แนบมาใน error body ของ 503 (ofetch เก็บ body ไว้ที่ `.data`) */
+function referenceIdOf(error: unknown): string | null {
+  const e = error as { data?: { detail?: { reference_id?: string } } }
+  const ref = e?.data?.detail?.reference_id
+  return typeof ref === 'string' && ref ? ref : null
+}
+
 /**
  * เปิด session ใหม่ — ต้องเรียก **ทุกครั้งที่เริ่มสแกน รวมตอนกดเริ่มใหม่**
  * ห้ามใช้ reference_id เดิมซ้ำ ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียว
  *
- * คืน `null` = เปิดไม่ได้ ให้ **ข้ามด่าน** แล้วยื่นคำร้องโดยไม่แนบ liveness_reference_id
- * (backend จะสร้างแถว NO_ATTEMPT ให้เอง) เคสที่เจอบ่อยสุดคือ 503 บน dev
- * ที่ยังไม่ได้ตั้ง AINU credential — ถ้าไม่ข้ามให้ dev จะยื่นคำร้องไม่ได้เลย
+ * `ok: false` = เปิดไม่ได้ ให้ **ข้ามด่าน** แล้วยื่นคำร้องต่อได้ตามปกติ
+ * เคสที่เจอบ่อยสุดคือ 503 บน dev ที่ยังไม่ได้ตั้ง AINU credential —
+ * ถ้าไม่ข้ามให้ dev จะยื่นคำร้องไม่ได้เลย
  *
- * ⚠️ ตรงนี้ยังไม่มี reference_id จึงยิง /skip ไม่ได้ (ไม่มีแถวใน DB ให้อัปเดต)
+ * ถ้ามี `referenceId` ติดมา (503 liveness_not_configured) **ต้องแนบตอนยื่นคำร้อง**
+ * เพื่อให้คำร้องผูกกับแถว `NOT_CONFIGURED` ที่ backend บันทึกไว้ ไม่ใช่ `NO_ATTEMPT`
+ * ที่แปลว่า "ไม่มีการสแกน" ทั้งที่สาเหตุจริงคือฝั่งเราตั้งค่าไม่ครบ
  */
-export async function openLivenessSession(): Promise<LivenessSession | null> {
+export async function openLivenessSession(): Promise<LivenessSessionResult> {
   try {
-    return await apiClient<LivenessSession>('/v1/liveness/session', { method: 'POST' })
+    const session = await apiClient<LivenessSession>('/v1/liveness/session', { method: 'POST' })
+    return { ok: true, session }
   } catch (e) {
     // 401 ไม่ต้องจัดการที่นี่ — client.ts เตะออกจากระบบให้แล้ว
     //
@@ -70,7 +91,7 @@ export async function openLivenessSession(): Promise<LivenessSession | null> {
     } else {
       console.error('[liveness] เปิด session ไม่ได้ (status', statusOf(e), ') — ข้ามด่าน:', e)
     }
-    return null
+    return { ok: false, referenceId: referenceIdOf(e) }
   }
 }
 
