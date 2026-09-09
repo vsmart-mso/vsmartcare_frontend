@@ -6,7 +6,7 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
-import { LivenessRunner, describeLivenessFailure } from '@/lib/liveness'
+import { LivenessRunner, describeLivenessFailure, isLivenessUnavailable } from '@/lib/liveness'
 import LivenessUnavailableModal from '@/components/ui/LivenessUnavailableModal.vue'
 import type { LivenessFrameConfig, LivenessFrameSkipCode } from '@/lib/liveness'
 import {
@@ -354,11 +354,24 @@ function onLivenessPassed(result: unknown) {
 // กด "ถัดไป" ใหม่ = session ใหม่ = mount component ใหม่ = transaction ใหม่ = เริ่มนับใหม่
 function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
-  // เก็บไว้ใน console อย่างเดียว — ยังไม่แสดงอะไรให้ผู้ใช้เห็น
-  console.log('[liveness] failed:', describeLivenessFailure(result))
+  const failure = describeLivenessFailure(result)
+  console.log('[liveness] failed:', failure)
   // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
+  // เคสเปิดระบบไม่ได้ก็ส่งทางนี้เหมือนกัน เพื่อให้ payload ดิบถูกเก็บไว้ครบ
+  // แล้วปล่อยให้ backend แปลงเป็น skipped/PROVIDER_UNAVAILABLE เอง (INIT_FAILURE_REASONS)
   livenessSettled.value = true
   void reportLivenessResult(livenessRef.value, result)
+
+  // ⚠️ AINU ส่ง "เปิดระบบไม่ได้" มาทางเดียวกับ "สแกนไม่ผ่าน" (transactionStatus: failed)
+  // ถ้าไม่แยก ผู้ใช้จะติดลูป: กดถัดไป → จอวาบ → กลับหน้าเดิม → กดใหม่ ไม่มีทางออก
+  // และได้แถวใหม่ใน DB ทุกครั้งที่กด (ของจริงเคยได้ 30 แถว INIT_ERROR)
+  if (isLivenessUnavailable(failure)) {
+    livenessUnavailableDetail.value = import.meta.env.DEV
+      ? `${failure.code} — ${failure.description || failure.message}`
+      : ''
+    livenessUnavailable.value = true
+    return
+  }
 
   // ⚠️ ไม่ตั้ง submitError โดยตั้งใจ — ยังไม่ต้องแจ้งอะไรตอนสแกนไม่ผ่าน
   //

@@ -7,7 +7,7 @@
  * อ่าน README.md ก่อนแก้อะไรในโฟลเดอร์นี้
  */
 export { default as LivenessRunner } from './LivenessRunner.vue'
-export { describeLivenessFailure, readTransactionStatus } from './failureMessages'
+export { describeLivenessFailure, isLivenessUnavailable, readTransactionStatus } from './failureMessages'
 export type { LivenessFailure } from './failureMessages'
 export { formatLivenessPayload, redactLivenessPayload } from './redact'
 export { buildLivenessReport } from './report'

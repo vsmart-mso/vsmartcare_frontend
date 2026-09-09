@@ -109,7 +109,10 @@ function reportProviderError(code: LivenessFrameSkipCode) {
  * แปล (url, status) เป็น skip_reason ตามสเปก — คืน '' ถ้าเป็นคำตอบปกติ
  *
  * ⚠️ `POST /ekyc` ตอบ **403 คือปกติ** ห้ามรายงาน (สเปกย้ำไว้) มีแต่ 404 ที่แปลว่าใช้ไม่ได้
- * ส่วน 403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
+ * ส่วน 401/403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
+ *
+ * credential ผิดจริง handshake ตอบไม่เหมือนกันในแต่ละครั้งที่ทดสอบ —
+ * เจอทั้ง **500** และ **401 `{code:'GAT-E007', message:'Unauthorized'}`** จึงดักทั้งสองแบบ
  *
  * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 9 ก.ย.) — **ยืนยันครบทั้งสอง path แล้ว**
  * - `/ekyc` — URL จริง `https://uat.ainu.tech/ekyc` → pathname = `/ekyc` ตรงกับ regex
@@ -135,7 +138,7 @@ function classifyResponse(url: string, status: number): LivenessFrameSkipCode | 
   }
 
   if (status === 404 && /\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
-  if (status === 403 && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
+  if ((status === 401 || status === 403) && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
   // credential ผิดจริง ๆ AINU ตอบ **500** ไม่ใช่ 403 (ทดสอบแล้ว 9 ก.ย.)
   // แต่ 500 แยกไม่ออกจาก "เซิร์ฟเวอร์เขาพังเอง" จึงถือเป็น PROVIDER_UNAVAILABLE
   // ไม่ใช่ AUTH_ERROR — เดาว่าเป็นความผิดฝั่งเราไม่ได้จาก status อย่างเดียว
