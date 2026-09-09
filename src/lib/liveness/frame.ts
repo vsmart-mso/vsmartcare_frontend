@@ -106,14 +106,17 @@ function reportProviderError(code: LivenessFrameSkipCode) {
  * ⚠️ `POST /ekyc` ตอบ **403 คือปกติ** ห้ามรายงาน (สเปกย้ำไว้) มีแต่ 404 ที่แปลว่าใช้ไม่ได้
  * ส่วน 403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
  *
- * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 8 ก.ย.)
- * - `/ekyc` **ยืนยันแล้ว** — เห็น request ชื่อ `ekyc` วิ่งจริง และ 403 เกิดระหว่าง flow ปกติ
- *   ที่จบได้ จึงคอนเฟิร์มว่าห้ามถือ 403 เป็นความผิดปกติ
+ * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 9 ก.ย.) — **ยืนยันครบทั้งสอง path แล้ว**
+ * - `/ekyc` — URL จริง `https://uat.ainu.tech/ekyc` → pathname = `/ekyc` ตรงกับ regex
+ *   และ 403 เกิดระหว่าง flow ปกติที่จบได้ จึงคอนเฟิร์มว่าห้ามถือ 403 เป็นความผิดปกติ
  * - token handshake **ยืนยันแล้ว** (9 ก.ย.) — URL จริงคือ
  *   `https://uat.nonprod-api.ainu.tech/v1/auth/websdk/token/handshake`
  *   path มีทั้ง `auth` และ `token` จึงเข้าเงื่อนไขเดิมอยู่แล้ว
  *   `handshake` ในนี้เป็นตาข่ายรับเผื่อ AINU เปลี่ยน path ทีหลัง ไม่ใช่การแก้บั๊ก
- *   (host จะเปลี่ยนตอนขึ้น production — `nonprod-api` → prod — แต่เราจับที่ path ไม่ใช่ host)
+ *
+ * ⚠️ สอง endpoint นี้อยู่ **คนละ host**: หน้า eKYC อยู่ที่ `uat.ainu.tech`
+ * ส่วน API อยู่ที่ `uat.nonprod-api.ainu.tech` — ทั้งคู่จะเปลี่ยน host ตอนขึ้น production
+ * แต่เราจับที่ `pathname` ไม่ใช่ host จึงไม่ต้องแก้อะไร
  *
  * ถ้าดักไม่ได้จะไม่พัง แค่เสียสัญญาณ — ตกไปเป็น USER_SKIPPED ตอนผู้ใช้กดยกเลิกแทน
  * และ request ที่เกิดใน iframe ซ้อนของ SDK เองอาจดักไม่ได้เลยตั้งแต่ต้น
