@@ -88,7 +88,6 @@ const livenessSkipped = ref(false)
 const livenessSkipRef = ref('')
 // เปิดระบบยืนยันตัวตนไม่ได้ — ต้องให้ผู้ใช้เลือกทางไป ไม่ปล่อยให้ติดลูป
 const livenessUnavailable = ref(false)
-const livenessUnavailableDetail = ref('')
 const livenessNotice  = ref('')
 /** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ" */
 const livenessGateCleared = computed(() => livenessPassed.value || livenessSkipped.value)
@@ -366,9 +365,6 @@ function onLivenessFailed(result: unknown) {
   // ถ้าไม่แยก ผู้ใช้จะติดลูป: กดถัดไป → จอวาบ → กลับหน้าเดิม → กดใหม่ ไม่มีทางออก
   // และได้แถวใหม่ใน DB ทุกครั้งที่กด (ของจริงเคยได้ 30 แถว INIT_ERROR)
   if (isLivenessUnavailable(failure)) {
-    livenessUnavailableDetail.value = import.meta.env.DEV
-      ? `${failure.code} — ${failure.description || failure.message}`
-      : ''
     livenessUnavailable.value = true
     return
   }
@@ -414,7 +410,7 @@ function onLivenessClosed() {
  */
 function onLivenessError(message: string, code?: LivenessFrameSkipCode) {
   settleWithSkip(code ?? livenessProviderCode.value ?? 'SDK_LOAD_ERROR')
-  livenessUnavailableDetail.value = import.meta.env.DEV ? message : ''
+  console.error('[liveness] เปิดระบบไม่ได้:', message)
   livenessUnavailable.value = true
 }
 
@@ -1001,7 +997,6 @@ async function handleSubmit() {
          ไม่งั้นกลับไปติดลูปเดิมที่ปุ่มล่างยังเป็น "ถัดไป" -->
     <LivenessUnavailableModal
       :open="livenessUnavailable"
-      :detail="livenessUnavailableDetail"
       @retry="retryLivenessAfterFailure"
       @skip="skipLivenessAfterFailure"
     />
