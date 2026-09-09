@@ -199,7 +199,8 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         showStartButton()
       },
       onReady(transactionId) {
-        // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอรอออกได้
+        // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอเริ่มของเราออกได้
+        // ปุ่มยกเลิกอยู่ในจอนี้ จึงหายไปพร้อมกัน — ตั้งใจ (เหตุผลใน frame.html)
         setLoading(false)
         console.log('[liveness-frame] transactionId =', transactionId)
         // ส่งต่อให้หน้าแม่ยิง POST /{ref}/transaction ทันที — ห้ามรอผลจบ

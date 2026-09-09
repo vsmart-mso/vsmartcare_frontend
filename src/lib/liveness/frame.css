@@ -7,6 +7,14 @@
  * ห้าม import ไฟล์นี้จากที่อื่น และห้าม import อย่างอื่นเข้ามาในนี้
  */
 
+/* ความสูงที่กันไว้ให้ปุ่มยกเลิก — นิยามที่เดียว
+   #ekyc-container / #loading / #frame-error ต้องหักค่านี้ออกทั้งหมด
+   ต้องเป็นค่าตายตัวเพราะ UI ของ AINU อยู่ใน iframe คนละ origin
+   เราวัดความสูงเนื้อหาเขาไม่ได้ (เหตุผลเต็มใน frame.html) */
+:root {
+  --liveness-exit-h: 88px;
+}
+
 /* พื้นขาว ไม่ใช่ดำ — UI ของ AINU พื้นขาว ถ้าเฟรมเป็นดำจะเห็นแถบดำโผล่ใต้จอของเขา
    ตอนที่ iframe ชั้นในยังสูงไม่เต็มจอ ทำให้ดูเหมือนหน้าพัง */
 body,
@@ -24,9 +32,11 @@ html {
   top: 0;
   left: 0;
   width: 100%;
-  height: 100vh;
+  /* ⚠️ ถ้า UI ของ AINU เพี้ยนหลังแก้ตรงนี้ ให้สงสัยบรรทัดนี้ก่อน */
+  height: calc(100vh - var(--liveness-exit-h));
   z-index: 10;
 }
+
 
 #ekyc-container iframe {
   width: 100% !important;
@@ -37,29 +47,6 @@ html {
   left: 0 !important;
 }
 
-.control-panel {
-  position: fixed;
-  top: 8px;
-  right: 8px;
-  z-index: 20;
-  display: flex;
-  gap: 8px;
-}
-
-.control-panel button {
-  padding: 6px 14px;
-  font: 600 13px/1.4 system-ui, sans-serif;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, .35);
-  background: rgba(0, 0, 0, .55);
-  color: #fff;
-  cursor: pointer;
-}
-
-.control-panel button.primary {
-  background: #1A56DB;
-  border-color: #1A56DB;
-}
 
 /* หน้าจอรอระหว่าง AINU handshake — บัง spinner "Verifying authentication" ของ AINU
    ที่เป็นภาษาอังกฤษและไม่มีแบรนด์
@@ -68,7 +55,9 @@ html {
    ถ้าใช้ดำจะกระพริบตัดกันตอนสลับ */
 #loading {
   position: fixed;
-  inset: 0;
+  /* เว้นที่ให้ปุ่มยกเลิกเหมือน #ekyc-container — ปุ่มต้องอยู่ตำแหน่งเดิม
+     ทั้งจอเริ่มของเราและจอของ AINU ผู้ใช้จะได้ไม่ต้องหาใหม่ */
+  inset: 0 0 var(--liveness-exit-h) 0;
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -125,6 +114,38 @@ html {
   margin: 0;
 }
 
+/* ช่องทางออก — ตั้งใจโปร่งใส ไม่มี background และไม่มี border-top
+   ถ้าใส่สองอย่างนั้นจะกลายเป็น "แถบ" ซึ่งอ่านเป็น chrome แปลกปลอม
+   ทับอยู่บน UI ของ AINU (เคยทำแล้วถอยออก) */
+.exit-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  height: var(--liveness-exit-h);
+  display: grid;
+  place-items: center;
+}
+
+/* ทางออก ไม่ใช่ทางหลัก — ขอบจางพื้นโปร่ง ยังอ่านออกว่ากดได้
+   แต่เป็นรองปุ่มทึบของ AINU (และปุ่มเริ่มของเรา) ชัดเจน
+   ไม่ใช้ตัวหนังสือล้วน เพราะกลุ่มผู้ใช้เป็นผู้สูงอายุและผู้พิการ
+   ซึ่งพลาดปุ่มที่ไม่มีขอบบ่อยที่สุด */
+.secondary-cta {
+  padding: 9px 20px;
+  font: 600 15px/1.4 system-ui, -apple-system, sans-serif;
+  color: #64748b;
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.secondary-cta:active {
+  background: #f1f5f9;
+}
+
 /* ปุ่มเริ่ม — ตัวเรียก start() ตัวเดียวในระบบ ต้องเด่นและกดง่ายบนมือถือ
    สีตรงกับปุ่มหลักของแอป (#1A56DB) */
 .primary-cta {
@@ -172,7 +193,8 @@ html {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: 12px;
+  /* เหนือปุ่มยกเลิก — ปุ่มนั้นเป็นทางออกเดียวตอนเฟรมพัง ห้ามให้อะไรมาทับ */
+  bottom: calc(var(--liveness-exit-h) + 12px);
   z-index: 20;
   margin: 0;
   padding: 10px 12px;

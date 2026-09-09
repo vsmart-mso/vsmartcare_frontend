@@ -62,9 +62,28 @@
     <button id="liveness-start" class="primary-cta" type="button" hidden>เริ่มสแกนใบหน้า</button>
   </div>
 
-  <div class="control-panel">
-    <button id="liveness-close" type="button">ยกเลิก</button>
+  <!-- ทางออกของผู้ใช้ — อยู่นอก #loading จึงเห็นทุกจังหวะ ทั้งจอเริ่มของเรา
+       และทุกจอของ AINU ตำแหน่งไม่ขยับ ผู้ใช้ไม่ต้องหาใหม่ตอนจอเปลี่ยน
+
+       ⚠️ **ไม่ใช่แถบ** ตั้งใจไม่มี background และไม่มี border-top เต็มความกว้าง
+       เคยทำเป็นแถบขาวมีเส้นคั่นแล้วถอยออก เพราะอ่านเป็น chrome แปลกปลอม
+       ทับอยู่บน UI ของ AINU ตอนนี้เป็นแค่ปุ่มขอบจางลอยอยู่ใต้เนื้อหาเขา
+
+       ที่ต้องกันความสูงไว้ตายตัว (--liveness-exit-h) เพราะ UI ของ AINU อยู่ใน
+       iframe คนละ origin (uat.ainu.tech) เราวัดความสูงเนื้อหาเขาไม่ได้
+       ปุ่มจึงไหลตามเนื้อหาจริง ๆ ไม่ได้ — กันที่ไว้แล้วเขาจัดกึ่งกลาง
+       ในพื้นที่ที่เหลือให้เอง ผลที่เห็นคือปุ่มอยู่ใต้เนื้อหาเขาพอดี
+
+       ปุ่มนี้คือสิ่งเดียวที่กัน "ติดลูปแล้วออกไม่ได้" บนจอ "เกินจำนวนครั้ง
+       ที่กำหนดไว้" ของ AINU ซึ่งมีแต่ปุ่มวนกลับไปสแกนใหม่ ถ้าไม่มีปุ่มนี้
+       onEkycResult จะไม่มีวันยิงแล้วแถวใน liveness_attempts ค้างเป็น pending
+       ห้ามซ่อนตอน onReady
+
+       กดแล้วแถวถูกปิดเป็น USER_SKIPPED -->
+  <div class="exit-slot">
+    <button id="liveness-close" class="secondary-cta" type="button">ยกเลิกการยืนยันตัวตน</button>
   </div>
+
 
   <p id="frame-error" hidden></p>
 
