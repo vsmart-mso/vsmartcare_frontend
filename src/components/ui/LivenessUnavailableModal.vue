@@ -60,17 +60,14 @@ watch(
               </svg>
             </div>
             <h2 id="liveness-unavailable-heading" class="text-title font-bold text-white">
-              ระบบยืนยันตัวตนใช้งานไม่ได้ขณะนี้
+              เกิดข้อผิดพลาดในการเชื่อมต่อ
             </h2>
           </div>
 
           <div id="liveness-unavailable-body" class="px-5 py-5 sm:px-6">
             <p class="text-body leading-relaxed text-slate-700">
-              เชื่อมต่อระบบยืนยันตัวตนไม่สำเร็จ
-            </p>
-            <p class="mt-2.5 text-body leading-relaxed text-slate-700">
-              ข้อมูลที่คุณกรอกไว้ทั้งหมดจะไม่หาย คุณสามารถลองเชื่อมต่ออีกครั้ง
-              หรือยื่นคำร้องต่อได้โดยไม่ต้องยืนยันตัวตนในตอนนี้
+              การเชื่อมต่อเกิดข้อผิดพลาด ข้อมูลที่ท่านกรอกไว้ทั้งหมดจะยังคงอยู่
+              ท่านสามารถลองเชื่อมต่อใหม่อีกครั้ง หรือยื่นคำร้องต่อได้โดยไม่ต้องยืนยันตัวตนในตอนนี้
             </p>
 
             <div class="mt-6 flex flex-col gap-2.5">
