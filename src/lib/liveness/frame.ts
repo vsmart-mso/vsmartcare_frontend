@@ -109,10 +109,11 @@ function reportProviderError(code: LivenessFrameSkipCode) {
  * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 8 ก.ย.)
  * - `/ekyc` **ยืนยันแล้ว** — เห็น request ชื่อ `ekyc` วิ่งจริง และ 403 เกิดระหว่าง flow ปกติ
  *   ที่จบได้ จึงคอนเฟิร์มว่าห้ามถือ 403 เป็นความผิดปกติ
- * - token handshake **ยังไม่ยืนยัน path เต็ม** — Network เห็นแค่ชื่อ `handshake`
- *   เอกสารภายในบันทึกไว้ว่าเป็น `/v1/auth/websdk/token/handshake` ซึ่งเข้าเงื่อนไข
- *   `token|auth` อยู่แล้ว แต่ยังไม่ได้ copy URL เต็มมายืนยัน จึงใส่ `handshake`
- *   เข้าไปด้วยเป็นตาข่ายรับ เผื่อ path จริงไม่มีสองคำนั้น
+ * - token handshake **ยืนยันแล้ว** (9 ก.ย.) — URL จริงคือ
+ *   `https://uat.nonprod-api.ainu.tech/v1/auth/websdk/token/handshake`
+ *   path มีทั้ง `auth` และ `token` จึงเข้าเงื่อนไขเดิมอยู่แล้ว
+ *   `handshake` ในนี้เป็นตาข่ายรับเผื่อ AINU เปลี่ยน path ทีหลัง ไม่ใช่การแก้บั๊ก
+ *   (host จะเปลี่ยนตอนขึ้น production — `nonprod-api` → prod — แต่เราจับที่ path ไม่ใช่ host)
  *
  * ถ้าดักไม่ได้จะไม่พัง แค่เสียสัญญาณ — ตกไปเป็น USER_SKIPPED ตอนผู้ใช้กดยกเลิกแทน
  * และ request ที่เกิดใน iframe ซ้อนของ SDK เองอาจดักไม่ได้เลยตั้งแต่ต้น
