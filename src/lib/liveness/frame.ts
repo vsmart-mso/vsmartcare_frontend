@@ -70,6 +70,7 @@ function sendResult(result: unknown) {
 }
 
 function showError(message: string, code?: LivenessFrameSkipCode) {
+  clearLoadedTimer()
   if (errorBox) {
     errorBox.textContent = message
     errorBox.hidden = false
@@ -93,7 +94,11 @@ function showError(message: string, code?: LivenessFrameSkipCode) {
 /** ยิงได้ครั้งเดียว — request ที่พังมักพังซ้ำหลายรอบ ไม่ต้องรายงานทุกรอบ */
 let providerErrorSent = false
 
+/** รหัสล่าสุดที่ดักได้จากชั้น network — ใช้เป็นสาเหตุจริงแทน SDK_LOAD_ERROR ลอย ๆ */
+let lastProviderCode: LivenessFrameSkipCode | undefined
+
 function reportProviderError(code: LivenessFrameSkipCode) {
+  lastProviderCode = code
   if (providerErrorSent) return
   providerErrorSent = true
   console.error('[liveness-frame] ฝั่ง AINU ตอบผิดปกติ →', code)
@@ -131,6 +136,10 @@ function classifyResponse(url: string, status: number): LivenessFrameSkipCode | 
 
   if (status === 404 && /\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
   if (status === 403 && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
+  // credential ผิดจริง ๆ AINU ตอบ **500** ไม่ใช่ 403 (ทดสอบแล้ว 9 ก.ย.)
+  // แต่ 500 แยกไม่ออกจาก "เซิร์ฟเวอร์เขาพังเอง" จึงถือเป็น PROVIDER_UNAVAILABLE
+  // ไม่ใช่ AUTH_ERROR — เดาว่าเป็นความผิดฝั่งเราไม่ได้จาก status อย่างเดียว
+  if (status >= 500 && /token|auth|handshake|\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
   return ''
 }
 
@@ -186,6 +195,36 @@ function installNetworkWatcher() {
 let referenceId = ''
 
 /**
+ * เวลารอ `onLoaded()` หลังเรียก `setup()` — ทีมเคาะไว้ที่ 30 วินาที
+ *
+ * ต้องมีเพราะเคส "AINU รับ request แล้วไม่ตอบ" **ไม่โยน error ออกมาเลย**
+ * axios ไม่ timeout, `onLoaded` ไม่ยิง, จอรอหมุนค้างไม่มีวันจบ
+ * ผู้ใช้ทำได้อย่างเดียวคือกดยกเลิก ซึ่งจะถูกบันทึกเป็น USER_SKIPPED — โกหกสถิติ
+ * ว่าผู้ใช้เลือกไม่สแกน ทั้งที่ระบบเขาค้าง
+ *
+ * เป็นอาการที่น่าจะเจอบ่อยสุดตอนฝั่งเขาโหลดหนัก และเป็นแบบเดียวที่ไม่มี error ให้จับ
+ */
+const LOADED_TIMEOUT_MS = 30_000
+
+let loadedTimer: ReturnType<typeof setTimeout> | undefined
+
+function clearLoadedTimer() {
+  if (loadedTimer !== undefined) clearTimeout(loadedTimer)
+  loadedTimer = undefined
+}
+
+function startLoadedTimer() {
+  clearLoadedTimer()
+  loadedTimer = setTimeout(() => {
+    console.error('[liveness-frame] รอ onLoaded เกิน %d ms — ถือว่าฝั่ง AINU ไม่ตอบ', LOADED_TIMEOUT_MS)
+    showError(
+      'ระบบยืนยันตัวตนไม่ตอบสนอง (เกิน ' + LOADED_TIMEOUT_MS / 1000 + ' วินาที)',
+      'PROVIDER_UNAVAILABLE',
+    )
+  }, LOADED_TIMEOUT_MS)
+}
+
+/**
  * backend คืน config มาแบน ๆ แต่ SDK ต้องการ `credential` ซ้อนอีกชั้น
  * (สเปกบอกว่า "ส่งเข้า setup() ได้ตรง ๆ" ซึ่งไม่จริง — ดู ainu-ekyc.d.ts)
  */
@@ -204,6 +243,7 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         // "The SDK is not yet ready for start." แล้วเงียบ ไล่สาเหตุยาก
         //
         // ⚠️ ไม่เรียก start() เอง — รอผู้ใช้กดปุ่ม (เหตุผลใน frame.html)
+        clearLoadedTimer()
         console.log('[liveness-frame] SDK พร้อมแล้ว — รอผู้ใช้กดเริ่ม')
         post({ source: LIVENESS_FRAME_SOURCE, type: 'ready' })
         showStartButton()
@@ -329,9 +369,13 @@ function onHostMessage(event: MessageEvent) {
 
   try {
     installNetworkWatcher()
+    startLoadedTimer()
     window.AinuEkyc.setup(toSdkConfigs(config))
   } catch (e) {
-    showError(e instanceof Error ? e.message : String(e), 'SDK_LOAD_ERROR')
+    clearLoadedTimer()
+    // ถ้า interceptor ดักสาเหตุจาก AINU ไว้ได้ ใช้อันนั้นเพราะบอกอะไรได้มากกว่า
+    // (เช่น handshake ตอบ 500 → PROVIDER_UNAVAILABLE ไม่ใช่ SDK_LOAD_ERROR ลอย ๆ)
+    showError(e instanceof Error ? e.message : String(e), lastProviderCode ?? 'SDK_LOAD_ERROR')
   }
 }
 
