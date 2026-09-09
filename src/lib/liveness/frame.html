@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>AINU liveness</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!--
+    หน้านี้ถูกฝังเป็น iframe จากแอปหลัก (ดู LivenessRunner.vue ในโฟลเดอร์เดียวกัน)
+
+    ⚠️ ห้าม import style.css / Tailwind เข้าหน้านี้เด็ดขาด — SDK จะตายเงียบ ๆ
+    เหตุผลเต็มและกับดักอื่น ๆ อยู่ใน README.md ของโฟลเดอร์นี้ อ่านก่อนแก้
+
+    ตัว SDK เป็น IIFE ที่ยัด global `window.AinuEkyc` โหลดเป็น npm module ไม่ได้
+    ไฟล์อยู่ที่ public/ ชื่อต้องตรงกับข้างล่างเป๊ะ ไม่มี bundler resolution มาช่วย
+    ถ้าชื่อไม่ตรงจะพังตอน runtime (window.AinuEkyc เป็น undefined) ไม่ใช่ตอน build
+  -->
+  <script src="/ekyc-sdk-v1.0.3-beta.1.index.iife.js"></script>
+
+  <!-- โหลด CSS ด้วย <link> ไม่ใช่ import จาก frame.ts เด็ดขาด
+       ถ้า import จาก JS ตอน dev Vite จะฉีด CSS หลัง HTML วาดเสร็จ → เห็นจอรอแบบไม่มีสไตล์
+       หนึ่งจังหวะ (โลโก้ขนาดจริงชิดซ้าย ปุ่มมาตรฐาน) แล้วค่อยกระโดดเข้าที่
+       <link> ทำให้เบราว์เซอร์รอ CSS ก่อนวาด จึงไม่มีทางกระพริบ -->
+  <link rel="stylesheet" href="./frame.css" />
+</head>
+
+<body>
+  <div id="ekyc-container"></div>
+
+  <!-- จอเริ่มต้นของเรา — บังจังหวะที่ AINU handshake อยู่ (spinner "Verifying authentication"
+       ของเขาเป็นอังกฤษและไม่มีแบรนด์) แล้วซ่อนตัวเองตอน onReady พอดีกับที่จอ Guidelines ขึ้นแทน
+
+       2 สถานะในจอเดียว:
+         ระหว่างรอ SDK  → ข้อความ + spinner (ผู้ใช้ได้อ่านระหว่างที่ยังไงก็ต้องรออยู่แล้ว)
+         SDK พร้อม      → spinner หาย ปุ่ม "เริ่มสแกนใบหน้า" โผล่ รอผู้ใช้กด
+
+       ⚠️ **อย่าเปลี่ยนกลับไป auto-start** การให้กดเองมีเหตุผลสองข้อ:
+       1. บางเบราว์เซอร์ต้องมี user gesture ในหน้านี้เองถึงจะเปิดกล้องได้ auto-start เคยพลาด
+          ตรงนี้แล้วต้องมี fallback มาคอยรับ — พอบังคับให้กดเสมอ ปัญหานั้นหมดไป
+       2. ผู้ใช้ได้เลือกเองว่าพร้อมเมื่อไหร่ ไม่ใช่โดนโยนเข้ากล้องทันทีที่โหลดเสร็จ
+
+       ⚠️ **อย่าเอาคำแนะนำวิธีสแกนมาใส่ที่นี่** (แสง/ระยะ/ระดับกล้อง) เคยลองแล้วถอยออก —
+       จอ Guidelines ของ AINU ขึ้นต่อทันทีแล้วสอนซ้ำ กลายเป็นจอสอน 2 จอติดกัน
+       จอนี้บอกแค่ว่ากำลังจะทำอะไร ไม่สอนวิธีทำ -->
+  <div id="loading">
+    <img id="loading-logo" src="/logo-vcare.jpg" alt="พม. CARE" width="272" height="128" />
+
+    <div id="liveness-prompt">
+      <h1>ยืนยันตัวตนด้วยการสแกนใบหน้า</h1>
+      <!-- จำนวนครั้งเติมโดย frame.ts จากค่าที่หน้าแม่ส่งมา — อย่า hardcode ที่นี่ -->
+      <p id="liveness-prompt-text"></p>
+    </div>
+
+    <!-- ซ่อนทั้งก้อนตอน SDK พร้อม -->
+    <div id="loading-status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loading-text">กำลังเตรียมการยืนยันตัวตน...</p>
+    </div>
+
+    <!-- โผล่ตอน SDK พร้อม — เป็นตัวเรียก start() ตัวเดียวในระบบ -->
+    <button id="liveness-start" class="primary-cta" type="button" hidden>เริ่มสแกนใบหน้า</button>
+  </div>
+
+  <!-- ทางออกของผู้ใช้ — อยู่นอก #loading จึงเห็นทุกจังหวะ ทั้งจอเริ่มของเรา
+       และทุกจอของ AINU ตำแหน่งไม่ขยับ ผู้ใช้ไม่ต้องหาใหม่ตอนจอเปลี่ยน
+
+       ⚠️ **ไม่ใช่แถบ** ตั้งใจไม่มี background และไม่มี border-top เต็มความกว้าง
+       เคยทำเป็นแถบขาวมีเส้นคั่นแล้วถอยออก เพราะอ่านเป็น chrome แปลกปลอม
+       ทับอยู่บน UI ของ AINU ตอนนี้เป็นแค่ปุ่มขอบจางลอยอยู่ใต้เนื้อหาเขา
+
+       ที่ต้องกันความสูงไว้ตายตัว (--liveness-exit-h) เพราะ UI ของ AINU อยู่ใน
+       iframe คนละ origin (uat.ainu.tech) เราวัดความสูงเนื้อหาเขาไม่ได้
+       ปุ่มจึงไหลตามเนื้อหาจริง ๆ ไม่ได้ — กันที่ไว้แล้วเขาจัดกึ่งกลาง
+       ในพื้นที่ที่เหลือให้เอง ผลที่เห็นคือปุ่มอยู่ใต้เนื้อหาเขาพอดี
+
+       ปุ่มนี้คือสิ่งเดียวที่กัน "ติดลูปแล้วออกไม่ได้" บนจอ "เกินจำนวนครั้ง
+       ที่กำหนดไว้" ของ AINU ซึ่งมีแต่ปุ่มวนกลับไปสแกนใหม่ ถ้าไม่มีปุ่มนี้
+       onEkycResult จะไม่มีวันยิงแล้วแถวใน liveness_attempts ค้างเป็น pending
+       ห้ามซ่อนตอน onReady
+
+       กดแล้วแถวถูกปิดเป็น USER_SKIPPED -->
+  <div class="exit-slot">
+    <button id="liveness-close" class="secondary-cta" type="button">ยกเลิกการยืนยันตัวตน</button>
+  </div>
+
+
+  <p id="frame-error" hidden></p>
+
+  <script type="module" src="./frame.ts"></script>
+</body>
+
+</html>
