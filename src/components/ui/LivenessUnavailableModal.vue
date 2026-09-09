@@ -55,8 +55,13 @@ watch(
         >
           <div class="shrink-0 bg-gradient-to-b from-[#1A56DB] to-[#1648C4] px-4 py-5 text-center sm:px-6">
             <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-white/15 ring-4 ring-white/20 sm:h-16 sm:w-16">
-              <svg class="h-7 w-7 text-white sm:h-8 sm:w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M12 3a9 9 0 100 18 9 9 0 000-18z" />
+              <!-- สามเหลี่ยมเตือนสีเหลือง — ตัดกับหัวสีน้ำเงินและสื่อว่า "ต้องอ่านก่อนไปต่อ" -->
+              <svg class="h-7 w-7 text-yellow-400 sm:h-8 sm:w-8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 1.998-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.502-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                  clip-rule="evenodd"
+                />
               </svg>
             </div>
             <h2 id="liveness-unavailable-heading" class="text-title font-bold text-white">
@@ -66,8 +71,9 @@ watch(
 
           <div id="liveness-unavailable-body" class="px-5 py-5 sm:px-6">
             <p class="text-body leading-relaxed text-slate-700">
-              การเชื่อมต่อเกิดข้อผิดพลาด ข้อมูลที่ท่านกรอกไว้ทั้งหมดจะยังคงอยู่
-              ท่านสามารถลองเชื่อมต่อใหม่อีกครั้ง หรือยื่นคำร้องต่อได้โดยไม่ต้องยืนยันตัวตนในตอนนี้
+              ระบบไม่สามารถเชื่อมต่อเพื่อยืนยันตัวตนได้ในขณะนี้
+              ข้อมูลที่ท่านกรอกไว้จะยังคงอยู่ ท่านสามารถลองเชื่อมต่อใหม่อีกครั้ง
+              หรือยื่นคำร้องต่อโดยยังไม่ยืนยันตัวตนได้
             </p>
 
             <div class="mt-6 flex flex-col gap-2.5">
