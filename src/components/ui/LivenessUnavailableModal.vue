@@ -66,11 +66,11 @@ watch(
 
           <div id="liveness-unavailable-body" class="px-5 py-5 sm:px-6">
             <p class="text-body leading-relaxed text-slate-700">
-              ขณะนี้ระบบยืนยันตัวตนด้วยใบหน้าเชื่อมต่อไม่ได้ ซึ่งไม่ได้เกิดจากข้อมูลของคุณ
+              เชื่อมต่อระบบยืนยันตัวตนไม่สำเร็จ
             </p>
             <p class="mt-2.5 text-body leading-relaxed text-slate-700">
-              คุณสามารถลองใหม่อีกครั้ง หรือ<strong class="font-semibold text-slate-900">ส่งคำขอต่อได้เลยโดยไม่ต้องยืนยันตัวตน</strong>
-              ข้อมูลที่กรอกไว้ทั้งหมดจะไม่หาย
+              ข้อมูลที่คุณกรอกไว้ทั้งหมดจะไม่หาย คุณสามารถลองเชื่อมต่ออีกครั้ง
+              หรือยื่นคำร้องต่อได้โดยไม่ต้องยืนยันตัวตนในตอนนี้
             </p>
 
             <div class="mt-6 flex flex-col gap-2.5">
