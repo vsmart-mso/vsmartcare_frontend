@@ -165,3 +165,30 @@ export function describeLivenessFailure(result: unknown): LivenessFailure {
 
   return { message, code, description, status, unreadable }
 }
+
+
+/**
+ * `failReason` ที่แปลว่า **การสแกนไม่เคยเริ่ม** — ไม่ใช่ผู้ใช้สแกนแล้วไม่ผ่าน
+ *
+ * AINU ส่งเคสพวกนี้มาทาง `onEkycResult()` เป็น `transactionStatus: "failed"`
+ * เหมือนกับการสแกนไม่ผ่านจริงทุกประการ ทั้งที่คนละเรื่องกัน
+ * (เช่น credential ผิด → handshake 401 → SDK คืน `INIT_ERROR` ไม่ได้ throw ออกมา)
+ *
+ * ต้องแยกออกจากกันเพราะสองเคสนี้ผู้ใช้ต้องทำคนละอย่าง:
+ * สแกนไม่ผ่าน = ลองสแกนใหม่ · เปิดระบบไม่ได้ = ไม่มีอะไรให้ลอง ต้องมีทางออกให้
+ *
+ * ต้องตรงกับ `INIT_FAILURE_REASONS` ใน case-service/app/services/liveness_payload.py
+ * ซึ่งเป็นฝั่งที่แปลงเป็น skipped/PROVIDER_UNAVAILABLE ลง DB
+ */
+const INIT_FAILURE_CODES = new Set([
+  'init_error',
+  'ekyc_init_error',
+  'ekyc_system_error',
+  'cant_start_ekyc',
+  'ekyc_error_006', // เปิด Liveness session ไม่สำเร็จ
+])
+
+/** true = เปิดระบบไม่ได้ (ควรเด้งทางออกให้ผู้ใช้) · false = สแกนไม่ผ่านตามปกติ */
+export function isLivenessUnavailable(failure: LivenessFailure): boolean {
+  return INIT_FAILURE_CODES.has(failure.code.trim().toLowerCase())
+}

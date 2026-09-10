@@ -85,12 +85,9 @@ export async function openLivenessSession(): Promise<LivenessSessionResult> {
     //
     // 503 liveness_not_configured เป็นสถานะที่ "คาดไว้แล้ว" ไม่ใช่ของพัง —
     // เกิดทุกครั้งบน dev ที่ยังไม่ได้ตั้ง AINU credential ใน case-service/.env
-    // ใช้ warn เพื่อไม่ให้กลืนไปกับ error จริงใน console
-    if (statusOf(e) === 503) {
-      console.warn('[liveness] backend ยังไม่ได้ตั้ง AINU credential (503) — ข้ามด่านให้อัตโนมัติ')
-    } else {
-      console.error('[liveness] เปิด session ไม่ได้ (status', statusOf(e), ') — ข้ามด่าน:', e)
-    }
+    //
+    // ไม่ log อะไรที่นี่ — ทุกเคสจบลงที่แถวใน liveness_attempts อยู่แล้ว
+    // (NOT_CONFIGURED เมื่อ 503, NO_ATTEMPT เมื่อยื่นโดยไม่มี reference)
     return { ok: false, referenceId: referenceIdOf(e) }
   }
 }
@@ -137,7 +134,8 @@ async function post(referenceId: string, path: string, body: Record<string, unkn
       body,
     })
   } catch (e) {
+    // 409 = ส่งซ้ำกับแถวที่จบแล้ว ไม่ใช่ปัญหา
+    // ที่เหลือกลืนเงียบตามกฎของไฟล์นี้: การรายงานผลล้มเหลวห้ามบล็อกการยื่นคำร้อง
     if (statusOf(e) === 409) return
-    console.error(`[liveness] ส่ง /${path} ไม่สำเร็จ (เดินต่อได้):`, e)
   }
 }

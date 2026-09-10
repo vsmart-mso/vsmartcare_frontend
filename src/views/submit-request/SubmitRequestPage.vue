@@ -6,7 +6,8 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
-import { LivenessRunner, describeLivenessFailure } from '@/lib/liveness'
+import { LivenessRunner, describeLivenessFailure, isLivenessUnavailable } from '@/lib/liveness'
+import LivenessUnavailableModal from '@/components/ui/LivenessUnavailableModal.vue'
 import type { LivenessFrameConfig, LivenessFrameSkipCode } from '@/lib/liveness'
 import {
   openLivenessSession,
@@ -85,6 +86,8 @@ const livenessSkipped = ref(false)
 // reference_id ของแถว skipped ที่ **backend บันทึกให้เอง** ตอนตอบ 503 (NOT_CONFIGURED)
 // แยกจาก livenessRef ที่เป็นของรอบสแกนจริง เพื่อไม่ให้เผลอแนบแถวที่สแกนไม่ผ่าน
 const livenessSkipRef = ref('')
+// เปิดระบบยืนยันตัวตนไม่ได้ — ต้องให้ผู้ใช้เลือกทางไป ไม่ปล่อยให้ติดลูป
+const livenessUnavailable = ref(false)
 const livenessNotice  = ref('')
 /** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ" */
 const livenessGateCleared = computed(() => livenessPassed.value || livenessSkipped.value)
@@ -333,7 +336,6 @@ function settleWithSkip(reason: LivenessSkipReason) {
 // ผู้ใช้ที่เลิกกลางคันจะเหลือรหัสนี้ไว้เป็นทางเดียวที่ตามเรื่องกับ AINU ได้
 function onLivenessStarted(transactionId: string) {
   livenessTxnId.value = transactionId
-  console.log('[liveness] transactionId =', transactionId)
   void reportLivenessTransaction(livenessRef.value, transactionId)
 }
 
@@ -350,11 +352,20 @@ function onLivenessPassed(result: unknown) {
 // กด "ถัดไป" ใหม่ = session ใหม่ = mount component ใหม่ = transaction ใหม่ = เริ่มนับใหม่
 function onLivenessFailed(result: unknown) {
   livenessOpen.value = false
-  // เก็บไว้ใน console อย่างเดียว — ยังไม่แสดงอะไรให้ผู้ใช้เห็น
-  console.log('[liveness] failed:', describeLivenessFailure(result))
+  const failure = describeLivenessFailure(result)
   // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
+  // เคสเปิดระบบไม่ได้ก็ส่งทางนี้เหมือนกัน เพื่อให้ payload ดิบถูกเก็บไว้ครบ
+  // แล้วปล่อยให้ backend แปลงเป็น skipped/PROVIDER_UNAVAILABLE เอง (INIT_FAILURE_REASONS)
   livenessSettled.value = true
   void reportLivenessResult(livenessRef.value, result)
+
+  // ⚠️ AINU ส่ง "เปิดระบบไม่ได้" มาทางเดียวกับ "สแกนไม่ผ่าน" (transactionStatus: failed)
+  // ถ้าไม่แยก ผู้ใช้จะติดลูป: กดถัดไป → จอวาบ → กลับหน้าเดิม → กดใหม่ ไม่มีทางออก
+  // และได้แถวใหม่ใน DB ทุกครั้งที่กด (ของจริงเคยได้ 30 แถว INIT_ERROR)
+  if (isLivenessUnavailable(failure)) {
+    livenessUnavailable.value = true
+    return
+  }
 
   // ⚠️ ไม่ตั้ง submitError โดยตั้งใจ — ยังไม่ต้องแจ้งอะไรตอนสแกนไม่ผ่าน
   //
@@ -385,13 +396,47 @@ function onLivenessClosed() {
   settleWithSkip(livenessProviderCode.value ?? 'USER_SKIPPED')
 }
 
-// SDK โหลดไม่ขึ้น / config ไม่ครบ — คนละเรื่องกับผู้ใช้ทำไม่ผ่าน
-// ต้องปิด overlay ให้ด้วย ไม่งั้นผู้ใช้ค้างอยู่บนจอดำ
-function onLivenessError(message: string, code?: LivenessFrameSkipCode) {
+/**
+ * SDK โหลดไม่ขึ้น / AINU ไม่ตอบ / config ไม่ครบ — คนละเรื่องกับผู้ใช้สแกนไม่ผ่าน
+ *
+ * ปิด overlay แล้วเด้ง modal ให้ผู้ใช้เลือกทางไป **ห้ามปล่อยให้กลับไปหน้าเดิมเฉย ๆ**
+ * เพราะปุ่มล่างยังเป็น "ถัดไป" (gate ยังไม่เปิด) กดแล้วก็พังซ้ำ วนไม่จบ
+ * และได้แถวใหม่ใน liveness_attempts ทุกครั้งที่กด
+ *
+ * แถวของรอบนี้ถูก finalize ไปแล้วด้วยสาเหตุจริงจาก settleWithSkip()
+ * ไม่ว่าผู้ใช้จะเลือกทางไหนต่อ สถิติก็บันทึกถูกแล้ว
+ */
+// `_message` ไม่ได้ใช้ — ข้อความ error ของ SDK อ่านไม่รู้เรื่องสำหรับผู้ใช้
+// และสาเหตุที่ต้องใช้จริงคือ `code` ซึ่งลง DB เป็น skip_reason
+function onLivenessError(_message: string, code?: LivenessFrameSkipCode) {
   settleWithSkip(code ?? livenessProviderCode.value ?? 'SDK_LOAD_ERROR')
-  submitError.value = import.meta.env.DEV
-    ? `เปิดระบบยืนยันตัวตนไม่ได้ [${message}]`
-    : 'เปิดระบบยืนยันตัวตนไม่ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'
+  livenessUnavailable.value = true
+}
+
+/** "ลองใหม่อีกครั้ง" — เปิด session ใหม่ ไม่ reload หน้า (ไฟล์แนบที่อัปโหลดไว้จะหาย) */
+function retryLivenessAfterFailure() {
+  livenessUnavailable.value = false
+  void startLiveness()
+}
+
+/**
+ * "ยื่นคำร้องโดยไม่ยืนยันตัวตน" — เปิด gate ให้ปุ่มล่างกลายเป็น "ยืนยันและส่งคำขอ"
+ *
+ * ไม่ตั้ง skip_reason ใหม่ตรงนี้ — แถวถูกบันทึกด้วย **สาเหตุจริง** ไปแล้วตอน error
+ * (SDK_LOAD_ERROR / AUTH_ERROR / PROVIDER_UNAVAILABLE) ไม่ใช่ USER_SKIPPED
+ * เพราะผู้ใช้ไม่ได้เลือกจะข้าม — ระบบพังจนเขาไม่มีทางเลือก
+ * ถ้าบันทึกเป็น USER_SKIPPED สถิติจะโทษผู้ใช้ทั้งที่เป็นความผิดฝั่งระบบ
+ *
+ * แนบ reference ของรอบที่พังไปกับคำร้องด้วย เพื่อให้คำร้องผูกกับสาเหตุจริง
+ * ไม่ใช่ได้แถว NO_ATTEMPT ที่แปลว่า "ไม่มีการสแกน"
+ */
+function skipLivenessAfterFailure() {
+  livenessUnavailable.value = false
+  livenessSkipRef.value = livenessRef.value
+  livenessSkipped.value = true
+  livenessNotice.value =
+    'ระบบยืนยันตัวตนด้วยใบหน้าใช้งานไม่ได้ ระบบจึงข้ามขั้นตอนนี้ให้ '
+    + 'คุณส่งคำขอต่อได้ตามปกติ'
 }
 
 // Step 5: submit form — บันทึกคำร้อง แล้วอัปโหลดไฟล์ทีละไฟล์
@@ -945,6 +990,14 @@ async function handleSubmit() {
       @provider-error="onLivenessProviderError"
       @error="onLivenessError"
       @closed="onLivenessClosed"
+    />
+
+    <!-- เปิดระบบยืนยันตัวตนไม่ได้ — ต้องเลือกทางใดทางหนึ่ง ไม่มีปุ่มปิด
+         ไม่งั้นกลับไปติดลูปเดิมที่ปุ่มล่างยังเป็น "ถัดไป" -->
+    <LivenessUnavailableModal
+      :open="livenessUnavailable"
+      @retry="retryLivenessAfterFailure"
+      @skip="skipLivenessAfterFailure"
     />
 
   </div>

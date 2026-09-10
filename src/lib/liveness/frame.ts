@@ -70,13 +70,15 @@ function sendResult(result: unknown) {
 }
 
 function showError(message: string, code?: LivenessFrameSkipCode) {
+  clearLoadedTimer()
   if (errorBox) {
     errorBox.textContent = message
     errorBox.hidden = false
   }
   // เอา spinner ออก ไม่งั้นดูเหมือนยังโหลดอยู่ทั้งที่ตายแล้ว
   setLoading(false)
-  console.error('[liveness-frame]', message)
+  // ไม่ log ที่นี่ — ข้อความถูกส่งให้หน้าแม่ผ่าน post() แล้ว และผลลงไปถึง DB
+  // (status / fail_reason / skip_reason / raw_payload) ซึ่งสืบย้อนหลังได้ดีกว่า console
   post({ source: LIVENESS_FRAME_SOURCE, type: 'error', message, code })
 }
 
@@ -93,10 +95,13 @@ function showError(message: string, code?: LivenessFrameSkipCode) {
 /** ยิงได้ครั้งเดียว — request ที่พังมักพังซ้ำหลายรอบ ไม่ต้องรายงานทุกรอบ */
 let providerErrorSent = false
 
+/** รหัสล่าสุดที่ดักได้จากชั้น network — ใช้เป็นสาเหตุจริงแทน SDK_LOAD_ERROR ลอย ๆ */
+let lastProviderCode: LivenessFrameSkipCode | undefined
+
 function reportProviderError(code: LivenessFrameSkipCode) {
+  lastProviderCode = code
   if (providerErrorSent) return
   providerErrorSent = true
-  console.error('[liveness-frame] ฝั่ง AINU ตอบผิดปกติ →', code)
   post({ source: LIVENESS_FRAME_SOURCE, type: 'provider-error', code })
 }
 
@@ -104,7 +109,10 @@ function reportProviderError(code: LivenessFrameSkipCode) {
  * แปล (url, status) เป็น skip_reason ตามสเปก — คืน '' ถ้าเป็นคำตอบปกติ
  *
  * ⚠️ `POST /ekyc` ตอบ **403 คือปกติ** ห้ามรายงาน (สเปกย้ำไว้) มีแต่ 404 ที่แปลว่าใช้ไม่ได้
- * ส่วน 403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
+ * ส่วน 401/403 ที่นับเป็น AUTH_ERROR คือของ token handshake ซึ่งเป็นคนละ endpoint
+ *
+ * credential ผิดจริง handshake ตอบไม่เหมือนกันในแต่ละครั้งที่ทดสอบ —
+ * เจอทั้ง **500** และ **401 `{code:'GAT-E007', message:'Unauthorized'}`** จึงดักทั้งสองแบบ
  *
  * สถานะการยืนยันกับ traffic จริง (DevTools › Network, 9 ก.ย.) — **ยืนยันครบทั้งสอง path แล้ว**
  * - `/ekyc` — URL จริง `https://uat.ainu.tech/ekyc` → pathname = `/ekyc` ตรงกับ regex
@@ -130,7 +138,11 @@ function classifyResponse(url: string, status: number): LivenessFrameSkipCode | 
   }
 
   if (status === 404 && /\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
-  if (status === 403 && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
+  if ((status === 401 || status === 403) && /token|auth|handshake/.test(path)) return 'AUTH_ERROR'
+  // credential ผิดจริง ๆ AINU ตอบ **500** ไม่ใช่ 403 (ทดสอบแล้ว 9 ก.ย.)
+  // แต่ 500 แยกไม่ออกจาก "เซิร์ฟเวอร์เขาพังเอง" จึงถือเป็น PROVIDER_UNAVAILABLE
+  // ไม่ใช่ AUTH_ERROR — เดาว่าเป็นความผิดฝั่งเราไม่ได้จาก status อย่างเดียว
+  if (status >= 500 && /token|auth|handshake|\/ekyc\/?$/.test(path)) return 'PROVIDER_UNAVAILABLE'
   return ''
 }
 
@@ -155,8 +167,8 @@ function installNetworkWatcher() {
     // clone ไม่จำเป็น — อ่านแค่ status/url ไม่ได้แตะ body ซึ่งอ่านได้ครั้งเดียว
     try {
       watchResponse(response.url || String(args[0]), response.status)
-    } catch (e) {
-      console.error('[liveness-frame] network watcher error:', e)
+    } catch {
+      // การดักสถานะเป็นแค่สัญญาณเสริม พังแล้วต้องไม่กระทบ request จริง
     }
     return response
   }
@@ -171,8 +183,8 @@ function installNetworkWatcher() {
     this.addEventListener('load', () => {
       try {
         watchResponse(String(url), this.status)
-      } catch (e) {
-        console.error('[liveness-frame] network watcher error:', e)
+      } catch {
+        // เหตุผลเดียวกับฝั่ง fetch ข้างบน
       }
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,6 +196,35 @@ function installNetworkWatcher() {
 
 /** referenceId ของรอบนี้ — มาจาก backend ผ่านหน้าแม่ ใช้ตอน start() */
 let referenceId = ''
+
+/**
+ * เวลารอ `onLoaded()` หลังเรียก `setup()` — ทีมเคาะไว้ที่ 30 วินาที
+ *
+ * ต้องมีเพราะเคส "AINU รับ request แล้วไม่ตอบ" **ไม่โยน error ออกมาเลย**
+ * axios ไม่ timeout, `onLoaded` ไม่ยิง, จอรอหมุนค้างไม่มีวันจบ
+ * ผู้ใช้ทำได้อย่างเดียวคือกดยกเลิก ซึ่งจะถูกบันทึกเป็น USER_SKIPPED — โกหกสถิติ
+ * ว่าผู้ใช้เลือกไม่สแกน ทั้งที่ระบบเขาค้าง
+ *
+ * เป็นอาการที่น่าจะเจอบ่อยสุดตอนฝั่งเขาโหลดหนัก และเป็นแบบเดียวที่ไม่มี error ให้จับ
+ */
+const LOADED_TIMEOUT_MS = 30_000
+
+let loadedTimer: ReturnType<typeof setTimeout> | undefined
+
+function clearLoadedTimer() {
+  if (loadedTimer !== undefined) clearTimeout(loadedTimer)
+  loadedTimer = undefined
+}
+
+function startLoadedTimer() {
+  clearLoadedTimer()
+  loadedTimer = setTimeout(() => {
+    showError(
+      'ระบบยืนยันตัวตนไม่ตอบสนอง (เกิน ' + LOADED_TIMEOUT_MS / 1000 + ' วินาที)',
+      'PROVIDER_UNAVAILABLE',
+    )
+  }, LOADED_TIMEOUT_MS)
+}
 
 /**
  * backend คืน config มาแบน ๆ แต่ SDK ต้องการ `credential` ซ้อนอีกชั้น
@@ -204,7 +245,7 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         // "The SDK is not yet ready for start." แล้วเงียบ ไล่สาเหตุยาก
         //
         // ⚠️ ไม่เรียก start() เอง — รอผู้ใช้กดปุ่ม (เหตุผลใน frame.html)
-        console.log('[liveness-frame] SDK พร้อมแล้ว — รอผู้ใช้กดเริ่ม')
+        clearLoadedTimer()
         post({ source: LIVENESS_FRAME_SOURCE, type: 'ready' })
         showStartButton()
       },
@@ -212,13 +253,13 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
         // ถึงตรงนี้ UI ของ AINU ขึ้นแล้ว เอาจอเริ่มของเราออกได้
         // ปุ่มยกเลิกอยู่ในจอนี้ จึงหายไปพร้อมกัน — ตั้งใจ (เหตุผลใน frame.html)
         setLoading(false)
-        console.log('[liveness-frame] transactionId =', transactionId)
         // ส่งต่อให้หน้าแม่ยิง POST /{ref}/transaction ทันที — ห้ามรอผลจบ
         // ผู้ใช้ที่เลิกกลางคันจะเหลือรหัสนี้ไว้เป็นทางเดียวที่ตามเรื่องกับ AINU ได้
         post({ source: LIVENESS_FRAME_SOURCE, type: 'started', transactionId })
       },
       onEkycResult: (result) => {
-        console.log('[liveness-frame] onEkycResult:', result)
+        // ไม่ log payload — มีข้อมูลของผู้ใช้อยู่ในนั้น และก้อนเต็มถูกเก็บลง
+        // raw_payload ใน DB แล้ว (ตัดภาพ base64 ออกด้วย strip_images ฝั่ง backend)
         // ส่งออกทันที ไม่มีจอของเราคั่นเลย — ปล่อยให้เห็นจอสำเร็จของ AINU แล้วเด้งกลับฟอร์ม
         //
         // เคยลองมาแล้วสามแบบและถอยออกทั้งหมด: จอ log, ปุ่มค้าง, จอสำเร็จของเราเอง
@@ -242,8 +283,7 @@ function toSdkConfigs(config: LivenessFrameConfig): AinuEkycConfigs {
 function start() {
   showSpinner('กำลังเปิดกล้อง...')
 
-  const onStartFailed = (e: unknown) => {
-    console.error('[liveness-frame] start ไม่สำเร็จ:', e)
+  const onStartFailed = () => {
     showStartButton('ลองอีกครั้ง')
   }
 
@@ -251,8 +291,8 @@ function start() {
     // referenceId ต้องไม่ซ้ำต่อการเริ่ม 1 ครั้งตามที่ AINU กำหนด
     // backend การันตีให้แล้วโดยออกใหม่ทุกครั้งที่เรียก POST /v1/liveness/session
     void Promise.resolve(window.AinuEkyc.start(referenceId)).catch(onStartFailed)
-  } catch (e) {
-    onStartFailed(e)
+  } catch {
+    onStartFailed()
   }
 }
 
@@ -261,8 +301,8 @@ startButton?.addEventListener('click', start)
 closeButton?.addEventListener('click', () => {
   try {
     window.AinuEkyc?.close()
-  } catch (e) {
-    console.error('[liveness-frame] close error:', e)
+  } catch {
+    // ปิดไม่สำเร็จก็ยังต้องแจ้งหน้าแม่ว่าผู้ใช้ปิดเฟรมแล้ว
   }
   post({ source: LIVENESS_FRAME_SOURCE, type: 'closed' })
 })
@@ -329,9 +369,13 @@ function onHostMessage(event: MessageEvent) {
 
   try {
     installNetworkWatcher()
+    startLoadedTimer()
     window.AinuEkyc.setup(toSdkConfigs(config))
   } catch (e) {
-    showError(e instanceof Error ? e.message : String(e), 'SDK_LOAD_ERROR')
+    clearLoadedTimer()
+    // ถ้า interceptor ดักสาเหตุจาก AINU ไว้ได้ ใช้อันนั้นเพราะบอกอะไรได้มากกว่า
+    // (เช่น handshake ตอบ 500 → PROVIDER_UNAVAILABLE ไม่ใช่ SDK_LOAD_ERROR ลอย ๆ)
+    showError(e instanceof Error ? e.message : String(e), lastProviderCode ?? 'SDK_LOAD_ERROR')
   }
 }
 
