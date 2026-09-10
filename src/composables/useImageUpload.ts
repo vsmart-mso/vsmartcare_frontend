@@ -213,8 +213,8 @@ async function drawWatermark(
       ctx.globalAlpha = 0.5
       ctx.drawImage(logo, width - lw - 20, height - lh - 20, lw, lh)
       ctx.restore()
-    } catch (err) {
-      console.warn(err)
+    } catch {
+      // ลายน้ำใส่ไม่ได้ก็ปล่อยรูปไปตามเดิม ไม่ใช่เรื่องที่ผู้ใช้ต้องรู้
     }
   }
 }
@@ -271,9 +271,9 @@ export function useImageUpload(options: ImageCompressOptions = {}) {
       file.value       = result.file
       rawFile.value    = result.rawFile
       previewUrl.value = result.previewUrl
-    } catch (err) {
+    } catch {
+      // แจ้งผ่าน error.value ที่แสดงบนหน้าจอแล้ว ไม่ต้องซ้ำใน console
       error.value = 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'
-      console.error(err)
     } finally {
       isLoading.value = false
     }

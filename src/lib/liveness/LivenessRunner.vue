@@ -87,7 +87,6 @@ function onMessage(event: MessageEvent) {
 
   if (data.type === 'result') {
     const status = readTransactionStatus(data.payload)
-    console.log('[liveness] transactionStatus =', status || '(อ่านไม่ออก)')
     if (status === 'completed') emit('passed', data.payload)
     else emit('failed', data.payload)
     return
@@ -100,8 +99,8 @@ function onMessage(event: MessageEvent) {
 
   if (data.type === 'closed') emit('closed')
   if (data.type === 'error') {
-    // เดิมแค่ console.error — ผู้ใช้เลยเจอจอดำที่ออกได้ทางปุ่ม "ยกเลิก" อย่างเดียว
-    console.error('[liveness] frame error:', data.message)
+    // ต้อง emit ออกไปเสมอ — หน้าแม่เป็นคนเด้ง modal ให้ผู้ใช้เลือกทางไป
+    // ถ้าเงียบไว้ ผู้ใช้จะค้างอยู่บนจอดำที่ออกได้ทางปุ่ม "ยกเลิก" อย่างเดียว
     emit('error', data.message ?? '', data.code)
   }
 }
