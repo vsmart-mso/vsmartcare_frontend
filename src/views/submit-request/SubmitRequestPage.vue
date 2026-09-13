@@ -88,6 +88,15 @@ const livenessSkipped = ref(false)
 const livenessSkipRef = ref('')
 // เปิดระบบยืนยันตัวตนไม่ได้ — ต้องให้ผู้ใช้เลือกทางไป ไม่ปล่อยให้ติดลูป
 const livenessUnavailable = ref(false)
+/**
+ * รอบก่อนเปิดระบบไม่ได้ และผู้ใช้ยังไม่ได้กด "ลองใหม่อีกครั้ง"
+ *
+ * ค้างไว้เพื่อให้กด "ถัดไป" ซ้ำแล้วเด้ง modal เดิมกลับมาเลย **โดยไม่เปิด session ใหม่**
+ * ไม่งั้นการวนลูป (requirement 2026-09: ปิด modal ได้แต่ gate ไม่เปิด) จะสร้างแถว
+ * INIT_ERROR ใหม่ใน liveness_attempts ทุกครั้งที่กด — ของจริงเคยได้ 30 แถว
+ * การเปิด session จริงเกิดเฉพาะตอนกด "ลองใหม่อีกครั้ง" ใน modal ซึ่งเป็น retry ที่ตั้งใจ
+ */
+const livenessInitFailed = ref(false)
 const livenessNotice  = ref('')
 /** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ" */
 const livenessGateCleared = computed(() => livenessPassed.value || livenessSkipped.value)
@@ -267,7 +276,8 @@ function handleNavigateTo(step: number) {
  *
  * ⚠️ "ลองใหม่อีกครั้ง" **รีเซ็ตโควตา** เลข 5 จึงเป็นแค่การพักเตือน ไม่ใช่เพดานจริง
  * ผู้ใช้วนได้ไม่จำกัดครั้งละ 5 รอบ (ตัดสินร่วมกับทีมแล้ว)
- * แต่ละรอบยังเปิด session ใหม่ตามปกติ นับสถิติได้ครบเหมือนเดิม
+ * แต่ละรอบยังเปิด session ใหม่ตามปกติ — backend เก็บถาวรเฉพาะแถวที่ถูกใช้ยื่นคำร้อง
+ * (เปิดรอบใหม่/ยื่นคำร้องจะกวาดแถวกำพร้ารอบก่อนของคนเดิมทิ้ง)
  *
  * ทุกครั้งที่เริ่มสแกนต้องเปิด session ใหม่เสมอ ห้ามใช้ reference_id เดิมซ้ำ
  * ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวใน DB แล้วตามเรื่องกับ AINU ไม่ได้
@@ -276,6 +286,14 @@ async function startLiveness() {
   if (stepLoading.value || livenessOpening.value) return
   if (!stepReady.value) {
     stepRef.value?.touchAll?.()
+    return
+  }
+
+  // รอบก่อนเปิดระบบไม่ได้ — เด้ง modal เดิมกลับมาเลย ไม่เปิด session ใหม่
+  // (ไม่งั้นทุกการกด "ถัดไป" ในลูปจะได้แถว INIT_ERROR ใหม่ใน DB)
+  // จะเปิด session ใหม่จริงต่อเมื่อผู้ใช้กด "ลองใหม่อีกครั้ง" ใน modal
+  if (livenessInitFailed.value) {
+    livenessUnavailable.value = true
     return
   }
 
@@ -363,6 +381,7 @@ function onLivenessFailed(result: unknown) {
   // ถ้าไม่แยก ผู้ใช้จะติดลูป: กดถัดไป → จอวาบ → กลับหน้าเดิม → กดใหม่ ไม่มีทางออก
   // และได้แถวใหม่ใน DB ทุกครั้งที่กด (ของจริงเคยได้ 30 แถว INIT_ERROR)
   if (isLivenessUnavailable(failure)) {
+    livenessInitFailed.value = true
     livenessUnavailable.value = true
     return
   }
@@ -410,12 +429,25 @@ function onLivenessClosed() {
 // และสาเหตุที่ต้องใช้จริงคือ `code` ซึ่งลง DB เป็น skip_reason
 function onLivenessError(_message: string, code?: LivenessFrameSkipCode) {
   settleWithSkip(code ?? livenessProviderCode.value ?? 'SDK_LOAD_ERROR')
+  livenessInitFailed.value = true
   livenessUnavailable.value = true
+}
+
+/**
+ * ปิด modal เฉย ๆ — ไม่เปิด gate ไม่เปิด session ใหม่ ปุ่มล่างยังเป็น "ถัดไป"
+ * กดถัดไปอีกครั้งจะพังซ้ำแล้ว modal เด้งกลับมา (requirement 2026-09: ยอมให้วนลูปไปก่อน)
+ * แถวของรอบที่พังถูก finalize ไปแล้ว การปิดตรงนี้ไม่แตะ DB
+ */
+function closeLivenessUnavailable() {
+  livenessUnavailable.value = false
 }
 
 /** "ลองใหม่อีกครั้ง" — เปิด session ใหม่ ไม่ reload หน้า (ไฟล์แนบที่อัปโหลดไว้จะหาย) */
 function retryLivenessAfterFailure() {
   livenessUnavailable.value = false
+  // ปลดล็อกให้ startLiveness เปิด session ใหม่ได้ — นี่คือ retry ที่ผู้ใช้ตั้งใจ
+  // ถ้าพังอีก onLivenessError จะตั้งกลับให้เอง
+  livenessInitFailed.value = false
   void startLiveness()
 }
 
@@ -992,12 +1024,13 @@ async function handleSubmit() {
       @closed="onLivenessClosed"
     />
 
-    <!-- เปิดระบบยืนยันตัวตนไม่ได้ — ต้องเลือกทางใดทางหนึ่ง ไม่มีปุ่มปิด
-         ไม่งั้นกลับไปติดลูปเดิมที่ปุ่มล่างยังเป็น "ถัดไป" -->
+    <!-- เปิดระบบยืนยันตัวตนไม่ได้ — ปิด modal ได้ แต่ gate ไม่เปิด ปุ่มล่างยังเป็น "ถัดไป"
+         กดถัดไปแล้วจะเจอ modal นี้ซ้ำ (requirement 2026-09: ยอมให้วนลูปไปก่อน) -->
     <LivenessUnavailableModal
       :open="livenessUnavailable"
       @retry="retryLivenessAfterFailure"
       @skip="skipLivenessAfterFailure"
+      @close="closeLivenessUnavailable"
     />
 
   </div>
