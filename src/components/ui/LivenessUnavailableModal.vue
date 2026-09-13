@@ -23,6 +23,8 @@ const emit = defineEmits<{
   retry: []
   /** ยอมข้ามด่านนี้แล้วไปยื่นคำร้องต่อ */
   skip: []
+  /** ปิด modal เฉย ๆ — gate ไม่เปิด ปุ่มล่างยังเป็น "ถัดไป" (requirement 2026-09: ยอมให้วนลูป) */
+  close: []
 }>()
 
 const isScrollLocked = useScrollLock(document.body)
@@ -46,14 +48,25 @@ watch(
         aria-modal="true"
         aria-labelledby="liveness-unavailable-heading"
         aria-describedby="liveness-unavailable-body"
+        @click.self="emit('close')"
       >
-        <!-- ไม่มีปุ่มปิด และคลิกพื้นหลังไม่ปิด — ต้องเลือกทางใดทางหนึ่งเสมอ
-             ไม่งั้นจะกลับไปติดลูปเดิมที่ปุ่มล่างยังเป็น "ถัดไป" -->
+        <!-- ปิดได้ทั้งกากบาทและคลิกพื้นหลัง — ปิดแล้วปุ่มล่างยังเป็น "ถัดไป"
+             ผู้ใช้กดถัดไปจะเจอ modal นี้ซ้ำ (requirement ใหม่: ยอมให้วนลูปไปก่อน) -->
         <div
           class="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-blue-900/25 ring-1 ring-blue-100"
           @click.stop
         >
-          <div class="shrink-0 bg-gradient-to-b from-[#1A56DB] to-[#1648C4] px-4 py-5 text-center sm:px-6">
+          <div class="relative shrink-0 bg-gradient-to-b from-[#1A56DB] to-[#1648C4] px-4 py-5 text-center sm:px-6">
+            <button
+              type="button"
+              class="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+              aria-label="ปิดหน้าต่างนี้"
+              @click="emit('close')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="h-5 w-5">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
             <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-white/15 ring-4 ring-white/20 sm:h-16 sm:w-16">
               <!-- สามเหลี่ยมเตือนสีเหลือง — ตัดกับหัวสีน้ำเงินและสื่อว่า "ต้องอ่านก่อนไปต่อ" -->
               <svg class="h-7 w-7 text-yellow-400 sm:h-8 sm:w-8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -73,7 +86,6 @@ watch(
             <p class="text-body leading-relaxed text-slate-700">
               ระบบไม่สามารถเชื่อมต่อเพื่อยืนยันตัวตนได้ในขณะนี้
               ข้อมูลที่ท่านกรอกไว้จะยังคงอยู่ ท่านสามารถลองเชื่อมต่อใหม่อีกครั้ง
-              หรือยื่นคำร้องต่อโดยยังไม่ยืนยันตัวตนได้
             </p>
 
             <div class="mt-6 flex flex-col gap-2.5">
@@ -84,13 +96,13 @@ watch(
               >
                 ลองใหม่อีกครั้ง
               </button>
-              <button
+              <!-- <button
                 type="button"
                 class="min-h-[44px] w-full rounded-xl border-2 border-[#1A56DB] bg-white px-4 py-3.5 text-body font-semibold text-[#1A56DB] transition-all hover:bg-blue-50 active:scale-[0.98]"
                 @click="emit('skip')"
               >
                 ยื่นคำร้องโดยไม่ยืนยันตัวตน
-              </button>
+              </button> -->
             </div>
           </div>
         </div>
