@@ -23,6 +23,7 @@ import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 import { useEligibilityStore } from '@/stores/eligibility'
 import { linkOcrResult } from '@/api/ocr'
+import { isAinuLivenessEnabled } from '@/config/env'
 
 const router = useRouter()
 const route  = useRoute()
@@ -89,8 +90,11 @@ const livenessSkipRef = ref('')
 // เปิดระบบยืนยันตัวตนไม่ได้ — ต้องให้ผู้ใช้เลือกทางไป ไม่ปล่อยให้ติดลูป
 const livenessUnavailable = ref(false)
 const livenessNotice  = ref('')
-/** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ" */
-const livenessGateCleared = computed(() => livenessPassed.value || livenessSkipped.value)
+/** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ"
+ *  ถ้า VITE_ENABLE_AINU_LIVENESS ปิด (default) ถือว่าเคลียร์ทันที ไม่เปิด iframe */
+const livenessGateCleared = computed(
+  () => !isAinuLivenessEnabled() || livenessPassed.value || livenessSkipped.value,
+)
 // กำลังเปิด session อยู่ — กันกดปุ่ม "ถัดไป" ซ้ำระหว่างรอ /session ตอบ
 const livenessOpening = ref(false)
 // config จาก POST /v1/liveness/session — backend เป็นคนจ่าย ไม่ได้อยู่ใน .env แล้ว
@@ -273,6 +277,7 @@ function handleNavigateTo(step: number) {
  * ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวใน DB แล้วตามเรื่องกับ AINU ไม่ได้
  */
 async function startLiveness() {
+  if (!isAinuLivenessEnabled()) return
   if (stepLoading.value || livenessOpening.value) return
   if (!stepReady.value) {
     stepRef.value?.touchAll?.()
