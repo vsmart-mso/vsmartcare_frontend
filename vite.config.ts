@@ -27,6 +27,53 @@ function parsePreviewHost(value: string | undefined): boolean | string {
   return value
 }
 
+/** SPA security headers — ใกล้เคียง nginx ใน BETA_DEPLOYMENT.md (prod parity สำหรับ local)
+ * SAMEORIGIN / frame-ancestors 'self' — กันเว็บอื่นฝังเรา แต่แอปฝัง frame.html (liveness) ได้
+ * DENY / 'none' จะทำให้ iframe liveness ว่าง */
+const spaCacheHeaders = {
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'X-XSS-Protection': '1; mode=block',
+} as const
+
+/** แหล่งภายนอกที่ SPA ใช้จริง: แผนที่ GPS + AINU liveness (host prod เปลี่ยนแล้วต้องเพิ่ม) */
+const spaCspImgSrc =
+  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://server.arcgisonline.com"
+const spaCspConnectExtra =
+  'https://uat.ainu.tech https://uat.nonprod-api.ainu.tech https://nominatim.openstreetmap.org'
+const spaCspFrameSrc = "frame-src 'self' https://uat.ainu.tech"
+
+/** Dev: HMR + eval ของ Vite และค่าเริ่มต้น VITE_API_URL ที่ชี้ localhost:8000 */
+const spaDevContentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  spaCspImgSrc,
+  "font-src 'self' data:",
+  `connect-src 'self' ws: wss: http://localhost:8000 http://127.0.0.1:8000 ${spaCspConnectExtra}`,
+  spaCspFrameSrc,
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
+/** preview ไม่มี proxy — อนุญาต BFF บน localhost ถ้า build ยังชี้พอร์ต 8000 */
+const spaPreviewContentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  spaCspImgSrc,
+  "font-src 'self' data:",
+  `connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 ${spaCspConnectExtra}`,
+  spaCspFrameSrc,
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, rootDir, '')
   const previewAllowedHosts = (env.VITE_PREVIEW_ALLOWED_HOSTS ?? '')
@@ -79,12 +126,20 @@ export default defineConfig(({ command, mode }) => {
             watch: {
               usePolling: true,
               interval: 300
-            }
+            },
+            headers: {
+              ...spaCacheHeaders,
+              'Content-Security-Policy': spaDevContentSecurityPolicy,
+            },
           }
         : undefined,
     preview: {
       host: parsePreviewHost(env.VITE_PREVIEW_HOST),
-      ...(previewAllowedHosts.length > 0 ? { allowedHosts: previewAllowedHosts } : {})
+      ...(previewAllowedHosts.length > 0 ? { allowedHosts: previewAllowedHosts } : {}),
+      headers: {
+        ...spaCacheHeaders,
+        'Content-Security-Policy': spaPreviewContentSecurityPolicy,
+      },
     }
   }
 })
