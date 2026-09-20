@@ -18,3 +18,8 @@ export function isLoginBetaNoticeEnabled(): boolean {
 export function isThaIDDevMockEnabled(): boolean {
   return parseEnvBoolean(import.meta.env.VITE_ENABLE_THAID_DEV_MOCK, false)
 }
+
+/** เปิดด่านสแกนใบหน้า AINU ก่อนส่งคำร้อง — default ปิดไว้ */
+export function isAinuLivenessEnabled(): boolean {
+  return parseEnvBoolean(import.meta.env.VITE_ENABLE_AINU_LIVENESS, false)
+}

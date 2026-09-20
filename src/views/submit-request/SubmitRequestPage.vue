@@ -6,6 +6,16 @@ import Step2Economics   from './steps/Step2Economics.vue'
 import Step3Problem     from './steps/Step3Problem.vue'
 import Step4Documents   from './steps/Step4Documents.vue'
 import Step5Confirmation from './steps/Step5Confirmation.vue'
+import { LivenessRunner, describeLivenessFailure, isLivenessUnavailable } from '@/lib/liveness'
+import LivenessUnavailableModal from '@/components/ui/LivenessUnavailableModal.vue'
+import type { LivenessFrameConfig, LivenessFrameSkipCode } from '@/lib/liveness'
+import {
+  openLivenessSession,
+  reportLivenessResult,
+  reportLivenessSkip,
+  reportLivenessTransaction,
+  type LivenessSkipReason,
+} from '@/api/liveness'
 import { useApplicationStore, ATTACHMENT_TYPE_MAP } from '@/stores/application'
 import type { Step1Data, Step2Data, Step3Data } from '@/stores/application'
 import { useAuthStore } from '@/stores/auth'
@@ -13,6 +23,7 @@ import type { ThaiDUser } from '@/types/auth'
 import { welfareApi } from '@/api/welfare'
 import { useEligibilityStore } from '@/stores/eligibility'
 import { linkOcrResult } from '@/api/ocr'
+import { isAinuLivenessEnabled } from '@/config/env'
 
 const router = useRouter()
 const route  = useRoute()
@@ -58,6 +69,65 @@ const isSubmitting = ref(false)
 const submitError  = ref('')
 // จังหวัดถูกปิดระหว่างกรอกฟอร์ม (TASK-v-care-12062026-01) → แสดง overlay แล้วเตะออก
 const provinceBlocked = ref(false)
+
+// ── Liveness (AINU eKYC) ────────────────────────────────────────────────────
+// ด่านยืนยันว่าเป็นมนุษย์ คั่นระหว่าง Step5 กับการกดส่งคำขอจริง
+// ทำเป็น overlay ในหน้านี้ ไม่ router.push ออกไป — ข้อมูล 5 step ยังอยู่ในหน่วยความจำ
+// ไม่ต้องพึ่งการกู้ draft จาก sessionStorage ซึ่งเป็นจุดพังเพิ่มโดยไม่จำเป็น
+const livenessOpen   = ref(false)
+// อยู่ในหน่วยความจำอย่างเดียว — refresh แล้วต้องทำใหม่ (ยอมรับได้สำหรับรอบนี้)
+const livenessPassed = ref(false)
+/**
+ * ใช้ระบบยืนยันตัวตนไม่ได้ → ปล่อยให้ยื่นคำร้องต่อ
+ *
+ * รอบนี้ยังไม่ gate ตามสเปก — ถ้าไม่มีสถานะนี้ dev ที่ยังไม่ได้ตั้ง AINU credential
+ * (`/session` ตอบ 503) จะยื่นคำร้องไม่ได้เลย
+ */
+const livenessSkipped = ref(false)
+// reference_id ของแถว skipped ที่ **backend บันทึกให้เอง** ตอนตอบ 503 (NOT_CONFIGURED)
+// แยกจาก livenessRef ที่เป็นของรอบสแกนจริง เพื่อไม่ให้เผลอแนบแถวที่สแกนไม่ผ่าน
+const livenessSkipRef = ref('')
+// เปิดระบบยืนยันตัวตนไม่ได้ — ต้องให้ผู้ใช้เลือกทางไป ไม่ปล่อยให้ติดลูป
+const livenessUnavailable = ref(false)
+const livenessNotice  = ref('')
+/** ผ่านด่านแล้ว หรือข้ามด่านไปแล้ว — เงื่อนไขเดียวที่ปลดปุ่ม "ยืนยันและส่งคำขอ"
+ *  ถ้า VITE_ENABLE_AINU_LIVENESS ปิด (default) ถือว่าเคลียร์ทันที ไม่เปิด iframe */
+const livenessGateCleared = computed(
+  () => !isAinuLivenessEnabled() || livenessPassed.value || livenessSkipped.value,
+)
+// กำลังเปิด session อยู่ — กันกดปุ่ม "ถัดไป" ซ้ำระหว่างรอ /session ตอบ
+const livenessOpening = ref(false)
+// config จาก POST /v1/liveness/session — backend เป็นคนจ่าย ไม่ได้อยู่ใน .env แล้ว
+const livenessConfig = ref<LivenessFrameConfig | null>(null)
+// จาก onReady — ค่าที่ AINU ใช้ค้นเคสฝั่งเขาเวลาแจ้งปัญหา มาก่อนผลลัพธ์เสมอ
+const livenessTxnId  = ref('')
+// reference_id จาก backend — ผูก transaction ฝั่ง AINU กับเคสฝั่งเรา
+// ถือไว้ที่นี่เพราะเฟรมถูก unmount ทุกครั้งที่ปิด แล้วส่งไปกับ POST /v1/cases ตอนท้าย
+const livenessRef    = ref('')
+/**
+ * รหัสที่เฟรมดักได้ว่าฝั่ง AINU ตอบผิดปกติ (PROVIDER_UNAVAILABLE / AUTH_ERROR)
+ * ตอนดักได้ flow ยังไม่จบ — SDK ค้างอยู่แล้วผู้ใช้ต้องกดยกเลิกเอง
+ * จำไว้เพื่อใช้แทน USER_SKIPPED ตอนที่ flow จบจริง จะได้รู้สาเหตุที่แท้จริง
+ */
+const livenessProviderCode = ref<LivenessFrameSkipCode | null>(null)
+/**
+ * แถวนี้จบไปแล้ว (ส่ง /result หรือ /skip ไปแล้ว) — กันยิงซ้ำ
+ * backend ตอบ 409 ให้อยู่แล้วและ API layer กลืนให้ แต่กันตั้งแต่ตรงนี้ประหยัดกว่า
+ */
+const livenessSettled = ref(false)
+
+/**
+ * โควตา "รอบนอก" — จำนวนครั้งที่ผู้ใช้เริ่มสแกนใหม่ได้ (= จำนวน session ที่เปิด)
+ *
+ * ⚠️ คนละตัวกับโควตา retry **ภายใน** ของ AINU (จอ "Try again" ของเขา)
+ * ของ AINU มี 3 โควตาแยกกัน มาจาก config ฝั่งเซิร์ฟเวอร์เขา เปลี่ยนได้โดยไม่บอก
+ * (เคยเป็น 1 แล้วเป็น 5) — **ห้าม hardcode ค่านั้น** ถ้าอยากโชว์ต้องอ่านจาก
+ * `summary.configuration` ในผลลัพธ์ ส่วนเลขข้างล่างนี้เป็นของเราเอง คุมเองได้
+ */
+const LIVENESS_MAX_ATTEMPTS = 5
+const livenessAttempts = ref(0)
+/** ใช้โควตาครบรอบแล้ว — ปุ่มเปลี่ยนเป็น "ลองใหม่อีกครั้ง" ซึ่งรีเซ็ตโควตาให้ */
+const livenessExhausted = computed(() => livenessAttempts.value >= LIVENESS_MAX_ATTEMPTS)
 
 // stepLoading = step ปัจจุบันกำลังโหลดข้อมูลจาก API หรือไม่
 // ระหว่าง true: step จะโชว์ skeleton และปุ่ม "ถัดไป/ยืนยัน/ย้อนกลับ" จะถูกปิด
@@ -189,6 +259,189 @@ function handleNext() {
 function handleNavigateTo(step: number) {
   currentStep.value = step
   stepReady.value = true // step ก่อนหน้าผ่านมาแล้ว ถือว่า valid
+}
+
+// ── Liveness ────────────────────────────────────────────────────────────────
+/**
+ * ปุ่มท้าย Step 5 — "ถัดไป" หรือ "ลองใหม่อีกครั้ง" ก็มาที่นี่
+ *
+ * เข้าเฟรมตรง ๆ ไม่มีกล่องคั่นของเรา — ข้อความก่อนสแกนกับปุ่ม "เริ่มสแกนใบหน้า"
+ * อยู่บนจอเริ่มต้นในเฟรม (`frame.html` › `#liveness-prompt`) ซึ่งขึ้นระหว่างที่
+ * SDK กำลังโหลดอยู่แล้ว ผู้ใช้จึงได้อ่านในเวลาที่ยังไงก็ต้องรอ
+ *
+ * ⚠️ "ลองใหม่อีกครั้ง" **รีเซ็ตโควตา** เลข 5 จึงเป็นแค่การพักเตือน ไม่ใช่เพดานจริง
+ * ผู้ใช้วนได้ไม่จำกัดครั้งละ 5 รอบ (ตัดสินร่วมกับทีมแล้ว)
+ * แต่ละรอบยังเปิด session ใหม่ตามปกติ นับสถิติได้ครบเหมือนเดิม
+ *
+ * ทุกครั้งที่เริ่มสแกนต้องเปิด session ใหม่เสมอ ห้ามใช้ reference_id เดิมซ้ำ
+ * ไม่งั้นการสแกนหลายครั้งจะยุบเป็นแถวเดียวใน DB แล้วตามเรื่องกับ AINU ไม่ได้
+ */
+async function startLiveness() {
+  if (!isAinuLivenessEnabled()) return
+  if (stepLoading.value || livenessOpening.value) return
+  if (!stepReady.value) {
+    stepRef.value?.touchAll?.()
+    return
+  }
+
+  if (livenessExhausted.value) livenessAttempts.value = 0
+  submitError.value = ''
+  livenessNotice.value = ''
+
+  livenessOpening.value = true
+  const result = await openLivenessSession()
+  livenessOpening.value = false
+
+  // เปิด session ไม่ได้ (ส่วนใหญ่คือ 503 บน dev ที่ยังไม่มี AINU credential)
+  // ยิง /skip ที่นี่ไม่ได้ — session เปิดไม่สำเร็จจึงไม่มีแถวให้อัปเดต
+  // แต่ถ้าเป็น 503 liveness_not_configured backend บันทึกแถว NOT_CONFIGURED ให้แล้ว
+  // และส่ง reference_id กลับมา เก็บไว้แนบตอนยื่นคำร้องเพื่อไม่ให้กลายเป็น NO_ATTEMPT
+  if (!result.ok) {
+    livenessSkipped.value = true
+    livenessSkipRef.value = result.referenceId ?? ''
+    // ล้าง ref ของรอบก่อนทิ้ง — ถ้ารอบก่อนสแกนไม่ผ่านแล้วรอบนี้ /session ล่ม
+    // ค่าเดิมจะค้างอยู่ แล้วไปถูกแนบกับคำร้องทั้งที่เป็นแถวที่ไม่ผ่าน
+    livenessRef.value = ''
+    livenessConfig.value = null
+    livenessNotice.value =
+      'ขณะนี้ระบบยืนยันตัวตนด้วยใบหน้าใช้งานไม่ได้ ระบบจึงข้ามขั้นตอนนี้ให้ '
+      + 'คุณส่งคำขอต่อได้ตามปกติ'
+    return
+  }
+
+  const session = result.session
+  // เปิด session รอบใหม่ได้แล้ว — ล้างร่องรอยของรอบที่ backend เคยตั้งค่าไม่ครบทิ้ง
+  livenessSkipRef.value = ''
+
+  // นับเฉพาะรอบที่เปิด session ได้จริง — /session ล่มไม่ควรกินโควตาของผู้ใช้
+  livenessAttempts.value++
+
+  // ล้างผลรอบก่อน ไม่งั้นจะสับสนว่ารายงานเป็นของรอบไหน
+  livenessTxnId.value = ''
+  livenessProviderCode.value = null
+  livenessSettled.value = false
+
+  livenessRef.value = session.reference_id
+  // ยึด reference_id ตัวนอกเป็นหลัก — เป็นค่าเดียวกับที่ backend สร้างแถวไว้
+  // และเป็นค่าที่เราจะส่งกลับไปตอนยื่นคำร้อง จะให้ SDK ใช้คนละตัวไม่ได้
+  livenessConfig.value = { ...session.config, referenceId: session.reference_id }
+  livenessOpen.value = true
+}
+
+/** ปิด overlay แล้วปิดแถวฝั่ง backend ด้วยสาเหตุที่ระบุ */
+function settleWithSkip(reason: LivenessSkipReason) {
+  livenessOpen.value = false
+  if (livenessSettled.value) return
+  livenessSettled.value = true
+  // ไม่ await — การรายงานผลห้ามหน่วง UI และห้ามบล็อกการยื่นคำร้อง
+  void reportLivenessSkip(livenessRef.value, reason)
+}
+
+// ยิง /transaction ทันทีที่ได้ transactionId — ห้ามรอผลจบ
+// ผู้ใช้ที่เลิกกลางคันจะเหลือรหัสนี้ไว้เป็นทางเดียวที่ตามเรื่องกับ AINU ได้
+function onLivenessStarted(transactionId: string) {
+  livenessTxnId.value = transactionId
+  void reportLivenessTransaction(livenessRef.value, transactionId)
+}
+
+function onLivenessPassed(result: unknown) {
+  livenessOpen.value = false
+  livenessPassed.value = true
+  submitError.value = ''
+  livenessSettled.value = true
+  void reportLivenessResult(livenessRef.value, result)
+}
+
+// SDK นับ retry ให้เองภายใน transaction เดียว (จาก transaction จริง: failed/unavailable/
+// startAttempt limit อย่างละ 5) ครบแล้วถึงจะคืน failed กลับมา
+// กด "ถัดไป" ใหม่ = session ใหม่ = mount component ใหม่ = transaction ใหม่ = เริ่มนับใหม่
+function onLivenessFailed(result: unknown) {
+  livenessOpen.value = false
+  const failure = describeLivenessFailure(result)
+  // "ไม่ผ่าน" เป็นผลลัพธ์ปกติของ AINU ไม่ใช่การข้าม → ส่งเป็น /result ไม่ใช่ /skip
+  // เคสเปิดระบบไม่ได้ก็ส่งทางนี้เหมือนกัน เพื่อให้ payload ดิบถูกเก็บไว้ครบ
+  // แล้วปล่อยให้ backend แปลงเป็น skipped/PROVIDER_UNAVAILABLE เอง (INIT_FAILURE_REASONS)
+  livenessSettled.value = true
+  void reportLivenessResult(livenessRef.value, result)
+
+  // ⚠️ AINU ส่ง "เปิดระบบไม่ได้" มาทางเดียวกับ "สแกนไม่ผ่าน" (transactionStatus: failed)
+  // ถ้าไม่แยก ผู้ใช้จะติดลูป: กดถัดไป → จอวาบ → กลับหน้าเดิม → กดใหม่ ไม่มีทางออก
+  // และได้แถวใหม่ใน DB ทุกครั้งที่กด (ของจริงเคยได้ 30 แถว INIT_ERROR)
+  if (isLivenessUnavailable(failure)) {
+    livenessUnavailable.value = true
+    return
+  }
+
+  // ⚠️ ไม่ตั้ง submitError โดยตั้งใจ — ยังไม่ต้องแจ้งอะไรตอนสแกนไม่ผ่าน
+  //
+  // เดิมเคยขึ้นกล่องแดงบอกสาเหตุ + "(ลองได้อีก N ครั้ง)" แล้วเอาออก เพราะยังไม่ชัดว่า
+  // ควรพูดอะไรตอนไหน — จอ "เกินจำนวนครั้งที่กำหนดไว้" ของ AINU มาก่อนจอเราเสมอ
+  // และมีปุ่มลองใหม่ของเขาเองที่เรามองไม่เห็นและนับไม่ได้
+  // ต้องรู้ก่อนว่ากดปุ่มนั้นแล้วเกิดอะไร ค่อยตัดสินใจว่าฝั่งเราควรแจ้งอะไร
+}
+
+/**
+ * เฟรมดักได้ว่าฝั่ง AINU ตอบผิดปกติ — flow ยังไม่จบ SDK มักค้างอยู่
+ * แค่จำรหัสไว้ก่อน เดี๋ยวผู้ใช้กดยกเลิกแล้วค่อยใช้เป็นสาเหตุจริงแทน USER_SKIPPED
+ */
+function onLivenessProviderError(code: LivenessFrameSkipCode) {
+  livenessProviderCode.value = code
+}
+
+/**
+ * ผู้ใช้กดปิดเฟรมเอง
+ *
+ * นับเป็น USER_SKIPPED ตามที่ทีมตัดสิน — สถิติ "คนที่สแกนไม่ผ่านแล้วเลิกกลางคัน"
+ * คือเหตุผลหลักที่รอบนี้ต้องผูก session กับ persons_id ตั้งแต่ต้น
+ * ถ้าดักสาเหตุจริงจากฝั่ง AINU ไว้ได้ ใช้อันนั้นแทนเพราะบอกอะไรได้มากกว่า
+ *
+ * แถวนี้จะ finalize ทันที กดเริ่มใหม่ต้องเปิด session ใหม่ — startLiveness() ทำอยู่แล้ว
+ */
+function onLivenessClosed() {
+  settleWithSkip(livenessProviderCode.value ?? 'USER_SKIPPED')
+}
+
+/**
+ * SDK โหลดไม่ขึ้น / AINU ไม่ตอบ / config ไม่ครบ — คนละเรื่องกับผู้ใช้สแกนไม่ผ่าน
+ *
+ * ปิด overlay แล้วเด้ง modal ให้ผู้ใช้เลือกทางไป **ห้ามปล่อยให้กลับไปหน้าเดิมเฉย ๆ**
+ * เพราะปุ่มล่างยังเป็น "ถัดไป" (gate ยังไม่เปิด) กดแล้วก็พังซ้ำ วนไม่จบ
+ * และได้แถวใหม่ใน liveness_attempts ทุกครั้งที่กด
+ *
+ * แถวของรอบนี้ถูก finalize ไปแล้วด้วยสาเหตุจริงจาก settleWithSkip()
+ * ไม่ว่าผู้ใช้จะเลือกทางไหนต่อ สถิติก็บันทึกถูกแล้ว
+ */
+// `_message` ไม่ได้ใช้ — ข้อความ error ของ SDK อ่านไม่รู้เรื่องสำหรับผู้ใช้
+// และสาเหตุที่ต้องใช้จริงคือ `code` ซึ่งลง DB เป็น skip_reason
+function onLivenessError(_message: string, code?: LivenessFrameSkipCode) {
+  settleWithSkip(code ?? livenessProviderCode.value ?? 'SDK_LOAD_ERROR')
+  livenessUnavailable.value = true
+}
+
+/** "ลองใหม่อีกครั้ง" — เปิด session ใหม่ ไม่ reload หน้า (ไฟล์แนบที่อัปโหลดไว้จะหาย) */
+function retryLivenessAfterFailure() {
+  livenessUnavailable.value = false
+  void startLiveness()
+}
+
+/**
+ * "ยื่นคำร้องโดยไม่ยืนยันตัวตน" — เปิด gate ให้ปุ่มล่างกลายเป็น "ยืนยันและส่งคำขอ"
+ *
+ * ไม่ตั้ง skip_reason ใหม่ตรงนี้ — แถวถูกบันทึกด้วย **สาเหตุจริง** ไปแล้วตอน error
+ * (SDK_LOAD_ERROR / AUTH_ERROR / PROVIDER_UNAVAILABLE) ไม่ใช่ USER_SKIPPED
+ * เพราะผู้ใช้ไม่ได้เลือกจะข้าม — ระบบพังจนเขาไม่มีทางเลือก
+ * ถ้าบันทึกเป็น USER_SKIPPED สถิติจะโทษผู้ใช้ทั้งที่เป็นความผิดฝั่งระบบ
+ *
+ * แนบ reference ของรอบที่พังไปกับคำร้องด้วย เพื่อให้คำร้องผูกกับสาเหตุจริง
+ * ไม่ใช่ได้แถว NO_ATTEMPT ที่แปลว่า "ไม่มีการสแกน"
+ */
+function skipLivenessAfterFailure() {
+  livenessUnavailable.value = false
+  livenessSkipRef.value = livenessRef.value
+  livenessSkipped.value = true
+  livenessNotice.value =
+    'ระบบยืนยันตัวตนด้วยใบหน้าใช้งานไม่ได้ ระบบจึงข้ามขั้นตอนนี้ให้ '
+    + 'คุณส่งคำขอต่อได้ตามปกติ'
 }
 
 // Step 5: submit form — บันทึกคำร้อง แล้วอัปโหลดไฟล์ทีละไฟล์
@@ -325,6 +578,17 @@ async function handleSubmit() {
 
     // ── Create Mode (POST) ────────────────────────────────────────────────────
     // 1. บันทึกคำร้องและตารางย่อยทั้งหมดในครั้งเดียว
+    //
+    // แนบ reference_id ของรอบที่ผ่านจริงเท่านั้น — รอบที่ข้ามด่าน (503) ไม่มี ref
+    // ให้ส่งไปโดยไม่แนบ backend จะสร้างแถว NO_ATTEMPT ให้เอง
+    // (โหมดแก้ไขข้างบนไม่แนบ เพราะสเปกนิยามฟิลด์นี้ไว้กับ POST /v1/cases เท่านั้น)
+    if (livenessPassed.value && livenessRef.value) {
+      payload.liveness_reference_id = livenessRef.value
+    } else if (livenessSkipRef.value) {
+      // ระบบเราตั้ง AINU credential ไม่ครบ — ผูกกับแถว NOT_CONFIGURED ที่ backend
+      // บันทึกไว้แล้ว จะได้แยกออกจากคนที่ไม่ได้สแกนเลย (NO_ATTEMPT)
+      payload.liveness_reference_id = livenessSkipRef.value
+    }
     const result      = await welfareApi.createCase(payload)
     const applicantId = result.applicant.id as number
 
@@ -613,6 +877,18 @@ async function handleSubmit() {
           <p class="text-hint text-red-700 leading-snug">{{ submitError }}</p>
         </div>
 
+        <!-- ข้ามด่านยืนยันตัวตน — ไม่ใช่ error ของผู้ใช้ ยื่นคำร้องต่อได้ตามปกติ
+             จึงใช้โทนเตือน (amber) ไม่ใช่โทนแดงเหมือน submitError -->
+        <div
+          v-if="livenessNotice"
+          class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-2"
+        >
+          <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+          </svg>
+          <p class="text-hint text-amber-800 leading-snug">{{ livenessNotice }}</p>
+        </div>
+
         <div class="flex gap-3">
           <!-- ปุ่มย้อนกลับ (ซ่อนใน Step 1 ยกเว้นโหมดแก้ไข) -->
           <button
@@ -659,6 +935,31 @@ async function handleSubmit() {
             </svg>
           </button>
 
+          <!-- Step 5 ที่ยังไม่ผ่าน liveness → ปุ่มพาไปทำ liveness ก่อน ไม่ใช่ส่งคำขอ
+               ต้องมาก่อน handleSubmit เสมอ เพราะ handleSubmit ไม่ atomic
+               (createCase → createConsent → อัปโหลดไฟล์ทีละไฟล์) ถ้าแทรกกลางทางแล้วไม่ผ่าน
+               จะเหลือเคสค้างใน DB ที่ไม่มีใครยื่นจริง -->
+          <button
+            v-else-if="!livenessGateCleared"
+            @click="startLiveness"
+            :disabled="!stepReady || stepLoading || livenessOpening"
+            class="flex-1 flex items-center justify-center gap-2 rounded-2xl py-3.5 text-body font-semibold transition-all duration-150 active:scale-[0.98]"
+            :class="stepReady && !stepLoading && !livenessOpening
+              ? 'bg-[#1A56DB] text-white shadow-md shadow-blue-200 hover:bg-[#1648C4]'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
+          >
+            <!-- spinner ระหว่างรอ POST /v1/liveness/session ตอบ -->
+            <svg v-if="livenessOpening" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <!-- ครบโควตาแล้วปุ่มเปลี่ยนความหมาย: กดแล้วรีเซ็ตโควตาให้สแกนต่อได้อีกรอบ -->
+            {{ livenessOpening ? 'กำลังเตรียม...' : (livenessExhausted ? 'ลองใหม่อีกครั้ง' : 'ถัดไป') }}
+            <svg v-if="!livenessOpening && !livenessExhausted" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </button>
+
           <button
             v-else
             @click="handleSubmit"
@@ -681,6 +982,28 @@ async function handleSubmit() {
         </div>
       </div>
     </footer>
+
+    <!-- Liveness overlay — UI ข้างในเป็นของ AINU ทั้งหมด เราไม่แตะ
+         v-if ทำให้ unmount ทุกครั้งที่ปิด → รอบถัดไปได้ setup() ใหม่ = transaction ใหม่ -->
+    <LivenessRunner
+      v-if="livenessOpen && livenessConfig"
+      :config="livenessConfig"
+      :max-attempts="LIVENESS_MAX_ATTEMPTS"
+      @started="onLivenessStarted"
+      @passed="onLivenessPassed"
+      @failed="onLivenessFailed"
+      @provider-error="onLivenessProviderError"
+      @error="onLivenessError"
+      @closed="onLivenessClosed"
+    />
+
+    <!-- เปิดระบบยืนยันตัวตนไม่ได้ — ต้องเลือกทางใดทางหนึ่ง ไม่มีปุ่มปิด
+         ไม่งั้นกลับไปติดลูปเดิมที่ปุ่มล่างยังเป็น "ถัดไป" -->
+    <LivenessUnavailableModal
+      :open="livenessUnavailable"
+      @retry="retryLivenessAfterFailure"
+      @skip="skipLivenessAfterFailure"
+    />
 
   </div>
 </template>

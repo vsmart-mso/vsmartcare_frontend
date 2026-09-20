@@ -1,0 +1,205 @@
+/**
+ * CSS ของ frame.html เท่านั้น — ลอกจาก eKYC-SDK_sample-code/ekyc-sdk_sample-code.html ตรง ๆ
+ *
+ * ⚠️ โหลดด้วย <link> ใน frame.html — ห้าม import จาก frame.ts (จอรอจะกระพริบ)
+ * frame.html เป็น rollup entry คนละตัวกับแอปหลัก Tailwind จึงเข้าไม่ถึงเฟรม
+ * ซึ่งเป็นเงื่อนไขที่ทำให้ SDK ทำงานได้ ดู README.md
+ * ห้าม import ไฟล์นี้จากที่อื่น และห้าม import อย่างอื่นเข้ามาในนี้
+ */
+
+/* ความสูงที่กันไว้ให้ปุ่มยกเลิก — นิยามที่เดียว
+   #ekyc-container / #loading / #frame-error ต้องหักค่านี้ออกทั้งหมด
+   ต้องเป็นค่าตายตัวเพราะ UI ของ AINU อยู่ใน iframe คนละ origin
+   เราวัดความสูงเนื้อหาเขาไม่ได้ (เหตุผลเต็มใน frame.html) */
+:root {
+  --liveness-exit-h: 88px;
+}
+
+/* พื้นขาว ไม่ใช่ดำ — UI ของ AINU พื้นขาว ถ้าเฟรมเป็นดำจะเห็นแถบดำโผล่ใต้จอของเขา
+   ตอนที่ iframe ชั้นในยังสูงไม่เต็มจอ ทำให้ดูเหมือนหน้าพัง */
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+#ekyc-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* ⚠️ ถ้า UI ของ AINU เพี้ยนหลังแก้ตรงนี้ ให้สงสัยบรรทัดนี้ก่อน */
+  height: calc(100vh - var(--liveness-exit-h));
+  z-index: 10;
+}
+
+
+#ekyc-container iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+
+/* หน้าจอรอระหว่าง AINU handshake — บัง spinner "Verifying authentication" ของ AINU
+   ที่เป็นภาษาอังกฤษและไม่มีแบรนด์
+
+   พื้นขาวโดยตั้งใจ ไม่ใช่ดำ เพราะจอ Guidelines ของ AINU ที่ขึ้นถัดไปพื้นขาว
+   ถ้าใช้ดำจะกระพริบตัดกันตอนสลับ */
+#loading {
+  position: fixed;
+  /* เว้นที่ให้ปุ่มยกเลิกเหมือน #ekyc-container — ปุ่มต้องอยู่ตำแหน่งเดิม
+     ทั้งจอเริ่มของเราและจอของ AINU ผู้ใช้จะได้ไม่ต้องหาใหม่ */
+  inset: 0 0 var(--liveness-exit-h) 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+  background: #fff;
+  color: #334155;
+  font: 15px/1.5 system-ui, -apple-system, sans-serif;
+  text-align: center;
+}
+
+#loading[hidden] {
+  display: none;
+}
+
+#loading-logo {
+  width: 180px;
+  height: auto;
+}
+
+/* ข้อความบอกว่ากำลังจะทำอะไร — ไม่ใช่คำแนะนำวิธีสแกน (ดูคอมเมนต์ใน frame.html) */
+#liveness-prompt {
+  max-width: 340px;
+}
+
+#liveness-prompt h1 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+#liveness-prompt p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+#loading-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+#loading-status[hidden] {
+  display: none;
+}
+
+#loading-status p {
+  margin: 0;
+}
+
+/* ช่องทางออก — ตั้งใจโปร่งใส ไม่มี background และไม่มี border-top
+   ถ้าใส่สองอย่างนั้นจะกลายเป็น "แถบ" ซึ่งอ่านเป็น chrome แปลกปลอม
+   ทับอยู่บน UI ของ AINU (เคยทำแล้วถอยออก) */
+.exit-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  height: var(--liveness-exit-h);
+  display: grid;
+  place-items: center;
+}
+
+/* ทางออก ไม่ใช่ทางหลัก — ขอบจางพื้นโปร่ง ยังอ่านออกว่ากดได้
+   แต่เป็นรองปุ่มทึบของ AINU (และปุ่มเริ่มของเรา) ชัดเจน
+   ไม่ใช้ตัวหนังสือล้วน เพราะกลุ่มผู้ใช้เป็นผู้สูงอายุและผู้พิการ
+   ซึ่งพลาดปุ่มที่ไม่มีขอบบ่อยที่สุด */
+.secondary-cta {
+  padding: 9px 20px;
+  font: 600 15px/1.4 system-ui, -apple-system, sans-serif;
+  color: #64748b;
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.secondary-cta:active {
+  background: #f1f5f9;
+}
+
+/* ปุ่มเริ่ม — ตัวเรียก start() ตัวเดียวในระบบ ต้องเด่นและกดง่ายบนมือถือ
+   สีตรงกับปุ่มหลักของแอป (#1A56DB) */
+.primary-cta {
+  min-width: 220px;
+  padding: 13px 28px;
+  font: 600 16px/1.4 system-ui, -apple-system, sans-serif;
+  color: #fff;
+  background: #1A56DB;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.primary-cta[hidden] {
+  display: none;
+}
+
+.primary-cta:active {
+  transform: scale(.98);
+}
+
+/* #BE185D = theme-color ของแอป (index.html) */
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(190, 24, 93, .2);
+  border-top-color: #BE185D;
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}
+
+#frame-error {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* เหนือปุ่มยกเลิก — ปุ่มนั้นเป็นทางออกเดียวตอนเฟรมพัง ห้ามให้อะไรมาทับ */
+  bottom: calc(var(--liveness-exit-h) + 12px);
+  z-index: 20;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, .95);
+  color: #fff;
+  font: 13px/1.4 system-ui, sans-serif;
+}
