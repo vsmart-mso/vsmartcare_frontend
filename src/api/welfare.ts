@@ -208,6 +208,13 @@ export interface CasePayload {
   request_in_kind_text?: string | null
   welfare_history?: CaseWelfareHistoryPayload | null
   initial_current_status_id: number
+  /**
+   * reference_id จาก POST /v1/liveness/session ของรอบที่ผ่านการยืนยันตัวตน
+   *
+   * ไม่ส่งมาก็ยื่นคำร้องได้ตามปกติ — รอบนี้ยังไม่ gate (backend สร้างแถว NO_ATTEMPT ให้เอง)
+   * ⚠️ ใช้ซ้ำข้ามคำร้องไม่ได้ ใบที่สองจะได้แถว REPLAYED ที่ไม่นับเป็นการยืนยันตัวตน
+   */
+  liveness_reference_id?: string
 }
 
 export interface CaseCreateResponse {
